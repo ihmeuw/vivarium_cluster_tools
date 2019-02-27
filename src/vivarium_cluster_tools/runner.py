@@ -326,10 +326,11 @@ def process_job_results(job_arguments, queue, ctx):
     start_time = time()
     collected = set()
 
-    if ctx.existing_outputs is not None:
-        results = ctx.existing_outputs
-    else:
-        results = pd.DataFrame()
+    # if ctx.existing_outputs is not None:
+    #     results = ctx.existing_outputs
+    # else:
+    #     results = pd.DataFrame()
+    #
 
     finished_registry = FinishedJobRegistry(queue.name, connection=queue.connection, job_class=queue.job_class)
     wip_registry = StartedJobRegistry(queue.name, connection=queue.connection, job_class=queue.job_class)
@@ -342,7 +343,8 @@ def process_job_results(job_arguments, queue, ctx):
         chunk_size = 10
         for i, finished_jobs_chunk in enumerate(chunks(finished_jobs, chunk_size)):
             final_states = {}
-            dirty = False
+            chunk_results = []
+            # dirty = False
             for job_id in finished_jobs_chunk:
                 job = queue.fetch_job(job_id)
                 if ctx.with_state_table:
@@ -350,12 +352,13 @@ def process_job_results(job_arguments, queue, ctx):
                     final_states[job.id] = final_state
                 else:
                     result = pd.read_msgpack(job.result[0])
-                results = results.append(result)
-                dirty = True
+                chunk_results.append(result)
+                # dirty = True
                 finished_registry.remove(job)
 
-            if dirty:
-                ctx.results_writer.write_output(results, 'output.hdf')
+            if chunk_results:
+                result = pd.concat(chunk_results, axis=0)
+                ctx.results_writer.write_output(result, 'output.hdf', append=True)
                 for job_id, f in final_states.items():
                     run_config = job_arguments[job_id]
                     branch_number = ctx.keyspace.get_branch_number(run_config['branch_configuration'])
@@ -363,7 +366,8 @@ def process_job_results(job_arguments, queue, ctx):
                     random_seed = run_config['random_seed']
                     ctx.results_writer.write_output(
                         f, f"branch_{branch_number}_idraw_{input_draw}_seed_{random_seed}_.hdf",
-                        key='final_states'
+                        key='final_states',
+                        append=False
                     )
 
         fail_queue = get_failed_queue(queue.connection)
