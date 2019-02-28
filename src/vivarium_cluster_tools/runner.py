@@ -336,6 +336,7 @@ def process_job_results(job_arguments, queue, ctx):
     wip_registry = StartedJobRegistry(queue.name, connection=queue.connection, job_class=queue.job_class)
 
     heartbeat = 0
+    jobs_written = 0
     while (len(queue) + len(wip_registry)) > 0:
         sleep(5)
         finished_jobs = finished_registry.get_job_ids()
@@ -358,6 +359,7 @@ def process_job_results(job_arguments, queue, ctx):
 
             if chunk_results:
                 result = pd.concat(chunk_results, axis=0)
+                jobs_written += len(chunk_results)
                 ctx.results_writer.write_output(result, 'output.hdf', append=True)
                 for job_id, f in final_states.items():
                     run_config = job_arguments[job_id]
@@ -376,7 +378,7 @@ def process_job_results(job_arguments, queue, ctx):
         waiting_jobs = len(set(queue.job_ids))
         running_jobs = len(wip_registry)
         rjs = wip_registry.get_job_ids()
-        finished_jobs = len(finished_registry) + len(results) - ctx.number_already_completed
+        finished_jobs = len(finished_registry) + jobs_written - ctx.number_already_completed
         failed_jobs = len(fail_queue)
 
         percent_complete = 100 * finished_jobs / (waiting_jobs + running_jobs + finished_jobs + failed_jobs)
