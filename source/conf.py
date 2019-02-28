@@ -19,9 +19,9 @@
 
 # -- Project information -----------------------------------------------------
 
-project = 'vivarium_cluster_tools'
-copyright = '2019, vivarium_developers'
-author = 'vivarium_developers'
+project = 'Vivarium Cluster Tools'
+copyright = '2019, vivarium developers'
+author = 'vivarium developers'
 
 # The short X.Y version
 version = ''
@@ -39,7 +39,6 @@ release = ''
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
-    'sphinx.ext.autodoc',
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -59,12 +58,12 @@ master_doc = 'index'
 #
 # This is also used if you do content translation via gettext catalogs.
 # Usually you set "language" from the command line for these cases.
-language = None
+language = 'Python'
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path .
-exclude_patterns = []
+exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 
 # The name of the Pygments (syntax highlighting) style to use.
 pygments_style = 'sphinx'
@@ -102,7 +101,7 @@ html_static_path = ['_static']
 # -- Options for HTMLHelp output ---------------------------------------------
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = 'vivarium_cluster_toolsdoc'
+htmlhelp_basename = 'VivariumClusterToolsdoc'
 
 
 # -- Options for LaTeX output ------------------------------------------------
@@ -129,8 +128,8 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-    (master_doc, 'vivarium_cluster_tools.tex', 'vivarium\\_cluster\\_tools Documentation',
-     'vivarium\\_developers', 'manual'),
+    (master_doc, 'VivariumClusterTools.tex', 'Vivarium Cluster Tools Documentation',
+     'vivarium developers', 'manual'),
 ]
 
 
@@ -139,7 +138,7 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    (master_doc, 'vivarium_cluster_tools', 'vivarium_cluster_tools Documentation',
+    (master_doc, 'vivariumclustertools', 'Vivarium Cluster Tools Documentation',
      [author], 1)
 ]
 
@@ -150,10 +149,7 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-    (master_doc, 'vivarium_cluster_tools', 'vivarium_cluster_tools Documentation',
-     author, 'vivarium_cluster_tools', 'One line description of project.',
+    (master_doc, 'VivariumClusterTools', 'Vivarium Cluster Tools Documentation',
+     author, 'VivariumClusterTools', 'One line description of project.',
      'Miscellaneous'),
 ]
-
-
-# -- Extension configuration -------------------------------------------------
