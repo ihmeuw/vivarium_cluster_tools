@@ -15,6 +15,8 @@ As we include more tools for the vivarium users, the documentation will be updat
    :maxdepth: 2
 
    installation
+   config
+   branch
    distributed_runner
 
 

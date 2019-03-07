@@ -2,8 +2,17 @@
    :maxdepth: 2
    :caption: Contents:
 
-distributed_runner
+How to use distributed runner?
 ===============================
+
+Once you successfuly make your simulation configuration and branch file, now it is actual time to use the distributed runner.
+You may remember how we run a single simulation with the configuration file. It was,
+
+.. code-block::
+simulate run <path-to-your-configuration-file>
+
+
+
 
 The ``vivarium`` ecosystem uses YAML configuration files throughout, including ``vivarium-cluster-tools``.
 To run the multiple scenarios, you need to make a separate branch file (YAML) in addition to a usual
