@@ -1,9 +1,9 @@
 
-Write your first configuration.
+Write your first model specification.
 =======================================
 The ``vivarium`` ecosystem uses YAML configuration files throughout, including branch files that
 you will use with ``vivarium-cluster-tools``. Before start to write your first ``vivarium`` simulation
-configuration, it may be helpful to understand how YAML syntax works.
+specification, it may be helpful to understand how YAML syntax works.
 
 .. contents::
     :depth: 1
@@ -13,14 +13,14 @@ configuration, it may be helpful to understand how YAML syntax works.
 
 YAML Basics
 ************
-YAML is a simple human readable data serialization format and often used for configuration files. The extensions
+YAML is a simple human readable data serialization format and often used for specification files. The extensions
 of a file can be **.yaml** or **.yml**, both of which are accepted in ``vivarium``. These are some useful
-syntax that you may want to remember when you write your own simulation configuration file.
+syntax that you may want to remember when you write your own model specification file.
 
 1. Whitespace indentation is used to denote structure.
 
 For example, you want to use ``BasePopulation()``
-`component` in your simulation. To specify, you need to specify where it locates in your yaml configuration.
+`component` in your simulation. To specify, you need to specify where it locates in your model specification.
 Using whitespace indentation, you can show that ``BasePopulation()`` is in ``population`` module of
 ``vivarium_public_health`` library. However, you should **never use tab** to make your indentation.
 
@@ -34,7 +34,7 @@ Using whitespace indentation, you can show that ``BasePopulation()`` is in ``pop
 2.  ``:`` (colon) is used to store data as a map containing keys and values (just like a python ``dictionary``).
 
 There is no order among those key-value pairs and each pair will be formatted as **key: value**.
-For example, the following code block shows that you want to specify your initial population in configuration.
+For example, the following code block shows that you want to specify your initial population in specification.
 It tells us that you want to have initial population size of 1000 and age varies between 0 and 30.
 
 .. code-block:: yaml
@@ -46,9 +46,9 @@ It tells us that you want to have initial population size of 1000 and age varies
                     age_end: 30
 
 This will interpreted as below. In other words, whitespace indentation is interpreted as nested while  is used to map
-a key and avalue. Also, the inner most block (population_size, age_start, age_end) are unordered.
+a key and a value. Also, the inner most block (population_size, age_start, age_end) are unordered.
 
-.. code-block::
+.. code-block:: python
 
     {configuration: {
             population: {
@@ -76,7 +76,7 @@ spaces prefixing them. The difference is that all children (values) begin with a
 
 This will be interpreted as
 
-.. code-block::
+.. code-block:: python
 
     {components: {
             vivarium_public_health: {
@@ -86,13 +86,13 @@ This will be interpreted as
     }
 
 
-Your First Configuration
-*************************
+Your First Model Specification
+*******************************
 
-Now using the basic syntax, let's write a simple ``vivarium`` simulation configuration. As a top level, your
-configuration will need three keys, ``plugins``, ``components``, ``configuration``.
+Now using the basic syntax, let's write a simple ``vivarium`` model specification. As a top level, your
+model specification will need three keys, ``plugins``, ``components``, ``configuration``.
 
-1. ``plugins``: As a vivarium user who is using GBD data, you might have seen this on top of configuration files.
+1. ``plugins``: As a vivarium user who is using GBD data, you might have seen this on top of a model specification files.
 
 .. code-block:: yaml
 
@@ -103,7 +103,8 @@ configuration will need three keys, ``plugins``, ``components``, ``configuration
                             builder_interface: "vivarium_public_health.dataset_manager.ArtifactManagerInterface"
 
 This is required block if your simulation is using a data artifact and you do not need to change this. However,
-you can skip it if you only rely on completely data free component like `this example <https://github.com/ihmeuw/vivarium/blob/develop/src/vivarium/examples/disease_model/disease_model.yaml>`_.
+you can skip it if you only rely on completely data free component like
+`this example <https://github.com/ihmeuw/vivarium/blob/develop/src/vivarium/examples/disease_model/disease_model.yaml>`_.
 If you just want to load data from GBD not from a data artifact, then you can replace the above block with
 
 .. code-block:: yaml
@@ -117,7 +118,9 @@ If you just want to load data from GBD not from a data artifact, then you can re
 2. ``components``: This block specifies all the basic components that you want to have in a simulation. In general,
 it includes population, risk, disease, intervention and any metric.
 
-- ``population``: You want to have at least ``BasePopulation()`` in your simulation. Then, you can also bring mortality and/or making it as an open cohort by adding **one** of three available fertility components.
+- ``population``: You want to have at least ``BasePopulation()`` in your simulation.
+  Then, you can also bring mortality and/or making it as an open cohort by adding **one** of three available fertility
+  components.
 
 .. code-block:: yaml
 
@@ -131,7 +134,9 @@ it includes population, risk, disease, intervention and any metric.
                             - FertilityAgeSpecificRates()
 
 
-- ``risks``: By adding a risk component, you can have your simulants to be exposed to a certain risk. However, it does not necessarily mean that they will be affected by risk. To make that connection, you must explicitly state how a risk to affect a specified target.
+- ``risks``: By adding a risk component, you can have your simulants to be exposed to a certain risk.
+  However, it does not necessarily mean that they will be affected by risk. To make that connection, you must explicitly
+  state how a risk to affect a specified target.
 
 .. code-block:: yaml
 
@@ -143,7 +148,10 @@ it includes population, risk, disease, intervention and any metric.
                             - RiskEffect("risk_factor.child_stunting", "cause.diarrheal_diseases.incidence_rate")
                             - RiskEffect("coverage_gap.lack_of_vitamin_a_deficienty", "risk_factor.vitamin_a_deficiency.exposure_parameter")
 
-- ``diseases``: Disease component often refers a certain type of disease model that you want to include in your simulation. Currently we have the following SI, SIR, SIS, SIS_fixed_duration and neonetal model as well as RiskAttributableDisease(which is a disease defined by a type of risk where population attribuatble fraction of this disease and risk is 1.)
+- ``diseases``: Disease component often refers a certain type of disease model that you want to include in your
+  simulation. Currently we have the following SI, SIR, SIS, SIS_fixed_duration and neonetal model as well as
+  RiskAttributableDisease(which is a disease defined by a type of risk where population attribuatble fraction of this
+  disease and risk is 1.)
 
 .. code-block:: yaml
 
@@ -155,7 +163,9 @@ it includes population, risk, disease, intervention and any metric.
                     disease.special_disease:
                             - RiskAttributableDisease("cause.protein_energy_malnutrition", "risk_factor.child_wasting")
 
-- ``intervention``: By adding a treatment plan, you can modify a target measure by implementing your treatment. Even though many of intervention components are written in a way to be used for a specific occasion, there are still some generic components in ``vivarium_public_health``.
+- ``intervention``: By adding a treatment plan, you can modify a target measure by implementing your treatment.
+  Even though many of intervention components are written in a way to be used for a specific occasion,
+  there are still some generic components in ``vivarium_public_health``.
 
 .. code-block:: yaml
 
@@ -165,7 +175,25 @@ it includes population, risk, disease, intervention and any metric.
                             - HealthcareAccess()
                             - TherapeuticInertia()
 
-- ``metrics``: Most of time, your output will be the final status of your population at the end of the simulation. However, you may wonder what **actually** happened during your simulation and want to have a record of your interest as well. For example, you may be interested in the actual risk exposure of simulants at the mid point of each year, by sex and by age group.
+- ``metrics``: Most of time, your output will be the final status of your population at the end of the simulation.
+  However, you may wonder what **actually** happened during your simulation and want to have a record of your interest
+  as well. For example, you may be interested in the actual risk exposure of simulants at the mid point of each year,
+  by sex and by age group. Or, you may want to know the number of deaths by causes by each age group. What if you want
+  to know the number of vaccines given by age, year, sex. In all these cases, you can add some already written observers
+  in your model specification file.
+
+.. code-block:: yaml
+
+    components:
+            vivarium_public_health:
+                    metrics:
+                        - MortalityObserver()
+                        - TreatmentObserver('shigellosis_vaccine')
+                        - Disability()
+                        - DiseaseObserver('measles')
+                        - CategoricalRiskObserver('risk_factor.vitamin_a_deficiency')
+
+
 
 
 
