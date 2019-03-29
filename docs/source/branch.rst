@@ -1,9 +1,10 @@
 
-What is a branch file?
-======================
+The branches file
+=================
 
-When you run a simulation, you often have many different scenarios by varying a certain parameter of your configuration.
-Let's assume that you have such a such configuration block in your model specification file.
+When you design a model specification, you are often interested in simulating many different scenarios of the model that
+correspond to changes in the parameters you have defined. Let's assume that you have such a such configuration block in
+your model specification file
 
 .. code-block:: yaml
 
@@ -38,11 +39,11 @@ Let's assume that you have such a such configuration block in your model specifi
                                         end: 1440
 
 
-It specifies that you have 4 doses of ``shigellosis_vaccine`` as first, second, booster and cacthup. Also it is taking 14
-days to be effective and lasts 1080 days with decreasing protection by 0.013 percent per day. This vaccine has efficacy of
-mean 0.7 and standard error of 0.15. Each dose protection and each dose age range are also specified.
+It specifies that you have 4 doses of ``shigellosis_vaccine`` as first, second, booster and catchup. This vaccine takes
+14 days to be effective and lasts 1080 days with decreasing protection by 0.013 percent per day. This vaccine has a
+mean efficacy of 0.7 with a standard error of 0.15 Each dose protection and each dose age range are also specified.
 
-If we want to run multiple different scenarios based on this model specification, how should we write a branch file?
+If we want to run multiple different scenarios based on this model specification, how can we accomplish this?
 
 For example,
 
@@ -85,13 +86,12 @@ For example,
                                     catchup: 0.0
               population_size: 5000
 
-First of all, you can specify ``input_draw_count`` and ``random_seed_count`` on top of the file. If you want to vary
-any parameter inside of ``configuration`` block of your model specification, you need to make a ``branches`` block in
-your branch file like an example above. Since hyphen means a list in yaml structure, each scenario should be separated by ``-``.
-As you can see from the example, you need to include every information that you want to vary from the
-initial model specification per scenario in the same block start with a hyphen.
-
-Hyphen implies a list and a single list implies a scenario, then what happen if you include a list inside of your branches?
+We could specify ``input_draw_count`` and ``random_seed_count`` atop the file that specify the number of draws and
+random seeds to be run. However, if we want to vary any parameter inside of the ``configuration`` block of the model
+specification, we will need to make a branches file to specify the different parameters. Since a hyphen means a list
+in yaml syntax, each scenario should be separated by ``-``. As you can see from the example below, you need to include
+all information that you want to vary from the initial model specification per scenario in the same block start with a
+hyphen.
 
 .. code-block:: yaml
 
@@ -102,14 +102,14 @@ Hyphen implies a list and a single list implies a scenario, then what happen if 
 
 Here there is a list of [0, 0.4, 0.8, 1] inside of the `` egg_intervention`` block. This actually
 makes 4 different scenarios with different recruitment proportion of ``egg_intervention``. This is
-very convenient to make multiple scenarios with a different values.
+very convenient way to make multiple scenarios with different values.
 
 However, it is also important to remember that any configuration option that is natively specified
 as a list (e.g., ``shigellosis_vaccine.doses`` in the example configuration above) can **NOT** be
 used in the branch file.
 
-Since you now know how to write a branch file, let's see the following branch file and count how
-many number of simulations will be run.
+Since you now know how to write a branch file, let's examine the following branch file and count the number of
+simulations that will be run.
 
 .. code-block:: yaml
 
@@ -123,11 +123,9 @@ many number of simulations will be run.
                     recruitment:
                         age_start: [0, 0.5, 1, 1.5, 2]
 
-This will generate 10 * 5 * 4 (from recruitment proportion) * 5 (from recruitment age_start),
-meaning, 1000 simulations are generated.
+This will generate 10 * 5 * 4 (from recruitment proportion) * 5 (from recruitment age_start), meaning, 1000 simulations
+will be run.
 
 One thing that you should remember is, varying the time step, start or end time, or the population size
-will make profiling jobs very difficult and a chance of breaking our output writing tools. Keep in
-mind this when you write a branch file.
-
-
+will make profiling jobs very difficult and runs the risk of breaking our output writing tools. Keep this in
+mind when you write a branch file.

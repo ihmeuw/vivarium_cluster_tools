@@ -2,44 +2,45 @@
    :maxdepth: 2
    :caption: Contents:
 
-How to use distributed runner?
+Running simulations in parallel
 ===============================
 
-Once you successfuly make your simulation specification and branch file, now it is actual time to use the distributed runner.
-You may remember how we run a single simulation with the model specification file. It was,
+Once you successfully create a simulation specification and branch file it is time to use the distributed runner.
+Recall, we ran a single simulation with the model specification file in this way
 
 .. code-block:: console
 
     simulate run /path/to/your/model/specification
 
-Very similar to this, we have a command ``psimulate`` with meaning of simulate parallelly. You can run your distributted runner by
+Very similar to this, ``vivarium-cluster-tools`` includes a command for simulating in parallel that relies on the
+distributed runner
 
 .. code-block:: console
 
     psimulate run /path/to/your/model/specification  /path/to/your/branch
 
-By default, output will be saved in ``/share/scratch/users/{your_user_id}/vivarium_results``. If you want to save the results
-somewhere else, you can specify your output directory where the final result to be saved as an optional argument.
+By default, output will be saved in ``/share/scratch/users/{$USER}/vivarium_results``. If you want to save the
+results somewhere else you can specify your output directory as an optional argument
 
 .. code-block:: console
 
     psimulate run /path/to/your/model/specification /path/to/your/branch -o /path/to/output
 
-Another optional argument that you can choose is project. By default, it uses ``proj_cost_effect``. If you are working on the
-csu project, you may specify as
+Another optional argument is the cluster project under which to run the simulations. By default, the cluster project
+used is ``proj_cost_effect``. To use a different project, specify it with the ``-P`` flag
 
 .. code-block:: console
 
-    psimulate run /path/to/your/model/specification /path/to/your/branch -p proj_csu
+    psimulate run /path/to/your/model/specification /path/to/your/branch -P proj_csu
 
-Currently, ``proj_cost_effect`` and ``proj_csu`` are the only options that you can select.
+Currently, the projects that simulation science has access to are ``proj_cost_effect``, ``proj_cost_effect_diarrhea``,
+``proj_cost_effect_dcpn``, ``proj_cost_effect_conic``, and ``proj_csu``. Only these projects may be used.
 
-
-If your ``psimulate run`` has any failed jobs from the previous runs, you can restart failed jobs by specifying
-which output directory includes the partially completed jobs by,
+If your ``psimulate run`` has failed to complete you can restart the failed jobs by specifying which output directory
+includes the partially completed jobs using ``restart``
 
 .. code-block:: console
 
     psimulate restart /path/to/the/previous/results/
 
-For the ``psimulate restart``, you can also choose a project with optional flag `-p` as same as ``psimulate run``.
+For ``psimulate restart`` you can also choose a project with optional flag ``-P``.
