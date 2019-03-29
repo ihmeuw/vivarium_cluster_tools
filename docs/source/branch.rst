@@ -34,7 +34,7 @@ the total number of draws GBD produces, 1000. ``random_seed_count`` specifies th
 run simulations with. Each of these is considered in the cartesian product of simulations as well.
 
 To make this concrete, let's explicitly calculate how many simulations the above branches file will result in. This is
-given by input_draw_count * random_seed_count * proporions * age_starts: 10 * 5 * 4 * 5 = 1000 simulations.
+given by input_draw_count * random_seed_count * proportions * age_starts: 10 * 5 * 4 * 5 = 1000 simulations.
 
 It is important to note that any configuration option that is natively specified as a list can **NOT**
 be used in the branch file.  In other words, you cannot specify a list of lists. Also, you should remember that varying
