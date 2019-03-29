@@ -28,7 +28,7 @@ used to define simulations, so this will result in 16 separate simulations of th
 different combination of recruitment proportion and recruitment age start. This is a very convenient way to simulate
 multiple scenarios with different values.
 
-Additionally, there are two other useful top-level blocks, the ``input_draw_count``  and ``random_seed_count`` blocks.
+Additionally, there are two other useful top-level blocks: ``input_draw_count`` and ``random_seed_count``.
 ``input_draw_count`` specifies the number of input draws from the GBD to run the simulation on, drawn uniformly from
 the total number of draws GBD produces, 1000. ``random_seed_count`` specifies the number of different random seeds to
 run simulations with. Each of these is considered in the cartesian product of simulations as well.
