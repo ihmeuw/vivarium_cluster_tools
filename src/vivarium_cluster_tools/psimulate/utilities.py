@@ -1,11 +1,10 @@
-from bdb import BdbQuit
-from datetime import datetime
-import functools
+import sys
 import math
 import os
+from datetime import datetime
 from pathlib import Path
-import sys
 
+import click
 from loguru import logger
 from typing import Dict, List, Tuple
 # depending on version of pip, freeze may be in one of two places
@@ -129,36 +128,9 @@ def exit_if_on_submit_host(name : str):
         raise RuntimeError('This tool must not be run from a submit host.')
 
 
-def get_valid_project(project, cluster):
-    if cluster == 'cluster-dev':
-        project = None
-    else:
-        if project not in vct_globals.CLUSTER_PROJECTS:
-            raise RuntimeError(f"Script only for use with Simulation Science "
-                               f"cluster projects: {vct_globals.CLUSTER_PROJECTS}.")
-    return project
-
-
-def get_valid_queue(max_runtime):
-    runtime_args = max_runtime.split(":")
-    if len(runtime_args) != 3:
-        raise ValueError("Invalid --max-runtime supplied. Format should be hh:mm:ss.")
-    else:
-        hours, minutes, seconds = runtime_args
-    runtime_in_hours = int(hours) + float(minutes) / 60. + float(seconds) / 3600.
-    if runtime_in_hours <= vct_globals.ALL_Q_MAX_RUNTIME_HOURS:
-        return 'all.q'
-    elif runtime_in_hours <= vct_globals.LONG_Q_MAX_RUNTIME_HOURS:
-        return 'long.q'
-    else:
-        raise ValueError(f"Max runtime value too large. Must be less than {vct_globals.LONG_Q_MAX_RUNTIME_HOURS}h.")
-
-
-def get_uge_specification(peak_memory, max_runtime, project, job_name):
+def get_uge_specification(peak_memory, max_runtime, priority, queue, project, job_name):
     cluster_name = get_cluster_name()
-    project = get_valid_project(project, cluster_name)
-    queue = get_valid_queue(max_runtime)
-    preamble = f'-w n -q {queue} -l m_mem_free={peak_memory}G -N {job_name} -l h_rt={max_runtime}'
+    preamble = f'-w n -q {queue} -p {priority} -l m_mem_free={peak_memory}G -N {job_name} -l h_rt={max_runtime}'
 
     if cluster_name == "cluster-fair":
         preamble += " -l fthread=1"
@@ -233,6 +205,21 @@ def compare_environments(current: Dict, original: Dict):
                          f'file found in the output directory. Differences found as follows: {differences}.')
 
 
+def get_valid_queue(max_runtime):
+    runtime_args = max_runtime.split(":")
+    if len(runtime_args) != 3:
+        raise ValueError("Invalid --max-runtime supplied. Format should be hh:mm:ss.")
+    else:
+        hours, minutes, seconds = runtime_args
+    runtime_in_hours = int(hours) + float(minutes) / 60. + float(seconds) / 3600.
+    if runtime_in_hours <= vct_globals.ALL_Q_MAX_RUNTIME_HOURS:
+        return 'all.q'
+    elif runtime_in_hours <= vct_globals.LONG_Q_MAX_RUNTIME_HOURS:
+        return 'long.q'
+    else:
+        raise ValueError(f"Max runtime value too large. Must be less than {vct_globals.LONG_Q_MAX_RUNTIME_HOURS}h.")
+
+
 def validate_environment(output_dir: Path):
     original_environment_file = output_dir / 'requirements.txt'
 
@@ -249,3 +236,23 @@ def validate_environment(output_dir: Path):
         logger.info('Validation of environment successful. All pip installed packages match '
                     'original versions. Run can proceed.')
 
+
+def validate_queue(queue: str, max_runtime: str) -> queue:
+    valid_queue = get_valid_queue(max_runtime)
+    if queue is None:
+        return valid_queue
+    else:
+        if (valid_queue == 'long.q') and (queue == 'all.q'):
+            raise ValueError(f"Specified queue {queue} is not valid for job "
+                             f"with max runtime of {max_runtime}.")
+
+
+def validate_project(project):
+    cluster = get_cluster_name()
+    if cluster == 'cluster-dev':
+        project = None
+    else:
+        if project not in vct_globals.CLUSTER_PROJECTS:
+            raise RuntimeError(f"Script only for use with Simulation Science "
+                               f"cluster projects: {vct_globals.CLUSTER_PROJECTS}.")
+    return project

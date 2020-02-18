@@ -24,8 +24,8 @@ from vivarium_cluster_tools.psimulate.registry import RegistryManager
 drmaa = utilities.get_drmaa()
 
 
-def init_job_template(jt, peak_memory, max_runtime, sge_log_directory, worker_log_directory,
-                      project, job_name, worker_settings_file):
+def init_job_template(jt, peak_memory, max_runtime, priority, queue, sge_log_directory,
+                      worker_log_directory, project, job_name, worker_settings_file):
     launcher = tempfile.NamedTemporaryFile(mode='w', dir='.', prefix='vivarium_cluster_tools_launcher_',
                                            suffix='.sh', delete=False)
     atexit.register(lambda: os.remove(launcher.name))
@@ -51,7 +51,8 @@ def init_job_template(jt, peak_memory, max_runtime, sge_log_directory, worker_lo
         'SGE_CLUSTER_NAME': sge_cluster,
     }
     jt.joinFiles = True
-    jt.nativeSpecification = utilities.get_uge_specification(peak_memory, max_runtime, project, job_name)
+    jt.nativeSpecification = utilities.get_uge_specification(peak_memory, max_runtime, priority,
+                                                             queue, project, job_name)
     return jt
 
 
@@ -95,11 +96,11 @@ def launch_redis_processes(num_processes):
     return worker_config, redis_ports
 
 
-def start_cluster(drmaa_session, num_workers, peak_memory, max_runtime, sge_log_directory, worker_log_directory,
-                  project, worker_settings_file, job_name="vivarium"):
+def start_cluster(drmaa_session, num_workers, peak_memory, max_runtime, priority, queue,
+                  sge_log_directory, worker_log_directory, project, worker_settings_file, job_name="vivarium"):
     s = drmaa_session
-    jt = init_job_template(s.createJobTemplate(), peak_memory, max_runtime, sge_log_directory,
-                           worker_log_directory, project, job_name, worker_settings_file)
+    jt = init_job_template(s.createJobTemplate(), peak_memory, max_runtime, priority, queue,
+                           sge_log_directory, worker_log_directory, project, job_name, worker_settings_file)
     if num_workers:
         job_ids = s.runBulkJobs(jt, 1, num_workers, 1)
         array_job_id = job_ids[0].split('.')[0]
@@ -137,6 +138,8 @@ class RunContext:
         self.cluster_project = arguments.project
         self.peak_memory = arguments.peak_memory
         self.max_runtime = arguments.max_runtime
+        self.priority = arguments.priority,
+        self.queue = arguments.queue,
         self.number_already_completed = 0
         self.output_directory = arguments.output_directory
         self.job_name = arguments.output_directory.parts[-2]  # The model specification name.
@@ -324,7 +327,8 @@ def check_user_sge_config():
 
 
 def main(model_specification_file, branch_configuration_file, result_directory, project, peak_memory, max_runtime,
-         redis_processes, num_input_draws=None, num_random_seeds=None, restart=False, expand=None, no_batch=False):
+         priority, queue, redis_processes, num_input_draws=None, num_random_seeds=None, restart=False, expand=None,
+         no_batch=False):
 
     utilities.exit_if_on_submit_host(utilities.get_hostname())
 
@@ -333,6 +337,8 @@ def main(model_specification_file, branch_configuration_file, result_directory, 
 
     utilities.configure_master_process_logging_to_file(logging_dirs['main'])
     utilities.validate_environment(output_dir)
+    project = utilities.validate_project(project)
+    queue = utilities.validate_queue(queue, max_runtime)
 
     arguments = SimpleNamespace(model_specification_file=model_specification_file,
                                 branch_configuration_file=branch_configuration_file,
@@ -341,6 +347,8 @@ def main(model_specification_file, branch_configuration_file, result_directory, 
                                 project=project,
                                 peak_memory=peak_memory,
                                 max_runtime=max_runtime,
+                                priority=priority,
+                                queue=queue,
                                 num_input_draws=num_input_draws,
                                 num_random_seeds=num_random_seeds,
                                 restart=restart,
@@ -370,8 +378,8 @@ def main(model_specification_file, branch_configuration_file, result_directory, 
     drmaa_session = drmaa.Session()
     drmaa_session.initialize()
 
-    start_cluster(drmaa_session, len(jobs), ctx.peak_memory, ctx.max_runtime, ctx.sge_log_directory,
-                  ctx.worker_log_directory, project, worker_file, ctx.job_name)
+    start_cluster(drmaa_session, len(jobs), ctx.peak_memory, ctx.max_runtime, ctx.priority,
+                  ctx.queue, ctx.sge_log_directory, ctx.worker_log_directory, project, worker_file, ctx.job_name)
 
     process_job_results(registry_manager, ctx)
 

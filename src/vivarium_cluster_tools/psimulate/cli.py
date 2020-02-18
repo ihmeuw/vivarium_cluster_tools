@@ -12,16 +12,26 @@ shared_options = [
     click.option('--peak-memory', '-m',
                  type=int,
                  default=3,
-                 help=('The estimated maximum memory usage in GB of an individual simulate job. '
-                       'The simulations will be run with this as a limit.')),
+                 help=('The estimated maximum memory usage in GB of an individual simulate job. The simulations will '
+                       'be run with this as a limit.')),
     click.option('--max-runtime', '-r',
                  type=str,
                  default='24:00:00',
-                 help=('The estimated maximum runtime (DD:HH:MM) of the simulation jobs. '
-                       'By default, the cluster will terminate jobs after 24h regardless of '
-                       'queue. The maximum supported runtime is 3 days. Keep in mind that the '
-                       'session you are launching from must be able to live at least as long '
-                       'as the simulation jobs, and that runtimes by node vary wildly.')),
+                 help=('The estimated maximum runtime (DD:HH:MM) of the simulation jobs. By default, the cluster will '
+                       'terminate jobs after 24h regardless of queue. The maximum supported runtime is 3 days. Keep in '
+                       'mind that the session you are launching from must be able to live at least as long as the '
+                       'simulation jobs, and that runtimes by node vary wildly.')),
+    click.option('--priority', '-p',
+                 type=click.IntRange(-1023, 0),
+                 default=0,
+                 help='Defines a priority for worker jobs relative to other jobs on the cluster. Higher priority jobs '
+                      'are eligible to be dispatched by the scheduler earlier. Acceptable values are zero or less.'),
+    click.option('--queue', '-q',
+                 type=click.Choice(['all.q', 'long.q']),
+                 default=None,  # dynamically set based on runtime
+                 help='The cluster queue to assign the jobs to, defaults to the appropriate queue based on max-runtime.'
+                      'long.q allows for much longer runtimes but there may be reasons to send jobs to that queue even '
+                      'if they don\'t have runtime constraints, such as open node availability.'),
     click.option('--pdb', 'with_debugger',
                  is_flag=True,
                  help='Drop into python debugger if an error occurs.'),
@@ -85,7 +95,8 @@ def run(model_specification, branch_configuration, result_directory, **options):
 
     main(model_specification, branch_configuration, result_directory,
          options['project'], options['peak_memory'], options['max_runtime'],
-         redis_processes=options['redis'], no_batch=options['no_batch'])
+         options['priority'], options['queue'], redis_processes=options['redis'],
+         no_batch=options['no_batch'])
 
 
 @psimulate.command()
@@ -104,7 +115,8 @@ def restart(results_root, **options):
 
     main(None, None, results_root,
          options['project'], options['peak_memory'], options['max_runtime'],
-         redis_processes=options['redis'], restart=True, no_batch=options['no_batch'])
+         options['priority'], options['queue'], redis_processes=options['redis'],
+         restart=True, no_batch=options['no_batch'])
 
 
 @psimulate.command()
@@ -127,6 +139,7 @@ def expand(results_root, **options):
 
     main(None, None, results_root,
          options['project'], options['peak_memory'], options['max_runtime'],
+         options['priority'], options['queue'],
          redis_processes=options['redis'],
          restart=True,
          expand={'num_draws': options['add_draws'],
