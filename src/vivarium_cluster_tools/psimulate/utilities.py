@@ -4,7 +4,6 @@ import os
 from datetime import datetime
 from pathlib import Path
 
-import click
 from loguru import logger
 from typing import Dict, List, Tuple
 # depending on version of pip, freeze may be in one of two places
@@ -237,7 +236,7 @@ def validate_environment(output_dir: Path):
                     'original versions. Run can proceed.')
 
 
-def validate_queue(queue: str, max_runtime: str) -> queue:
+def validate_queue(queue: str, max_runtime: str):
     valid_queue = get_valid_queue(max_runtime)
     if queue is None:
         return valid_queue
