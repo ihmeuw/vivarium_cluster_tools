@@ -204,7 +204,7 @@ def compare_environments(current: Dict, original: Dict):
                          f'file found in the output directory. Differences found as follows: {differences}.')
 
 
-def get_valid_queue(max_runtime):
+def get_valid_queues(max_runtime):
     runtime_args = max_runtime.split(":")
     if len(runtime_args) != 3:
         raise ValueError("Invalid --max-runtime supplied. Format should be hh:mm:ss.")
@@ -212,9 +212,9 @@ def get_valid_queue(max_runtime):
         hours, minutes, seconds = runtime_args
     runtime_in_hours = int(hours) + float(minutes) / 60. + float(seconds) / 3600.
     if runtime_in_hours <= vct_globals.ALL_Q_MAX_RUNTIME_HOURS:
-        return 'all.q'
+        return ['all.q', 'long.q']
     elif runtime_in_hours <= vct_globals.LONG_Q_MAX_RUNTIME_HOURS:
-        return 'long.q'
+        return ['long.q']
     else:
         raise ValueError(f"Max runtime value too large. Must be less than {vct_globals.LONG_Q_MAX_RUNTIME_HOURS}h.")
 
@@ -237,13 +237,16 @@ def validate_environment(output_dir: Path):
 
 
 def validate_queue(queue: str, max_runtime: str):
-    valid_queue = get_valid_queue(max_runtime)
+    valid_queues = get_valid_queues(max_runtime)
     if queue is None:
-        return valid_queue
+        return valid_queues[0]
     else:
-        if (valid_queue == 'long.q') and (queue == 'all.q'):
-            raise ValueError(f"Specified queue {queue} is not valid for job "
-                             f"with max runtime of {max_runtime}.")
+        if queue in valid_queues:
+            return queue
+        else:
+            raise ValueError("Specified queue is not valid for jobs "
+                             "with this max runtime. Likely you requested "
+                             "all.q for a job requiring long.q.")
 
 
 def validate_project(project):
