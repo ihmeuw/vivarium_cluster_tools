@@ -138,8 +138,8 @@ class RunContext:
         self.cluster_project = arguments.project
         self.peak_memory = arguments.peak_memory
         self.max_runtime = arguments.max_runtime
-        self.priority = arguments.priority,
-        self.queue = arguments.queue,
+        self.priority = arguments.priority
+        self.queue = arguments.queue
         self.number_already_completed = 0
         self.output_directory = arguments.output_directory
         self.job_name = arguments.output_directory.parts[-2]  # The model specification name.
