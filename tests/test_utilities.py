@@ -56,12 +56,21 @@ def test_mkdir_set_permissions(permissions_params: List) -> None:
 
     mkdir_params: Dict = permissions_params[0]
     permissions: Optional[str] = permissions_params[1] if permissions_params[1] else 'drwxrwxr-x'
+
+    def test_mkdir_permissions():
+        mkdir(path, **mkdir_params)
+        proc = Popen(f"ls -l | grep '{parent_dir_name}' | grep '{permissions}'", shell=True, stdout=PIPE, )
+        assert proc.communicate()[0], "Parent directory has incorrect permissions"
+        proc = Popen(f"ls -l '{parent_dir_name}' | grep '{child_dir_name}' | grep '{permissions}'",
+                     shell=True, stdout=PIPE, )
+        assert proc.communicate()[0], "Child directory has incorrect permissions"
+
     try:
         if 'parents' not in mkdir_params or not mkdir_params['parents']:
             with pytest.raises(FileNotFoundError):
                 mkdir(path, **mkdir_params)
         else:
-            test_mkdir_permissions(path, mkdir_params, child_dir_name, parent_dir_name, permissions)
+            test_mkdir_permissions()
 
             # Setting new umask doesn't change permissions of existing directories if they exist
             mkdir_params['umask'] = 0o003
@@ -69,19 +78,10 @@ def test_mkdir_set_permissions(permissions_params: List) -> None:
                 with pytest.raises(FileExistsError):
                     mkdir(path, **mkdir_params)
             else:
-                test_mkdir_permissions(path, mkdir_params, child_dir_name, parent_dir_name, permissions)
+                test_mkdir_permissions()
 
     finally:
         if parent_path.exists():
             shutil.rmtree(parent_path)
 
         assert prior_umask == os.umask(prior_umask), "umask was changed and not reset"
-
-
-def test_mkdir_permissions(path, mkdir_params, child_dir_name, parent_dir_name, permissions):
-    mkdir(path, **mkdir_params)
-    proc = Popen(f"ls -l | grep '{parent_dir_name}' | grep '{permissions}'", shell=True, stdout=PIPE, )
-    assert proc.communicate()[0], "Parent directory has incorrect permissions"
-    proc = Popen(f"ls -l '{parent_dir_name}' | grep '{child_dir_name}' | grep '{permissions}'",
-                 shell=True, stdout=PIPE, )
-    assert proc.communicate()[0], "Child directory has incorrect permissions"
