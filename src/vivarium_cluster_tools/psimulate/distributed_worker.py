@@ -147,26 +147,54 @@ def worker(parameters: Mapping):
         logger.info('Simulation configuration:')
         logger.info(str(sim.configuration))
 
-        start = time()
-        logger.info('Beginning simulation setup.')
-        sim.setup()
-        sim.initialize_simulants()
-        logger.info(f'Simulation setup complete in {(time() - start)/60} minutes.')
-        sim_start = time()
-        logger.info('Starting main simulation loop.')
-        sim.run()
-        sim.finalize()
-        metrics = sim.report()
-        end = time()
-
         start_time = pd.Timestamp(**sim.configuration.time.start.to_dict())
         end_time = pd.Timestamp(**sim.configuration.time.end.to_dict())
         step_size = pd.Timedelta(days=sim.configuration.time.step_size)
         num_steps = int(math.ceil((end_time - start_time)/step_size))
 
-        logger.info(f'Simulation main loop completed in {(end - sim_start)/60} minutes.')
-        logger.info(f'Average step length was {(end - sim_start)/num_steps} seconds.')
-        logger.info(f'Total simulation run time {(end - start) / 60} minutes.')
+        event = {'start': time()}  # timestamps of application events
+        logger.info('Beginning simulation setup.')
+        sim.setup()
+        event['simulant_initialization_start'] = time()
+        exec_time = {'setup_minutes': (event["simulant_initialization_start"] - event["start"]) / 60}  # execution event
+        logger.info(f'Simulation setup completed in {exec_time["setup_minutes"]:.3f} minutes.')
+
+        sim.initialize_simulants()
+        event['simulation_start'] = time()
+        exec_time['simulant_initialization_minutes'] = (
+                (event["simulation_start"] - event["simulant_initialization_start"]) / 60)
+        logger.info(f'Simulant initialization completed in {exec_time["simulant_initialization_minutes"]:.3f} minutes.')
+
+        logger.info(f'Starting main simulation loop with {num_steps} time steps')
+        sim.run()
+        event['results_start'] = time()
+        exec_time['main_loop_minutes'] = (
+                (event["results_start"] - event["simulation_start"]) / 60)
+        exec_time['step_mean_seconds'] = (
+                (event["results_start"] - event["simulation_start"]) / num_steps)
+        logger.info(f'Simulation main loop completed in {exec_time["main_loop_minutes"]:.3f} minutes.')
+        logger.info(f'Average step length was {exec_time["step_mean_seconds"]:.3f} seconds.')
+
+        sim.finalize()
+        metrics = sim.report()
+        event['end'] = time()
+        exec_time['results_minutes'] = (event['end'] - event["results_start"]) / 60
+        logger.info(f'Results reporting completed in {exec_time["results_minutes"]:.3f} minutes.')
+        exec_time['total_minutes'] = (event['end'] - event["start"]) / 60
+
+        logger.info(f'Total simulation run time {exec_time["total_minutes"]:.3f} minutes.')
+
+        # Write out debug JSON line for easy log parsing
+        logger.debug({
+            "host": os.environ['HOSTNAME'].split('.')[0],
+            "job_id": os.environ['JOB_ID'],
+            "task_id": os.environ['SGE_TASK_ID'],
+            "draw": parameters['input_draw'],
+            "seed": parameters['random_seed'],
+            "scenario": parameters['branch_configuration'],  # assumes leaves of branch config tree are scenarios
+            "event": event,
+            "exec_time": exec_time
+        })
 
         idx = pd.MultiIndex.from_tuples([(input_draw, random_seed)], names=['input_draw_number', 'random_seed'])
         output_metrics = pd.DataFrame(metrics, index=idx)

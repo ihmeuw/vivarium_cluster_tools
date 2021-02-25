@@ -144,7 +144,9 @@ def init_job_template(jt, native_specification: NativeSpecification, sge_log_dir
     export VIVARIUM_LOGGING_DIRECTORY={worker_log_directory}
     export PYTHONPATH={output_dir}:$PYTHONPATH
 
-    {shutil.which('rq')} worker -c {worker_settings_file.stem} --name ${{JOB_ID}}.${{SGE_TASK_ID}} --burst -w "vivarium_cluster_tools.psimulate.distributed_worker.ResilientWorker" --exception-handler "vivarium_cluster_tools.psimulate.distributed_worker.retry_handler" vivarium
+    {shutil.which('rq')} worker -c {worker_settings_file.stem} --name ${{JOB_ID}}.${{SGE_TASK_ID}} --burst \
+        -w "vivarium_cluster_tools.psimulate.distributed_worker.ResilientWorker" \
+        --exception-handler "vivarium_cluster_tools.psimulate.distributed_worker.retry_handler" vivarium
 
     ''')
     launcher.close()
@@ -281,7 +283,7 @@ def build_job_list(ctx: RunContext) -> List[dict]:
 
 def concat_preserve_types(df_list: List[pd.DataFrame]) -> pd.DataFrame:
     """Concatenation preserves all ``numpy`` dtypes but does not preserve any
-    pandas speciifc dtypes (e.g., categories become objects."""
+    pandas specific dtypes (e.g., categories become objects."""
     dtypes = df_list[0].dtypes
     columns_by_dtype = [list(dtype_group.index) for _, dtype_group in dtypes.groupby(dtypes)]
 
@@ -392,7 +394,8 @@ def main(model_specification_file: str, branch_configuration_file: str, result_d
 
     output_dir, logging_dirs = utilities.setup_directories(model_specification_file, result_directory,
                                                            restart, expand=bool(num_input_draws or num_random_seeds))
-    atexit.register(utilities.check_for_empty_results_dir, output_dir=output_dir)
+ # XXXX
+ #   atexit.register(utilities.check_for_empty_results_dir, output_dir=output_dir)
     atexit.register(lambda: logger.remove())
 
     native_specification['job_name'] = output_dir.parts[-2]
