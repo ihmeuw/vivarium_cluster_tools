@@ -8,12 +8,13 @@ import subprocess
 from typing import List, Dict, Tuple
 from pathlib import Path
 from time import sleep, time
+import yaml
 
 import numpy as np
 import pandas as pd
 from loguru import logger
 
-from vivarium.framework.configuration import build_model_specification
+from vivarium.framework.configuration import build_model_specification, ConfigurationError
 from vivarium.framework.utilities import collapse_nested_dict
 from vivarium.framework.artifact import parse_artifact_path_config
 
@@ -23,11 +24,14 @@ from vivarium_cluster_tools.psimulate.registry import RegistryManager
 
 drmaa = utilities.get_drmaa()
 
+MODEL_SPEC_FILENAME = 'model_specification.yaml'
+FULL_ARTIFACT_PATH_KEY = f'{vct_globals.INPUT_DATA_KEY}.{vct_globals.ARTIFACT_PATH_KEY}'
+
 
 class RunContext:
-    def __init__(self, model_specification_file: str, branch_configuration_file: str, output_directory: Path,
-                 logging_directories: Dict[str, Path], num_input_draws: int, num_random_seeds: int,
-                 restart: bool, expand: Dict[str, int], no_batch: bool):
+    def __init__(self, model_specification_file: str, branch_configuration_file: str, artifact_path: str,
+                 output_directory: Path, logging_directories: Dict[str, Path], num_input_draws: int,
+                 num_random_seeds: int, restart: bool, expand: Dict[str, int], no_batch: bool):
         self.number_already_completed = 0
         self.output_directory = output_directory
         self.no_batch = no_batch
@@ -46,25 +50,29 @@ class RunContext:
 
             self.keyspace = Keyspace.from_branch_configuration(num_input_draws, num_random_seeds,
                                                                branch_configuration_file)
+            if artifact_path:
+                if FULL_ARTIFACT_PATH_KEY in self.keyspace:
+                    raise ConfigurationError('Artifact path cannot be specified both in the branch specification file'
+                                             ' and as a command line argument.', artifact_path)
+                if not Path(artifact_path).exists():
+                    raise FileNotFoundError(f"Cannot find artifact at path {artifact_path}")
 
-            if "input_data.artifact_path" in self.keyspace.get_data():
-                raise ValueError("An artifact path can only be supplied in the model specification file, "
-                                 "not the branches configuration.")
-
-            if "artifact_path" in model_specification.configuration.input_data:
+            elif vct_globals.ARTIFACT_PATH_KEY in model_specification.configuration[vct_globals.INPUT_DATA_KEY]:
                 artifact_path = parse_artifact_path_config(model_specification.configuration)
-                model_specification.configuration.input_data.update(
-                    {"artifact_path": artifact_path},
+
+            if artifact_path:
+                model_specification.configuration[vct_globals.INPUT_DATA_KEY].update(
+                    {vct_globals.ARTIFACT_PATH_KEY: artifact_path},
                     source=__file__)
 
-            model_specification_path = self.output_directory / 'model_specification.yaml'
-            shutil.copy(model_specification_file, model_specification_path)
+            with open(self.output_directory / MODEL_SPEC_FILENAME, 'w') as config_file:
+                yaml.dump(model_specification.to_dict(), config_file)
 
             self.existing_outputs = None
 
             # Log some basic stuff about the simulation to be run.
             self.keyspace.persist(self.output_directory)
-        self.model_specification = self.output_directory / 'model_specification.yaml'
+        self.model_specification = self.output_directory / MODEL_SPEC_FILENAME
 
 
 class NativeSpecification:
@@ -385,17 +393,18 @@ def check_user_sge_config():
                                    "with the worker logs.")
 
 
-def main(model_specification_file: str, branch_configuration_file: str, result_directory: str,
+def main(model_specification_file: str, branch_configuration_file: str, artifact_path: str, result_directory: str,
          native_specification: dict, redis_processes: int, num_input_draws: int = None,
          num_random_seeds: int = None, restart:  bool = False,
-         expand: Dict[str, int] = None, no_batch: bool = False):
+         expand: Dict[str, int] = None, no_batch: bool = False, no_cleanup: bool = False):
 
     utilities.exit_if_on_submit_host(utilities.get_hostname())
 
     output_dir, logging_dirs = utilities.setup_directories(model_specification_file, result_directory,
                                                            restart, expand=bool(num_input_draws or num_random_seeds))
+    if not no_cleanup:
+        atexit.register(utilities.check_for_empty_results_dir, output_dir=output_dir)
 
-    atexit.register(utilities.check_for_empty_results_dir, output_dir=output_dir)
     atexit.register(lambda: logger.remove())
 
     native_specification['job_name'] = output_dir.parts[-2]
@@ -404,7 +413,7 @@ def main(model_specification_file: str, branch_configuration_file: str, result_d
     utilities.configure_master_process_logging_to_file(logging_dirs['main'])
     utilities.validate_environment(output_dir)
 
-    ctx = RunContext(model_specification_file, branch_configuration_file, output_dir, logging_dirs,
+    ctx = RunContext(model_specification_file, branch_configuration_file, artifact_path, output_dir, logging_dirs,
                      num_input_draws, num_random_seeds, restart, expand, no_batch)
     check_user_sge_config()
     jobs = build_job_list(ctx)

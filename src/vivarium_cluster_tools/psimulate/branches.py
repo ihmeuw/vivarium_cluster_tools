@@ -6,6 +6,10 @@ from pathlib import Path
 
 from vivarium.framework.utilities import collapse_nested_dict
 
+from vivarium_cluster_tools.psimulate import globals as vct_globals
+
+FULL_ARTIFACT_PATH_KEY = f'{vct_globals.INPUT_DATA_KEY}.{vct_globals.ARTIFACT_PATH_KEY}'
+
 
 class Keyspace:
     """A representation of a collection of simulation configurations."""
@@ -66,6 +70,10 @@ class Keyspace:
         existing = self._keyspace['random_seed']
         additional = calculate_random_seeds(num_seeds, existing)
         self._keyspace['random_seed'] = existing + additional
+
+    def __contains__(self, item):
+        """Checks whether the item is present in the Keyspace"""
+        return item in self._keyspace
 
     def __iter__(self):
         """Yields and individual simulation configuration from the keyspace."""
@@ -156,6 +164,8 @@ def calculate_keyspace(branches):
         if set(branch.keys()) != set(keyspace.keys()):
             raise ValueError("All branches must have the same keys")
         for k, v in branch.items():
+            if k == FULL_ARTIFACT_PATH_KEY:
+                validate_artifact_path(v)
             keyspace[k].add(v)
     keyspace = {k: list(v) for k, v in keyspace.items()}
     return keyspace
@@ -253,3 +263,21 @@ def expand_branch_templates(templates):
             current[k] = v
 
     return final_branches
+
+
+def validate_artifact_path(artifact_path: str) -> str:
+    """Validates that the path to the data artifact from the branches file exists.
+
+    The path specified in the configuration must be absolute
+
+    Parameters
+    ----------
+    artifact_path :
+        The path to the artifact.
+    """
+    path = Path(artifact_path)
+
+    if not path.is_absolute() or not path.exists():
+        raise FileNotFoundError(f"Cannot find artifact at path {path}")
+
+    return str(path)
