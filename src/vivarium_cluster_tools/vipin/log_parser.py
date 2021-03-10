@@ -1,11 +1,13 @@
 from loguru import logger
 from pathlib import Path
 from random import sample
+import numpy as np
 import pandas as pd
 import json
 import re
 from pandas.io.json import json_normalize
 from typing import Union
+import requests
 
 
 class WorkerLog:
@@ -18,7 +20,7 @@ class WorkerLog:
 
     def get_summaries(self) -> dict:
         """Get all performance summary log messages in WorkerLog"""
-        telemetry_pattern = re.compile(r'^\{\'host\'.+\'job_id\'.+\}$')
+        telemetry_pattern = re.compile(r'^\{\'host\'.+\'job_number\'.+\}$')
 
         # Ideally we'd only need to look at the tail of the file, but because a worker can do multiple draws, we need
         # to iterate over all the lines...
@@ -44,6 +46,7 @@ def parse_log_directory(input_directory: Union[Path, str], output_directory: Uni
 
     worker_data = []
     for i, file in enumerate(log_files):
+        # TODO: set up tdqm progress bar
         logger.info(f'Parsing file {i+1} of {len(log_files)}.')
         log = WorkerLog(file)
         for item in log.get_summaries():
@@ -58,6 +61,18 @@ def parse_log_directory(input_directory: Union[Path, str], output_directory: Uni
     scenario_label = [col for col in worker_df.columns if 'scenario' in col]
     assert(len(scenario_label) == 1)
     worker_df = worker_df.rename(columns={scenario_label[0]: 'scenario'})
+
+    # Get jobapi data about the job
+    try:
+        job_numbers = worker_df['job_number'].unique()
+        assert(job_numbers == 1)
+        jobapi_data = requests.get("http://jobapi.ihme.washington.edu/fair/queryjobids",
+                         params=[('job_number', job_numbers[0]), ('limit', 50000)]).json()
+        jobapi_df = pd.DataFrame(jobapi_data["data"])
+        worker_df = worker_df.astype({'job_number': np.int64, 'task_number': np.int64})
+        worker_df = worker_df.merge(jobapi_df, on=['job_number', 'task_number'])
+    except Exception as e:
+        logger.warning(f'Job API request failed with {e}')
 
     worker_df = worker_df.set_index(['host', 'job_id', 'task_id', 'draw', 'seed', 'scenario'])
 

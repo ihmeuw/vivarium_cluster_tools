@@ -17,6 +17,8 @@ from rq.job import JobStatus
 from rq.worker import Worker, StopRequested
 from rq.registry import FailedJobRegistry
 
+from vivarium_cluster_tools.vipin.perf_counters import CounterSnapshot
+
 
 def retry_handler(job, *exc_info):
     retries = job.meta.get('remaining_retries', 2)
@@ -152,6 +154,7 @@ def worker(parameters: Mapping):
         step_size = pd.Timedelta(days=sim.configuration.time.step_size)
         num_steps = int(math.ceil((end_time - start_time)/step_size))
 
+        start_snapshot = CounterSnapshot()
         event = {'start': time()}  # timestamps of application events
         logger.info('Beginning simulation setup.')
         sim.setup()
@@ -178,6 +181,8 @@ def worker(parameters: Mapping):
         sim.finalize()
         metrics = sim.report()
         event['end'] = time()
+        end_snapshot = CounterSnapshot()
+
         exec_time['results_minutes'] = (event['end'] - event["results_start"]) / 60
         logger.info(f'Results reporting completed in {exec_time["results_minutes"]:.3f} minutes.')
         exec_time['total_minutes'] = (event['end'] - event["start"]) / 60
@@ -187,13 +192,14 @@ def worker(parameters: Mapping):
         # Write out debug JSON line for easy log parsing
         logger.debug({
             "host": os.environ['HOSTNAME'].split('.')[0],
-            "job_id": os.environ['JOB_ID'],
-            "task_id": os.environ['SGE_TASK_ID'],
+            "job_number": os.environ['JOB_ID'],
+            "task_number": os.environ['SGE_TASK_ID'],
             "draw": parameters['input_draw'],
             "seed": parameters['random_seed'],
             "scenario": parameters['branch_configuration'],  # assumes leaves of branch config tree are scenarios
             "event": event,
-            "exec_time": exec_time
+            "exec_time": exec_time,
+            "counters": end_snapshot-start_snapshot
         })
 
         idx = pd.MultiIndex.from_tuples([(input_draw, random_seed)], names=['input_draw_number', 'random_seed'])

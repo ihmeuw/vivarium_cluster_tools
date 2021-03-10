@@ -24,6 +24,8 @@ if __name__ == "__main__":
         'rq>=1.0, <=1.2.2',
         'vivarium>=0.9.3',
         'click',
+        'psutil',
+        'requests'
     ]
 
     test_requirements = [
