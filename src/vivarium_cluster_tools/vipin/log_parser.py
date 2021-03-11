@@ -20,7 +20,7 @@ class WorkerLog:
 
     def get_summaries(self) -> dict:
         """Get all performance summary log messages in WorkerLog"""
-        telemetry_pattern = re.compile(r'^\{\'host\'.+\'job_number\'.+\}$')
+        telemetry_pattern = re.compile(r'^\{\"host\".+\"job_number\".+\}$')
 
         # Ideally we'd only need to look at the tail of the file, but because a worker can do multiple draws, we need
         # to iterate over all the lines...
@@ -31,7 +31,7 @@ class WorkerLog:
             message = json.loads(line)['record']['message']
             m = telemetry_pattern.fullmatch(str(message))
             if m:
-                yield json_normalize(message, sep='_')
+                yield json_normalize(json.loads(message), sep='_')
         f.close()
 
 
