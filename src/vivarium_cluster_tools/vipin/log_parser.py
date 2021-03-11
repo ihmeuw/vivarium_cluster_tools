@@ -65,7 +65,7 @@ def parse_log_directory(input_directory: Union[Path, str], output_directory: Uni
     # Get jobapi data about the job
     try:
         job_numbers = worker_df['job_number'].unique()
-        assert(job_numbers == 1)
+        assert(len(job_numbers) == 1)
         jobapi_data = requests.get("http://jobapi.ihme.washington.edu/fair/queryjobids",
                          params=[('job_number', job_numbers[0]), ('limit', 50000)]).json()
         jobapi_df = pd.DataFrame(jobapi_data["data"])
@@ -74,7 +74,7 @@ def parse_log_directory(input_directory: Union[Path, str], output_directory: Uni
     except Exception as e:
         logger.warning(f'Job API request failed with {e}')
 
-    worker_df = worker_df.set_index(['host', 'job_id', 'task_id', 'draw', 'seed', 'scenario'])
+    worker_df = worker_df.set_index(['host', 'job_number', 'task_number', 'draw', 'seed', 'scenario'])
 
     logger.info("\nStatistics by scenario:")
     for col in [col for col in worker_df.columns if col.startswith('exec_time_')]:
