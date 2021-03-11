@@ -1,4 +1,5 @@
 import datetime
+import json
 import math
 import os
 from pathlib import Path
@@ -197,7 +198,7 @@ def worker(parameters: Mapping):
         logger.info(f'Total simulation run time {exec_time["total_minutes"]:.3f} minutes.')
 
         # Write out debug JSON line for easy log parsing
-        logger.debug({
+        logger.debug(json.dumps({
             "host": os.environ['HOSTNAME'].split('.')[0],
             "job_number": os.environ['JOB_ID'],
             "task_number": os.environ['SGE_TASK_ID'],
@@ -206,8 +207,8 @@ def worker(parameters: Mapping):
             "scenario": parameters['branch_configuration'],  # assumes leaves of branch config tree are scenarios
             "event": event,
             "exec_time": exec_time,
-            "counters": end_snapshot-start_snapshot
-        })
+            "counters": (end_snapshot-start_snapshot).to_dict()
+        }))
 
         idx = pd.MultiIndex.from_tuples([(input_draw, random_seed)], names=['input_draw_number', 'random_seed'])
         output_metrics = pd.DataFrame(metrics, index=idx)
