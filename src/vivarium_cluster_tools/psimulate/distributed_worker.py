@@ -191,7 +191,7 @@ def worker(parameters: Mapping):
         event['end'] = time()
         end_snapshot = CounterSnapshot()
 
-        do_sim_epilogue(end_snapshot, event, exec_time, parameters, start_snapshot)
+        do_sim_epilogue(start_snapshot, end_snapshot, event, exec_time, parameters)
 
         idx = pd.MultiIndex.from_tuples([(input_draw, random_seed)], names=['input_draw_number', 'random_seed'])
         output_metrics = pd.DataFrame(metrics, index=idx)
@@ -210,7 +210,7 @@ def worker(parameters: Mapping):
         logger.info('Exiting job: {}'.format((input_draw, random_seed, model_specification_file, branch_config)))
 
 
-def do_sim_epilogue(end_snapshot, event, exec_time, parameters, start_snapshot):
+def do_sim_epilogue(start: CounterSnapshot, end: CounterSnapshot, event: dict, exec_time: dict, parameters:dict):
     exec_time['results_minutes'] = (event['end'] - event["results_start"]) / 60
     logger.info(f'Results reporting completed in {exec_time["results_minutes"]:.3f} minutes.')
     exec_time['total_minutes'] = (event['end'] - event["start"]) / 60
@@ -228,6 +228,6 @@ def do_sim_epilogue(end_snapshot, event, exec_time, parameters, start_snapshot):
         "scenario": parameters['branch_configuration'],  # assumes leaves of branch config tree are scenarios
         "event": event,
         "exec_time": exec_time,
-        "counters": (end_snapshot - start_snapshot).to_dict()
+        "counters": (end - start).to_dict()
     }))
     logger.remove(perf_log)

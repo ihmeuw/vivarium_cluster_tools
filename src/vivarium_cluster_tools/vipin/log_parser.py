@@ -28,19 +28,24 @@ class PerformanceLog:
                 yield json_normalize(json.loads(message), sep='_')
         f.close()
 
+    def to_df(self):
+        perf_data = []
+        for item in self.get_summaries():
+            perf_data.append(item)
+        perf_df = pd.concat(perf_data)
+
+        # Convert the Unix timestamps to datetimes
+        for col in [col for col in perf_df.columns if col.startswith("event_")]:
+            perf_df[col] = pd.to_datetime(perf_df[col], unit='s')
+
+        return perf_df
+
 
 def parse_log_directory(input_directory: Union[Path, str], output_directory: Union[Path, str], output_hdf: bool):
     input_directory, output_directory = Path(input_directory), Path(output_directory)
-    perf_log = PerformanceLog(Path(input_directory / 'performance.log'))
+    perf_log = PerformanceLog(input_directory / 'performance.log')
 
-    perf_data = []
-    for item in perf_log.get_summaries():
-        perf_data.append(item)
-    perf_df = pd.concat(perf_data)
-
-    # Convert the Unix timestamps to datetimes
-    for col in [col for col in perf_df.columns if col.startswith("event_")]:
-        perf_df[col] = pd.to_datetime(perf_df[col], unit='s')
+    perf_df = perf_log.to_df()
 
     # Simplify name of scenario normalized JSON label
     # TODO: add expansion of scenario values
@@ -74,3 +79,4 @@ def parse_log_directory(input_directory: Union[Path, str], output_directory: Uni
         out_file = out_file.with_suffix(".csv")
         perf_df.to_csv(out_file)
     logger.info(f'Performance summary {"hdf" if output_hdf else "csv"} can be found at {out_file}.')
+
