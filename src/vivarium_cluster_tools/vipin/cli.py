@@ -9,9 +9,8 @@ from vivarium_cluster_tools.vipin import utilities, log_parser
                    'Defaults to given logs directory if not given.')
 @click.option('--hdf/--csv', default=False,
               help='Choose hdf or csv for output data. Defaults to csv.')
-@click.option('--sample', '-s', type=int, help='Randomly sample a number of worker logs.')
 @click.option('-v', 'verbose', count=True, help='Configure logging verbosity.')
-def vipin(logs_directory, result_directory, hdf, sample, verbose):
+def vipin(logs_directory, result_directory, hdf, verbose):
     """Get performance information from worker_logs from a ``psimulate`` command.
 
     Given a worker logs directory from a previous run, a summary hdf will be
@@ -23,4 +22,4 @@ def vipin(logs_directory, result_directory, hdf, sample, verbose):
     utilities.configure_master_process_logging_to_terminal(verbose)
     if not result_directory:
         result_directory = logs_directory
-    log_parser.parse_log_directory(logs_directory, result_directory, hdf, sample)
+    log_parser.parse_log_directory(logs_directory, result_directory, hdf)
