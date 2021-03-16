@@ -12,23 +12,17 @@ import requests
 class PerformanceLog:
     def __init__(self, file: Path):
         self.file = file
-        self.count = 0
 
     def get_summaries(self) -> dict:
         """Get all performance summary log messages in PerformanceLog"""
-        telemetry_pattern = re.compile(r'^{\"host\".+\"job_number\".+}$')
+        with self.file.open('r') as f:
+            for line in f.readlines():
+                message = json.loads(line)['record']['message']
+                m = self.TELEMETRY_PATTERN.fullmatch(str(message))
+                if m:
+                    yield json_normalize(json.loads(message), sep='_')
 
-        self.count = 0
-        f = self.file.open('r')
-        for line in f.readlines():
-            message = json.loads(line)['record']['message']
-            m = telemetry_pattern.fullmatch(str(message))
-            if m:
-                self.count += 1
-                yield json_normalize(json.loads(message), sep='_')
-        f.close()
-
-    def to_df(self):
+    def to_df(self) -> pd.DataFrame:
         perf_data = []
         for item in self.get_summaries():
             perf_data.append(item)
@@ -38,7 +32,14 @@ class PerformanceLog:
         for col in [col for col in perf_df.columns if col.startswith("event_")]:
             perf_df[col] = pd.to_datetime(perf_df[col], unit='s')
 
+        # Simplify name of scenario normalized JSON label
+        # TODO: add expansion of scenario values
+        scenario_label = [col for col in perf_df.columns if 'scenario' in col]
+        perf_df = perf_df.rename(columns={scenario_label[0]: 'scenario'})
+
         return perf_df
+
+    TELEMETRY_PATTERN = re.compile(r'^{\"host\".+\"job_number\".+}$')
 
 
 def parse_log_directory(input_directory: Union[Path, str], output_directory: Union[Path, str], output_hdf: bool):
@@ -46,11 +47,6 @@ def parse_log_directory(input_directory: Union[Path, str], output_directory: Uni
     perf_log = PerformanceLog(input_directory / 'performance.log')
 
     perf_df = perf_log.to_df()
-
-    # Simplify name of scenario normalized JSON label
-    # TODO: add expansion of scenario values
-    scenario_label = [col for col in perf_df.columns if 'scenario' in col]
-    perf_df = perf_df.rename(columns={scenario_label[0]: 'scenario'})
 
     # Get jobapi data about the job
     try:
