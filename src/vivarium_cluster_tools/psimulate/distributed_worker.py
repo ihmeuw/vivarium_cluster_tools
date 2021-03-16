@@ -191,24 +191,7 @@ def worker(parameters: Mapping):
         event['end'] = time()
         end_snapshot = CounterSnapshot()
 
-        exec_time['results_minutes'] = (event['end'] - event["results_start"]) / 60
-        logger.info(f'Results reporting completed in {exec_time["results_minutes"]:.3f} minutes.')
-        exec_time['total_minutes'] = (event['end'] - event["start"]) / 60
-
-        logger.info(f'Total simulation run time {exec_time["total_minutes"]:.3f} minutes.')
-
-        # Write out debug JSON line for easy log parsing
-        logger.debug(json.dumps({
-            "host": os.environ['HOSTNAME'].split('.')[0],
-            "job_number": os.environ['JOB_ID'],
-            "task_number": os.environ['SGE_TASK_ID'],
-            "draw": parameters['input_draw'],
-            "seed": parameters['random_seed'],
-            "scenario": parameters['branch_configuration'],  # assumes leaves of branch config tree are scenarios
-            "event": event,
-            "exec_time": exec_time,
-            "counters": (end_snapshot-start_snapshot).to_dict()
-        }))
+        do_sim_epilogue(start_snapshot, end_snapshot, event, exec_time, parameters)
 
         idx = pd.MultiIndex.from_tuples([(input_draw, random_seed)], names=['input_draw_number', 'random_seed'])
         output_metrics = pd.DataFrame(metrics, index=idx)
@@ -225,3 +208,26 @@ def worker(parameters: Mapping):
         raise
     finally:
         logger.info('Exiting job: {}'.format((input_draw, random_seed, model_specification_file, branch_config)))
+
+
+def do_sim_epilogue(start: CounterSnapshot, end: CounterSnapshot, event: dict, exec_time: dict, parameters:dict):
+    exec_time['results_minutes'] = (event['end'] - event["results_start"]) / 60
+    logger.info(f'Results reporting completed in {exec_time["results_minutes"]:.3f} minutes.')
+    exec_time['total_minutes'] = (event['end'] - event["start"]) / 60
+    logger.info(f'Total simulation run time {exec_time["total_minutes"]:.3f} minutes.')
+
+    # Write out debug JSON line to shared performance log
+    perf_log = logger.add(Path(os.environ['VIVARIUM_LOGGING_DIRECTORY']) / 'performance.log', level='DEBUG',
+                          serialize=True, enqueue=True)
+    logger.debug(json.dumps({
+        "host": os.environ['HOSTNAME'].split('.')[0],
+        "job_number": os.environ['JOB_ID'],
+        "task_number": os.environ['SGE_TASK_ID'],
+        "draw": parameters['input_draw'],
+        "seed": parameters['random_seed'],
+        "scenario": parameters['branch_configuration'],  # assumes leaves of branch config tree are scenarios
+        "event": event,
+        "exec_time": exec_time,
+        "counters": (end - start).to_dict()
+    }))
+    logger.remove(perf_log)
