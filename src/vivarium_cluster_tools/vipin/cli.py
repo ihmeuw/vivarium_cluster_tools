@@ -1,6 +1,7 @@
 import click
 
-from vivarium_cluster_tools.vipin import utilities, log_parser
+from vivarium_cluster_tools.vipin import utilities, perf_report
+
 
 @click.command()
 @click.argument('logs-directory', type=click.Path(exists=True, file_okay=False))
@@ -22,4 +23,6 @@ def vipin(logs_directory, result_directory, hdf, verbose):
     utilities.configure_master_process_logging_to_terminal(verbose)
     if not result_directory:
         result_directory = logs_directory
-    log_parser.parse_log_directory(logs_directory, result_directory, hdf)
+
+    perf_report.report_performance(logs_directory, result_directory, hdf)
+

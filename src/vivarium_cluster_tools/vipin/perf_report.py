@@ -1,20 +1,42 @@
-from loguru import logger
-from pathlib import Path
-import numpy as np
-import pandas as pd
 import json
 import re
-from pandas.io.json import json_normalize
+from pathlib import Path
 from typing import Union
+
+import numpy as np
+import pandas as pd
 import requests
+from loguru import logger
+from pandas.io.json import json_normalize
 
 
 class PerformanceLog:
+    """
+    A class to implement a getter for data in the workers' performance log.
+
+    Given a Path, a PerformanceLog clase provides a generator to get at each
+    entry in the workers' performance log. The class also provides a method
+    to get all entries in a pd.DataFrame. Because there is a single log for
+    a run's performance, this class is intended as a singleton.
+
+    Attributes
+    ----------
+    file : Path
+        Path of log file
+
+    Methods
+    -------
+    get_summaries():
+        Generator to retrieve entries in the performance log as dict objects.
+    to_df():
+        Returns the performance log data as a pd.DataFrame.
+    """
+
     def __init__(self, file: Path):
         self.file = file
 
     def get_summaries(self) -> dict:
-        """Get all performance summary log messages in PerformanceLog"""
+        """Generator to get all performance summary log messages in PerformanceLog"""
         with self.file.open('r') as f:
             for line in f.readlines():
                 message = json.loads(line)['record']['message']
@@ -42,7 +64,7 @@ class PerformanceLog:
     TELEMETRY_PATTERN = re.compile(r'^{\"host\".+\"job_number\".+}$')
 
 
-def parse_log_directory(input_directory: Union[Path, str], output_directory: Union[Path, str], output_hdf: bool):
+def report_performance(input_directory: Union[Path, str], output_directory: Union[Path, str], output_hdf: bool):
     input_directory, output_directory = Path(input_directory), Path(output_directory)
     perf_log = PerformanceLog(input_directory / 'performance.log')
 
@@ -51,9 +73,9 @@ def parse_log_directory(input_directory: Union[Path, str], output_directory: Uni
     # Get jobapi data about the job
     try:
         job_numbers = perf_df['job_number'].unique()
-        assert(len(job_numbers) == 1)
+        assert (len(job_numbers) == 1)
         jobapi_data = requests.get("http://jobapi.ihme.washington.edu/fair/queryjobids",
-                         params=[('job_number', job_numbers[0]), ('limit', 50000)]).json()
+                                   params=[('job_number', job_numbers[0]), ('limit', 50000)]).json()
         jobapi_df = pd.DataFrame(jobapi_data["data"])
         perf_df = perf_df.astype({'job_number': np.int64, 'task_number': np.int64})
         perf_df = perf_df.merge(jobapi_df, on=['job_number', 'task_number'])
@@ -75,4 +97,3 @@ def parse_log_directory(input_directory: Union[Path, str], output_directory: Uni
         out_file = out_file.with_suffix(".csv")
         perf_df.to_csv(out_file)
     logger.info(f'Performance summary {"hdf" if output_hdf else "csv"} can be found at {out_file}.')
-

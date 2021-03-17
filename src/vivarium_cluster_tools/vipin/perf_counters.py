@@ -1,6 +1,7 @@
 import json
-import psutil
 from time import time
+
+import psutil
 
 
 class CounterSnapshot:

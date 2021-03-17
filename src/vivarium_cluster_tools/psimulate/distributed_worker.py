@@ -2,24 +2,23 @@ import datetime
 import json
 import math
 import os
-from pathlib import Path
 import random
-from time import time, sleep
+from pathlib import Path
+from time import sleep, time
 from traceback import format_exc
 from typing import Mapping
 
-from loguru import logger
 import numpy as np
 import pandas as pd
 import redis
-from rq import Queue
-from rq import get_current_job
+from loguru import logger
+from rq import Queue, get_current_job
 from rq.job import JobStatus
-from rq.worker import Worker, StopRequested
 from rq.registry import FailedJobRegistry
+from rq.worker import StopRequested, Worker
 
-from vivarium_cluster_tools.vipin.perf_counters import CounterSnapshot
 from vivarium_cluster_tools.psimulate import globals as vct_globals
+from vivarium_cluster_tools.vipin.perf_counters import CounterSnapshot
 
 
 def retry_handler(job, *exc_info):
