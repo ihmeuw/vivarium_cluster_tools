@@ -10,39 +10,51 @@ from loguru import logger
 from pandas.io.json import json_normalize
 
 
-class PerformanceLog:
-    """
-    A class to implement a getter for data in the workers' performance log.
+BASE_PERF_INDEX_COLS = ['host', 'job_number', 'task_number', 'draw', 'seed']
 
-    Given a Path, a PerformanceLog clase provides a generator to get at each
-    entry in the workers' performance log. The class also provides a method
-    to get all entries in a pd.DataFrame. Because there is a single log for
-    a run's performance, this class is intended as a singleton.
+
+class PerformanceSummary:
+    """
+    A class to implement a getter for data in the workers' performance logs.
+
+    Given a Path, a PerformanceSummary class provides a generator to get at each
+    entry in the workers' performance logs. The class also provides a method
+    to get all entries in a pd.DataFrame. This class is intended as a singleton
+    to provide data about a single Vivarium simulation run.
 
     Attributes
     ----------
-    file : Path
-        Path of log file
+    log_dir : Path
+        Path of log_dir
 
     Methods
     -------
     get_summaries():
-        Generator to retrieve entries in the performance log as dict objects.
+        Generator to retrieve entries in the performance logs as dict objects.
     to_df():
         Returns the performance log data as a pd.DataFrame.
     """
 
-    def __init__(self, file: Path):
-        self.file = file
+    def __init__(self, log_dir: Path):
+        self.log_dir: Path = log_dir
+        self.errors: int = 0
 
     def get_summaries(self) -> dict:
-        """Generator to get all performance summary log messages in PerformanceLog"""
-        with self.file.open('r') as f:
-            for line in f.readlines():
-                message = json.loads(line)['record']['message']
-                m = self.TELEMETRY_PATTERN.fullmatch(str(message))
-                if m:
-                    yield json_normalize(json.loads(message), sep='_')
+        """Generator to get all performance summary log messages in PerformanceSummary"""
+        for log in [f for f in self.log_dir.iterdir() if self.PERF_LOG_PATTERN.fullmatch(f.name)]:
+            with log.open('r') as f:
+                count: int = 0
+                for line in f.readlines():
+                    count += 1
+                    try:
+                        message = json.loads(line)['record']['message']
+                    except Exception as e:
+                        logger.warning(f"Exception: {e}. Malformed message in {log} line {count}, skipping...")
+                        self.errors += 1
+                        continue
+                    m = self.TELEMETRY_PATTERN.fullmatch(str(message))
+                    if m:
+                        yield json_normalize(json.loads(message), sep='_')
 
     def to_df(self) -> pd.DataFrame:
         perf_data = []
@@ -54,21 +66,19 @@ class PerformanceLog:
         for col in [col for col in perf_df.columns if col.startswith("event_")]:
             perf_df[col] = pd.to_datetime(perf_df[col], unit='s')
 
-        # Simplify name of scenario normalized JSON label
-        # TODO: add expansion of scenario values
-        scenario_label = [col for col in perf_df.columns if 'scenario' in col]
-        perf_df = perf_df.rename(columns={scenario_label[0]: 'scenario'})
-
+        # Remove trailing "_scenario" from normalized label
+        perf_df.columns = perf_df.columns.str.replace('_scenario', '', regex=False)
         return perf_df
 
     TELEMETRY_PATTERN = re.compile(r'^{\"host\".+\"job_number\".+}$')
+    PERF_LOG_PATTERN = re.compile(r'^perf\.([0-9]+)\.([0-9]+)\.log$')
 
 
 def report_performance(input_directory: Union[Path, str], output_directory: Union[Path, str], output_hdf: bool):
     input_directory, output_directory = Path(input_directory), Path(output_directory)
-    perf_log = PerformanceLog(input_directory / 'performance.log')
+    perf_summary = PerformanceSummary(input_directory)
 
-    perf_df = perf_log.to_df()
+    perf_df = perf_summary.to_df()
 
     # Get jobapi data about the job
     try:
@@ -82,11 +92,10 @@ def report_performance(input_directory: Union[Path, str], output_directory: Unio
     except Exception as e:
         logger.warning(f'Job API request failed with {e}')
 
-    perf_df = perf_df.set_index(['host', 'job_number', 'task_number', 'draw', 'seed', 'scenario'])
-
-    logger.info("\nStatistics by scenario:")
-    for col in [col for col in perf_df.columns if col.startswith('exec_time_')]:
-        logger.info(f'\n>>> {col}:\n{perf_df.groupby("scenario")[col].agg(["mean", "std", "min", "max"])}')
+    # Set index to include branch configuration/scenario columns
+    index_cols = BASE_PERF_INDEX_COLS
+    index_cols.extend([col for col in perf_df.columns if col.startswith("scenario_")])
+    perf_df = perf_df.set_index(index_cols)
 
     # Write to file
     out_file = output_directory / 'log_summary'
@@ -96,4 +105,8 @@ def report_performance(input_directory: Union[Path, str], output_directory: Unio
     else:
         out_file = out_file.with_suffix(".csv")
         perf_df.to_csv(out_file)
-    logger.info(f'Performance summary {"hdf" if output_hdf else "csv"} can be found at {out_file}.')
+
+    if perf_summary.errors > 0:
+        logger.warning(f'{perf_summary.errors} log row{"s were" if perf_summary.errors > 1 else " was"} unreadable.')
+    logger.info(f'Performance summary {"hdf" if output_hdf else "csv"} can be found at {out_file}, with '
+                f'{perf_df.shape[0]} row{"s" if perf_df.shape[0] > 1 else ""}.')
