@@ -94,8 +94,12 @@ def report_performance(input_directory: Union[Path, str], output_directory: Unio
 
     # Set index to include branch configuration/scenario columns
     index_cols = BASE_PERF_INDEX_COLS
-    index_cols.extend([col for col in perf_df.columns if col.startswith("scenario_")])
+    scenario_cols = [col for col in perf_df.columns if col.startswith("scenario_")]
+    index_cols.extend(scenario_cols)
     perf_df = perf_df.set_index(index_cols)
+
+    for col in [col for col in perf_df.columns if col.startswith('exec_time_')]:
+        logger.info(f'\n>>> {col}:\n{perf_df.groupby(scenario_cols)[col].agg(["mean", "std", "min", "max"])}')
 
     # Write to file
     out_file = output_directory / 'log_summary'
