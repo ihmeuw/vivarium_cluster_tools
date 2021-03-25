@@ -12,6 +12,9 @@ from pandas.io.json import json_normalize
 
 BASE_PERF_INDEX_COLS = ['host', 'job_number', 'task_number', 'draw', 'seed']
 
+# The number of scenario columns beyond which we shorten the scenarios to a single string
+COMPOUND_SCENARIO_COL_COUNT = 2
+
 
 class PerformanceSummary:
     """
@@ -74,13 +77,19 @@ class PerformanceSummary:
     PERF_LOG_PATTERN = re.compile(r'^perf\.([0-9]+)\.([0-9]+)\.log$')
 
 
-def report_performance(input_directory: Union[Path, str], output_directory: Union[Path, str], output_hdf: bool):
-    input_directory, output_directory = Path(input_directory), Path(output_directory)
-    perf_summary = PerformanceSummary(input_directory)
+def set_index_scenario_cols(perf_df: pd.DataFrame) -> (pd.DataFrame, list):
+    """Given a dataframe from PerformanceSummary.to_df, add QPID Job API data for the job"""
+    index_cols = BASE_PERF_INDEX_COLS
+    scenario_cols = [col for col in perf_df.columns if col.startswith("scenario_")]
+    index_cols.extend(scenario_cols)
+    perf_df = perf_df.set_index(index_cols)
+    return perf_df, scenario_cols
 
-    perf_df = perf_summary.to_df()
 
-    # Get jobapi data about the job
+def add_jobapi_data(perf_df: pd.DataFrame):
+    """Given a dataframe from PerformanceSummary.to_df, add QPID Job API data for the job.
+    Job API reference: https://stash.ihme.washington.edu/projects/QPID/repos/job-db/browse/docs/index.md
+    """
     try:
         job_numbers = perf_df['job_number'].unique()
         assert (len(job_numbers) == 1)
@@ -91,15 +100,42 @@ def report_performance(input_directory: Union[Path, str], output_directory: Unio
         perf_df = perf_df.merge(jobapi_df, on=['job_number', 'task_number'])
     except Exception as e:
         logger.warning(f'Job API request failed with {e}')
+    return perf_df
+
+
+def print_stat_report(perf_df: pd.DataFrame, scenario_cols: list):
+    """Print some helpful stats from the performance data, grouped by scenario_cols"""
+    pd.set_option('display.max_rows', None)
+    pd.set_option('display.max_columns', None)
+    pd.options.display.float_format = '{:.2f}'.format
+
+    # Print execution times by scenario
+    if len(scenario_cols) <= COMPOUND_SCENARIO_COL_COUNT:
+        for col in [col for col in perf_df.columns if col.startswith('exec_time_')]:
+            logger.info(f'\n>>> {col}:\n{perf_df.groupby(scenario_cols)[col].agg(["mean", "std", "min", "max"])}')
+    else:
+        perf_df = perf_df.reset_index()
+        perf_df["compound_scenario"] = perf_df[scenario_cols].to_csv(header=None, index=False, sep='/').strip(
+            '\n').split('\n')
+        for col in [col for col in perf_df.columns if col.startswith('exec_time_')]:
+            logger.info(
+                f"""\n>>> {col} over compound scenario:\n({"/".join(scenario_cols)}):
+                \n{perf_df.groupby("compound_scenario")[col].agg(["mean", "std", "min", "max"])}""")
+
+
+def report_performance(input_directory: Union[Path, str], output_directory: Union[Path, str], output_hdf: bool,
+                       verbose: int):
+    """Main method for vipin reporting. Gets job performance data, outputs to a file, and logs a report."""
+    input_directory, output_directory = Path(input_directory), Path(output_directory)
+    perf_summary = PerformanceSummary(input_directory)
+
+    perf_df = perf_summary.to_df()
+
+    # Add jobapi data about the job to dataframe
+    perf_df = add_jobapi_data(perf_df)
 
     # Set index to include branch configuration/scenario columns
-    index_cols = BASE_PERF_INDEX_COLS
-    scenario_cols = [col for col in perf_df.columns if col.startswith("scenario_")]
-    index_cols.extend(scenario_cols)
-    perf_df = perf_df.set_index(index_cols)
-
-    for col in [col for col in perf_df.columns if col.startswith('exec_time_')]:
-        logger.info(f'\n>>> {col}:\n{perf_df.groupby(scenario_cols)[col].agg(["mean", "std", "min", "max"])}')
+    perf_df, scenario_cols = set_index_scenario_cols(perf_df)
 
     # Write to file
     out_file = output_directory / 'log_summary'
@@ -109,6 +145,9 @@ def report_performance(input_directory: Union[Path, str], output_directory: Unio
     else:
         out_file = out_file.with_suffix(".csv")
         perf_df.to_csv(out_file)
+
+    if verbose:
+        print_stat_report(perf_df, scenario_cols)
 
     if perf_summary.errors > 0:
         logger.warning(f'{perf_summary.errors} log row{"s were" if perf_summary.errors > 1 else " was"} unreadable.')
