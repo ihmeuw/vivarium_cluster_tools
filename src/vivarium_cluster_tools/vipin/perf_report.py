@@ -119,7 +119,8 @@ def print_stat_report(perf_df: pd.DataFrame, scenario_cols: list):
             '\n').split('\n')
         for col in [col for col in perf_df.columns if col.startswith('exec_time_')]:
             logger.info(
-                f"""\n>>> {col} over compound scenario:\n({"/".join(scenario_cols)}):
+                f"""\n>>> {col} over compound scenario:\n({"/".join(
+                    [s.replace('scenario_', '') for s in scenario_cols])}):
                 \n{perf_df.groupby("compound_scenario")[col].agg(["mean", "std", "min", "max"])}""")
 
 
