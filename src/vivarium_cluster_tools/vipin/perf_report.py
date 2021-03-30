@@ -95,9 +95,10 @@ def add_jobapi_data(perf_df: pd.DataFrame):
         assert (len(job_numbers) == 1)
         jobapi_data = requests.get("http://jobapi.ihme.washington.edu/fair/queryjobids",
                                    params=[('job_number', job_numbers[0]), ('limit', 50000)]).json()
-        jobapi_df = pd.DataFrame(jobapi_data["data"])
+        jobapi_df = pd.DataFrame(jobapi_data["data"]).add_prefix('qpid_')
         perf_df = perf_df.astype({'job_number': np.int64, 'task_number': np.int64})
-        perf_df = perf_df.merge(jobapi_df, on=['job_number', 'task_number'])
+        perf_df = perf_df.merge(jobapi_df, left_on=['job_number', 'task_number'],
+                                right_on=['qpid_job_number', 'qpid_task_number'])
     except Exception as e:
         logger.warning(f'Job API request failed with {e}')
     return perf_df
@@ -109,19 +110,43 @@ def print_stat_report(perf_df: pd.DataFrame, scenario_cols: list):
     pd.set_option('display.max_columns', None)
     pd.options.display.float_format = '{:.2f}'.format
 
-    # Print execution times by scenario
-    if len(scenario_cols) <= COMPOUND_SCENARIO_COL_COUNT:
-        for col in [col for col in perf_df.columns if col.startswith('exec_time_')]:
-            logger.info(f'\n>>> {col}:\n{perf_df.groupby(scenario_cols)[col].agg(["mean", "std", "min", "max"])}')
+    do_compound = len(scenario_cols) > COMPOUND_SCENARIO_COL_COUNT
+
+    perf_df = perf_df.reset_index()
+
+    if do_compound:
+        logger.info(f"compound scenario:\n({'/'.join([s.replace('scenario_', '') for s in scenario_cols])}):")
+        perf_df["compound_scenario"] = perf_df[scenario_cols].to_csv(
+            header=None, index=False, sep='/').strip('\n').split('\n')
+
+    # Print execution times stats by scenario
+    temp = (perf_df.set_index('compound_scenario' if do_compound else scenario_cols)
+            .filter(like='exec_time_')
+            .stack()
+            .reset_index())
+
+    if do_compound:
+        cols = ['compound_scenario', 'measure', 'value']
     else:
-        perf_df = perf_df.reset_index()
-        perf_df["compound_scenario"] = perf_df[scenario_cols].to_csv(header=None, index=False, sep='/').strip(
-            '\n').split('\n')
-        for col in [col for col in perf_df.columns if col.startswith('exec_time_')]:
-            logger.info(
-                f"""\n>>> {col} over compound scenario:\n({"/".join(
-                    [s.replace('scenario_', '') for s in scenario_cols])}):
-                \n{perf_df.groupby("compound_scenario")[col].agg(["mean", "std", "min", "max"])}""")
+        cols = scenario_cols
+        cols.extend(['measure', 'value'])
+
+    temp.columns = cols
+    cols.remove('value')
+
+    report_df = temp.groupby(cols).describe()
+    report_df.columns = report_df.columns.droplevel()
+    report_df = report_df.drop(['count', '25%', '50%', '75%'], axis=1)
+    report_df = report_df.reset_index()
+
+    # Abbreviate execution time measures for printing
+    report_df['measure'] = report_df['measure'].replace('^exec_time_', '', regex=True)
+    report_df['measure'] = report_df['measure'].replace('^simulant_initialization', 'sim_init', regex=True)
+    report_df['measure'] = report_df['measure'].replace('minutes$', 'min', regex=True)
+    report_df['measure'] = report_df['measure'].replace('seconds', 's', regex=True)
+
+    report_df = report_df.set_index(cols).sort_index()
+    logger.info(f'\n{report_df}')
 
 
 def report_performance(input_directory: Union[Path, str], output_directory: Union[Path, str], output_hdf: bool,
