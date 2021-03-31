@@ -59,6 +59,7 @@ if __name__ == "__main__":
             [console_scripts]
             psimulate=vivarium_cluster_tools.psimulate.cli:psimulate
             vipin=vivarium_cluster_tools.vipin.cli:vipin
+            run_lsff=vivarium_cluster_tools.run_general.cli:run_lsff
         """,
 
         install_requires=install_requires,
