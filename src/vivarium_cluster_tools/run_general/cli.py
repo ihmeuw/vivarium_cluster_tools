@@ -13,7 +13,7 @@ shared_options = [
                  help='The cluster project under which to run the command.'),
     click.option('--queue', '-q',
                  type=click.Choice(['all.q', 'long.q']),
-                 default='long.q',  # dynamically set based on max-runtime
+                 default='all.q',
                  help='The cluster queue to assign the jobs to. Queue defaults to the '
                       'appropriate queue based on max-runtime. long.q allows for much longer '
                       'runtimes but there may be reasons to send jobs to that queue even '
@@ -31,12 +31,6 @@ shared_options = [
                        'queue. The maximum supported runtime is 3 days. Keep in mind that the '
                        'session you are launching from must be able to live at least as long '
                        'as the simulation jobs, and that runtimes by node vary wildly.')),
-    click.option('--pdb', 'with_debugger',
-                 is_flag=True,
-                 help='Drop into python debugger if an error occurs.'),
-    click.option('-v', 'verbose',
-                 count=True,
-                 help='Configure logging verbosity.'),
 ]
 
 
@@ -48,16 +42,18 @@ def pass_shared_options(func):
 
 @click.command()
 @click.argument('script_to_run', type=click.Path(exists=True, dir_okay=False))
+@click.argument('vivarium_research_lsff_path', type=click.Path(exists=True))
+@click.argument('output_directory', type=click.Path(exists=True))
 @click.option('--num_simulants', type=int, default=10000, help='Provide the number of simulants')
 @click.option('--draws', type=int, default=1000, help='Provide the number of draws 1-1000')
 @click.option('--random_seed', type=int, default=43, help='Provide the random seed')
 @click.option('--take_mean', type=bool, default=False, help='Specify whether to take the mean of all draws')
 @pass_shared_options
-def run_lsff(script_to_run, num_simulants, draws, random_seed, take_mean, **options):
+def run_lsff(script_to_run, vivarium_research_lsff_path, output_directory, num_simulants, draws, random_seed, take_mean, **options):
     locations = [
         'Ethiopia',
         'Uganda',
         'Nigeria',        
     ]
-    job_map = {c: [script_to_run, c, num_simulants, draws, random_seed, take_mean] for c in locations}
+    job_map = {c: [script_to_run, vivarium_research_lsff_path, output_directory, c, num_simulants, draws, random_seed, take_mean] for c in locations}
     run_multiple.run_cluster_jobs('IronBirthweight', Path('.'), job_map, options)
