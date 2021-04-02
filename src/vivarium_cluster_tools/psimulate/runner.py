@@ -394,6 +394,13 @@ def check_user_sge_config():
                                    "with the worker logs.")
 
 
+def try_run_vipin(log_path: Path):
+
+    try:
+        report_performance(input_directory=log_path, output_directory=log_path, output_hdf=False, verbose=1)
+    except Exception as e:
+        logger.warning(f'Performance reporting failed with: {e}')
+
 def main(model_specification_file: str, branch_configuration_file: str, artifact_path: str, result_directory: str,
          native_specification: dict, redis_processes: int, num_input_draws: int = None,
          num_random_seeds: int = None, restart:  bool = False,
@@ -449,7 +456,6 @@ def main(model_specification_file: str, branch_configuration_file: str, artifact
 
     process_job_results(registry_manager, ctx)
 
-    report_performance(input_directory=logging_dirs['worker'], output_directory=logging_dirs['worker'],
-                       output_hdf=False, verbose=1)
+    try_run_vipin(logging_dirs['worker'])
 
     logger.info('Jobs completed. Results written to: {}'.format(ctx.output_directory))
