@@ -193,7 +193,7 @@ def validate_environment(output_dir: Path):
                     'original versions. Run can proceed.')
 
 
-def check_empty_results_dir(output_dir: Path):
+def check_for_empty_results_dir(output_dir: Path):
     """Remove the results directory including runner and worker logs if the simulation produced no results (i.e.,
     it failed). """
     if not (output_dir / 'output.hdf').exists():
