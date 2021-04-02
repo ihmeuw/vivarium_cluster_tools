@@ -193,19 +193,8 @@ def validate_environment(output_dir: Path):
                     'original versions. Run can proceed.')
 
 
-def results_dir_is_empty(output_dir: Path) -> bool:
-    """Return True if results have been populated and False otherwise."""
-    return not (output_dir / 'output.hdf').exists()
-
-
 def check_empty_results_dir(output_dir: Path):
     """Remove the results directory including runner and worker logs if the simulation produced no results (i.e.,
     it failed). """
-    if results_dir_is_empty(output_dir):
+    if not (output_dir / 'output.hdf').exists():
         rmtree(output_dir)
-
-
-def run_vipin_on_results(output_dir: Path, input_directory: Union[Path, str], output_directory: Union[Path, str]):
-    """Run vipin to get performance statistics as on an output_dir of a successful Vivarium run."""
-    if results_dir_is_empty(output_dir):
-        report_performance(input_directory, output_directory, output_hdf=False, verbose=1)
