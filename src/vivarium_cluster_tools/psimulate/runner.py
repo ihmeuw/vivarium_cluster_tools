@@ -402,6 +402,10 @@ def main(model_specification_file: str, branch_configuration_file: str, artifact
 
     output_dir, logging_dirs = utilities.setup_directories(model_specification_file, result_directory,
                                                            restart, expand=bool(num_input_draws or num_random_seeds))
+
+    atexit.register(utilities.run_vipin_on_results, output_dir=output_dir, input_directory=logging_dirs['worker'],
+                    output_directory=logging_dirs['worker'])
+
     if not no_cleanup:
         atexit.register(utilities.check_for_empty_results_dir, output_dir=output_dir)
 
