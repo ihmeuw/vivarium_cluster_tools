@@ -1,9 +1,9 @@
 from pathlib import Path
 
 import click
-from loguru import logger
 
-from vivarium_cluster_tools.psimulate import globals as vct_globals, runner, utilities
+from vivarium_cluster_tools.psimulate import globals as vct_globals
+from vivarium_cluster_tools.psimulate.branches import Keyspace
 from vivarium_cluster_tools.run_general import run_multiple
 
 shared_options = [
@@ -40,6 +40,7 @@ def pass_shared_options(func):
         func = option(func)
     return func
 
+
 @click.command()
 @click.argument('script_to_run', type=click.Path(exists=True, dir_okay=False))
 @click.argument('vivarium_research_lsff_path', type=click.Path(exists=True))
@@ -49,11 +50,27 @@ def pass_shared_options(func):
 @click.option('--random_seed', type=int, default=43, help='Provide the random seed')
 @click.option('--take_mean', type=bool, default=False, help='Specify whether to take the mean of all draws')
 @pass_shared_options
-def run_lsff(script_to_run, vivarium_research_lsff_path, output_directory, num_simulants, draws, random_seed, take_mean, **options):
+def run_lsff(script_to_run, vivarium_research_lsff_path, output_directory, num_simulants, draws, random_seed, take_mean,
+             **options):
     locations = [
         'Ethiopia',
         'Uganda',
         'Nigeria',        
     ]
-    job_map = {c: [script_to_run, vivarium_research_lsff_path, output_directory, c, num_simulants, draws, random_seed, take_mean] for c in locations}
+    job_map = {c: [script_to_run, vivarium_research_lsff_path, output_directory, c, num_simulants, draws, random_seed,
+                   take_mean] for c in locations}
     run_multiple.run_cluster_jobs('IronBirthweight', Path('.'), job_map, options)
+
+
+@click.command()
+@click.argument('script_to_run', type=click.Path(exists=True, dir_okay=False))
+@click.option('--sim_config', '-c', type=click.Path(exists=True))
+@click.option('--branches_config', '-b', type=click.Path(exists=True))
+@click.option('--output_directory', '-o', type=click.Path(exists=False))
+@pass_shared_options
+def run_script(script_to_run, sim_config, branches_config, output_directory, **options):
+    keyspace = Keyspace.from_branch_configuration(None, None, branches_config)
+    branch_args = [(permutation[0], permutation[1], *permutation[2].values()) for permutation in keyspace]
+    job_map = {'_'.join([str(val) for val in args]): [script_to_run, sim_config, output_directory, *args]
+               for args in branch_args}
+    run_multiple.run_cluster_jobs('InteractiveSimScript', Path(output_directory), job_map, options)
