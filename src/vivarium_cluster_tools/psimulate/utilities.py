@@ -185,9 +185,12 @@ def compare_environments(current: Dict, original: Dict):
 def validate_environment(output_dir: Path):
     original_environment_file = output_dir / 'requirements.txt'
 
-    current_environment_list = [p for p in freeze.freeze(exclude_editable=False)]
-    # XXX
-    breakpoint()
+    import subprocess
+    pip_list_proc = subprocess.Popen(["pip", "list", "--format=freeze"],
+                                     stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    out, err = pip_list_proc.communicate()
+    current_environment_list = out.decode().strip().split('\n')
+
     if not original_environment_file.exists():  # original run
         with original_environment_file.open('w') as f:
             f.write('\n'.join(current_environment_list))
