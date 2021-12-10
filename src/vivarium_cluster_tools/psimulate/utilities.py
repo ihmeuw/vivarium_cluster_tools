@@ -186,6 +186,8 @@ def validate_environment(output_dir: Path):
     original_environment_file = output_dir / 'requirements.txt'
 
     current_environment_list = [p for p in freeze.freeze(exclude_editable=False)]
+    # XXX
+    breakpoint()
     if not original_environment_file.exists():  # original run
         with original_environment_file.open('w') as f:
             f.write('\n'.join(current_environment_list))
