@@ -15,13 +15,6 @@ from typing import Dict, List, Tuple, Sequence
 
 from loguru import logger
 
-
-# depending on version of pip, freeze may be in one of two places
-try:
-    from pip._internal.operations import freeze
-except ImportError:
-    from pip.operations import freeze
-
 from vivarium_cluster_tools import utilities as vct_utils
 from vivarium_cluster_tools.psimulate import globals as vct_globals
 
