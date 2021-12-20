@@ -71,6 +71,8 @@ def run_lsff(script_to_run, vivarium_research_lsff_path, output_directory, num_s
 def run_script(script_to_run, sim_config, branches_config, output_directory, **options):
     keyspace = Keyspace.from_branch_configuration(None, None, branches_config)
     branch_args = [(permutation[0], permutation[1], *permutation[2].values()) for permutation in keyspace]
-    job_map = {'_'.join([str(val) for val in args]): [script_to_run, sim_config, output_directory, *args]
+    # job_map = {'_'.join([str(val) for val in args]): [script_to_run, sim_config, output_directory, *args]
+    #            for args in branch_args}
+    job_map = {'_'.join([str(val) for val in args[:2]]): [script_to_run, sim_config, output_directory, *args]
                for args in branch_args}
     run_multiple.run_cluster_jobs('InteractiveSimScript', Path(output_directory), job_map, options)
