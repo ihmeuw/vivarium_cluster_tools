@@ -353,7 +353,8 @@ def write_results_batch(ctx: RunContext,
             sleep(30)
             retries -= 1
             if not retries:
-                logger.warning(f"Retries exhausted: {e}")
+                logger.warning(f"Retries exhausted.")
+                raise e
     end = time()
     logger.info(f"Updated output.hdf in {end - start:.4f}s.")
     return results_to_write, unwritten_results
