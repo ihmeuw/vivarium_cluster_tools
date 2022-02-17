@@ -51,9 +51,6 @@ class OutputPaths(NamedTuple):
             "cluster_logging_root": logging_directory / "sge_logs",
             "worker_logging_root": logging_directory / "worker_logs",
         }
-        vct_utils.mkdir(output_directory, exists_ok=True, parents=True)
-        for d in logging_dirs:
-            vct_utils.mkdir(d, parents=True)
 
         output_paths = OutputPaths(
             root=output_directory,
@@ -66,6 +63,11 @@ class OutputPaths(NamedTuple):
             results=output_directory / 'output.hdf',
         )
         return output_paths
+
+    def touch(self):
+        vct_utils.mkdir(self.root, exists_ok=True, parents=True)
+        for d in [self.logging_root, self.cluster_logging_root, self.worker_logging_root]:
+            vct_utils.mkdir(d, parents=True)
 
 
 def delete_on_catastrophic_failure(output_paths: OutputPaths):

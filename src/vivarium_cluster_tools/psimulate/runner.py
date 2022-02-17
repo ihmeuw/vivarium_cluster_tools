@@ -33,30 +33,11 @@ from vivarium_cluster_tools.psimulate.registry import RegistryManager
 from vivarium_cluster_tools.vipin.perf_report import report_performance
 
 
-def build_keyspace(
-    input_branch_configuration_path: Optional[str],
-    output_paths: OutputPaths,
-    restart: bool,
-    expand: Optional[Dict[str, int]]
-) -> Keyspace:
-    if restart:
-        keyspace = Keyspace.from_previous_run(output_paths.keyspace, output_paths.branches)
-        if expand:
-            keyspace.add_draws(expand["num_draws"])
-            keyspace.add_seeds(expand["num_seeds"])
-            keyspace.persist(output_paths.keyspace, output_paths.branches)
-    else:
-        keyspace = Keyspace.from_branch_configuration(
-            input_branch_configuration_path,
-        )
-    return keyspace
-
-
 class RunContext:
     def __init__(
         self,
         model_specification_file: str,
-        branch_configuration_file: str,
+
         artifact_path: str,
         output_paths: OutputPaths,
         restart: bool,
@@ -75,30 +56,7 @@ class RunContext:
                 self.keyspace.add_seeds(expand["num_seeds"])
                 self.keyspace.persist(self.output_paths.keyspace, self.output_paths.branches)
         else:
-            model_specification = build_model_specification(model_specification_file)
-            if artifact_path:
-                if vct_globals.FULL_ARTIFACT_PATH_KEY in self.keyspace:
-                    raise ConfigurationError(
-                        "Artifact path cannot be specified both in the branch specification file"
-                        " and as a command line argument.",
-                        artifact_path,
-                    )
-                if not Path(artifact_path).exists():
-                    raise FileNotFoundError(f"Cannot find artifact at path {artifact_path}")
 
-            elif (
-                vct_globals.ARTIFACT_PATH_KEY
-                in model_specification.configuration[vct_globals.INPUT_DATA_KEY]
-            ):
-                artifact_path = parse_artifact_path_config(model_specification.configuration)
-
-            if artifact_path:
-                model_specification.configuration[vct_globals.INPUT_DATA_KEY].update(
-                    {vct_globals.ARTIFACT_PATH_KEY: artifact_path}, source=__file__
-                )
-
-            with self.output_paths.model_specification_file.open('w') as config_file:
-                yaml.dump(model_specification.to_dict(), config_file)
 
             self.existing_outputs = None
 
@@ -199,6 +157,38 @@ def process_job_results(registry_manager: RegistryManager, ctx: RunContext):
             logger.info(f"Elapsed time: {(time() - start_time) / 60:.1f} minutes.")
 
 
+def build_model_specification(
+    input_model_specification_file: Optional[str],
+    artifact_path: Optional[str],
+    keyspace
+):
+
+    model_specification = build_model_specification(model_specification_file)
+    if artifact_path:
+        if vct_globals.FULL_ARTIFACT_PATH_KEY in self.keyspace:
+            raise ConfigurationError(
+                "Artifact path cannot be specified both in the branch specification file"
+                " and as a command line argument.",
+                artifact_path,
+            )
+        if not Path(artifact_path).exists():
+            raise FileNotFoundError(f"Cannot find artifact at path {artifact_path}")
+
+    elif (
+            vct_globals.ARTIFACT_PATH_KEY
+            in model_specification.configuration[vct_globals.INPUT_DATA_KEY]
+    ):
+        artifact_path = parse_artifact_path_config(model_specification.configuration)
+
+    if artifact_path:
+        model_specification.configuration[vct_globals.INPUT_DATA_KEY].update(
+            {vct_globals.ARTIFACT_PATH_KEY: artifact_path}, source=__file__
+        )
+
+    with self.output_paths.model_specification_file.open('w') as config_file:
+        yaml.dump(model_specification.to_dict(), config_file)
+
+
 def try_run_vipin(log_path: Path):
 
     try:
@@ -223,16 +213,27 @@ def main(
 ):
     cluster.exit_if_on_submit_host(cluster.get_hostname())
 
+    # Generate a programmatic representation of the output directory structure.
     output_paths = OutputPaths.from_entry_point_args(
         result_directory=result_directory,
         input_model_specification_path=model_specification_file,
         restart=restart,
         expand=bool(expand),
     )
+    # Create all directories from the output root down.
+    output_paths.touch()
 
     logs.configure_main_process_logging_to_file(output_paths.logging_root)
-
     programming_environment.validate(output_paths.environment_file)
+
+    keyspace = Keyspace.from_entry_point_args(
+        input_branch_configuration_path=branch_configuration_file,
+        restart=restart,
+        expand=expand,
+        keyspace_path=output_paths.keyspace,
+        branches_path=output_paths.branches,
+    )
+    keyspace.persist(output_paths.keyspace, output_paths.branches)
 
     native_specification["job_name"] = output_paths.root.parts[-2]
     native_specification = cluster.NativeSpecification(**native_specification)

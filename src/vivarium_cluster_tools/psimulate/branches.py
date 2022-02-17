@@ -8,13 +8,13 @@ Tools for managing the parameter space of a parallel run.
 """
 from itertools import product
 from pathlib import Path
+from typing import Dict, Optional
 
 import numpy as np
 import yaml
 from vivarium.framework.utilities import collapse_nested_dict
 
 from vivarium_cluster_tools.psimulate.globals import FULL_ARTIFACT_PATH_KEY
-
 
 
 class Keyspace:
@@ -46,6 +46,26 @@ class Keyspace:
         keyspace = yaml.full_load(keyspace_path.read_text())
         branches = yaml.full_load(branches_path.read_text())
         return Keyspace(branches, keyspace)
+
+    @classmethod
+    def from_entry_point_args(
+        cls,
+        input_branch_configuration_path: Optional[str],
+        restart: bool,
+        expand: Optional[Dict[str, int]],
+        keyspace_path: Path,
+        branches_path: Path,
+    ) -> 'Keyspace':
+        if restart:
+            keyspace = cls.from_previous_run(keyspace_path, branches_path)
+            if expand:
+                keyspace.add_draws(expand["num_draws"])
+                keyspace.add_seeds(expand["num_seeds"])
+        else:
+            keyspace = cls.from_branch_configuration(
+                input_branch_configuration_path,
+            )
+        return keyspace
 
     def get_data(self):
         """Returns a copy of the underlying keyspace data."""

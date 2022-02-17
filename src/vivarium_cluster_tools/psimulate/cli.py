@@ -15,7 +15,7 @@ from loguru import logger
 from vivarium.framework.utilities import handle_exceptions
 
 from vivarium_cluster_tools import logs
-from vivarium_cluster_tools.psimulate import cluster, results, runner
+from vivarium_cluster_tools.psimulate import cluster, paths, runner
 
 shared_options = [
     click.option(
@@ -117,7 +117,7 @@ def psimulate():
     "--result-directory",
     "-o",
     type=click.Path(file_okay=False),
-    default=results.DEFAULT_OUTPUT_DIRECTORY,
+    default=paths.DEFAULT_OUTPUT_DIRECTORY,
     help="The directory to write results to. A folder will be created in this directory with the same name "
     "as the configuration file.",
 )
