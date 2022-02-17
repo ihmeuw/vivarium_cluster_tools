@@ -37,7 +37,7 @@ class RunContext:
     def __init__(
         self,
         input_paths: paths.InputPaths,
-        output_paths: OutputPaths,
+        output_paths: paths.OutputPaths,
         restart: bool,
         expand: Dict[str, int],
         no_batch: bool,
@@ -207,14 +207,14 @@ def main(
 ):
     cluster.exit_if_on_submit_host(cluster.get_hostname())
 
-    # Generate a programmatic representation of the output directory structure.
-    output_paths = OutputPaths.from_entry_point_args(
-        result_directory=input_paths.result_directory,
+    # Generate programmatic representation of the output directory structure
+    output_paths = paths.OutputPaths.from_entry_point_args(
         input_model_specification_path=input_paths.model_specification,
+        result_directory=input_paths.result_directory,
         restart=restart,
         expand=bool(expand),
     )
-    # Create all directories from the output root down.
+    # Make output root and all subdirectories.
     output_paths.touch()
 
     logs.configure_main_process_logging_to_file(output_paths.logging_root)
@@ -252,7 +252,8 @@ def main(
         redis_processes = int(math.ceil(len(jobs) / cluster.DEFAULT_JOBS_PER_REDIS_INSTANCE))
 
     worker_template, redis_ports = cluster.launch_redis_processes(
-        redis_processes, output_paths.logging_root,
+        redis_processes,
+        output_paths.logging_root,
     )
     output_paths.worker_settings.write_text(worker_template)
 

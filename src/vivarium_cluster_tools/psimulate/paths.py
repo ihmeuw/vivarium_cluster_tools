@@ -11,7 +11,10 @@ from typing import NamedTuple, Optional
 
 from vivarium_cluster_tools import utilities as vct_utils
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> 2f59078966c6b7a2480e5ec86ac35092fabcc440
 DEFAULT_OUTPUT_DIRECTORY = "/share/costeffectiveness/results"
 
 
@@ -22,7 +25,7 @@ class InputPaths(NamedTuple):
     result_directory: Path
 
     @classmethod
-    def from_args(
+    def from_entry_point_args(
         cls,
         *,  # No positional args allowed.
         result_directory: str,
@@ -69,17 +72,19 @@ class OutputPaths(NamedTuple):
     @classmethod
     def from_entry_point_args(
         cls,
-        input_model_specification_path: Optional[str],
-        result_directory: str,
+        input_model_specification_path: Optional[Path],
+        result_directory: Path,
         restart: bool,
         expand: bool,
-    ) -> 'OutputPaths':
+    ) -> "OutputPaths":
         command = _resolve_command(restart, expand)
         launch_time = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
 
-        output_directory = Path(result_directory)
-        if command == 'run':
-            output_directory = output_directory / Path(input_model_specification_path).stem / launch_time
+        output_directory = result_directory
+        if command == "run":
+            output_directory = (
+                output_directory / input_model_specification_path.stem / launch_time
+            )
 
         logging_directory = output_directory / "logs" / f"{launch_time}_{command}"
         logging_dirs = {
@@ -91,12 +96,12 @@ class OutputPaths(NamedTuple):
         output_paths = OutputPaths(
             root=output_directory,
             **logging_dirs,
-            worker_settings=output_directory / 'settings.py',
-            environment_file=output_directory / 'requirements.txt',
-            model_specification=output_directory / 'model_specification.yaml',
-            keyspace=output_directory / 'keyspace.yaml',
-            branches=output_directory / 'branches.yaml',
-            results=output_directory / 'output.hdf',
+            worker_settings=output_directory / "settings.py",
+            environment_file=output_directory / "requirements.txt",
+            model_specification=output_directory / "model_specification.yaml",
+            keyspace=output_directory / "keyspace.yaml",
+            branches=output_directory / "branches.yaml",
+            results=output_directory / "output.hdf",
         )
         return output_paths
 
@@ -121,13 +126,13 @@ def delete_on_catastrophic_failure(output_paths: OutputPaths):
 
 def _resolve_command(restart: bool, expand: bool):
     command = {
-        (False, False): 'run',
-        (False, True): 'invalid',
-        (True, False): 'restart',
-        (True, True): 'expand',
+        (False, False): "run",
+        (False, True): "invalid",
+        (True, False): "restart",
+        (True, True): "expand",
     }[(restart, expand)]
 
     # Should be impossible from entry points.
-    if command == 'invalid':
+    if command == "invalid":
         raise ValueError("Unknown command configuration")
     return command
