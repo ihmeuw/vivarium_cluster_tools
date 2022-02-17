@@ -34,7 +34,7 @@ from vivarium_cluster_tools.vipin.perf_report import report_performance
 
 
 def build_keyspace(
-    input_branch_configuration: Optional[str],
+    input_branch_configuration_path: Optional[str],
     output_paths: OutputPaths,
     restart: bool,
     expand: Optional[Dict[str, int]]
@@ -47,8 +47,9 @@ def build_keyspace(
             keyspace.persist(output_paths.keyspace, output_paths.branches)
     else:
         keyspace = Keyspace.from_branch_configuration(
-            num_input_draws, num_random_seeds, branch_configuration_file
+            input_branch_configuration_path,
         )
+    return keyspace
 
 
 class RunContext:
@@ -58,8 +59,6 @@ class RunContext:
         branch_configuration_file: str,
         artifact_path: str,
         output_paths: OutputPaths,
-        num_input_draws: int,
-        num_random_seeds: int,
         restart: bool,
         expand: Dict[str, int],
         no_batch: bool,
@@ -77,8 +76,6 @@ class RunContext:
                 self.keyspace.persist(self.output_paths.keyspace, self.output_paths.branches)
         else:
             model_specification = build_model_specification(model_specification_file)
-
-
             if artifact_path:
                 if vct_globals.FULL_ARTIFACT_PATH_KEY in self.keyspace:
                     raise ConfigurationError(
