@@ -16,6 +16,7 @@ from vivarium.framework.utilities import collapse_nested_dict
 from vivarium_cluster_tools.psimulate.globals import FULL_ARTIFACT_PATH_KEY
 
 
+
 class Keyspace:
     """A representation of a collection of simulation configurations."""
 
@@ -49,9 +50,9 @@ class Keyspace:
         return Keyspace(branches, keyspace)
 
     @classmethod
-    def from_previous_run(cls, path: Path):
-        keyspace = yaml.full_load((path / "keyspace.yaml").read_text())
-        branches = yaml.full_load((path / "branches.yaml").read_text())
+    def from_previous_run(cls, keyspace_path: Path, branches_path: Path):
+        keyspace = yaml.full_load(keyspace_path.read_text())
+        branches = yaml.full_load(branches_path.read_text())
         return Keyspace(branches, keyspace)
 
     def get_data(self):
@@ -64,9 +65,9 @@ class Keyspace:
                 return i
         raise KeyError(f"No matching branch {branch}")
 
-    def persist(self, output_directory: Path):
-        (output_directory / "keyspace.yaml").write_text(yaml.dump(self.get_data()))
-        (output_directory / "branches.yaml").write_text(yaml.dump(self.branches))
+    def persist(self, keyspace_path: Path, branches_path: Path):
+        keyspace_path.write_text(yaml.dump(self.get_data()))
+        branches_path.write_text(yaml.dump(self.branches))
 
     def add_draws(self, num_draws):
         existing = self._keyspace["input_draw"]

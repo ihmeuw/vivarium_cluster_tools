@@ -10,7 +10,7 @@ import atexit
 import math
 from pathlib import Path
 from time import sleep, time
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -28,8 +28,27 @@ from vivarium_cluster_tools.psimulate import cluster
 from vivarium_cluster_tools.psimulate import globals as vct_globals
 from vivarium_cluster_tools.psimulate import programming_environment, results
 from vivarium_cluster_tools.psimulate.branches import Keyspace
+from vivarium_cluster_tools.psimulate.paths import OutputPaths, delete_on_catastrophic_failure
 from vivarium_cluster_tools.psimulate.registry import RegistryManager
 from vivarium_cluster_tools.vipin.perf_report import report_performance
+
+
+def build_keyspace(
+    input_branch_configuration: Optional[str],
+    output_paths: OutputPaths,
+    restart: bool,
+    expand: Optional[Dict[str, int]]
+) -> Keyspace:
+    if restart:
+        keyspace = Keyspace.from_previous_run(output_paths.keyspace, output_paths.branches)
+        if expand:
+            keyspace.add_draws(expand["num_draws"])
+            keyspace.add_seeds(expand["num_seeds"])
+            keyspace.persist(output_paths.keyspace, output_paths.branches)
+    else:
+        keyspace = Keyspace.from_branch_configuration(
+            num_input_draws, num_random_seeds, branch_configuration_file
+        )
 
 
 class RunContext:
@@ -38,8 +57,7 @@ class RunContext:
         model_specification_file: str,
         branch_configuration_file: str,
         artifact_path: str,
-        output_directory: Path,
-        logging_directories: Dict[str, Path],
+        output_paths: OutputPaths,
         num_input_draws: int,
         num_random_seeds: int,
         restart: bool,
@@ -47,24 +65,20 @@ class RunContext:
         no_batch: bool,
     ):
         self.number_already_completed = 0
-        self.output_directory = output_directory
+        self.output_paths = output_paths
         self.no_batch = no_batch
-        self.sge_log_directory = logging_directories["sge"]
-        self.worker_log_directory = logging_directories["worker"]
 
         if restart:
-            self.keyspace = Keyspace.from_previous_run(self.output_directory)
-            self.existing_outputs = pd.read_hdf(self.output_directory / "output.hdf")
+            self.keyspace = Keyspace.from_previous_run(self.output_paths.keyspace, self.output_paths.branches)
+            self.existing_outputs = pd.read_hdf(self.output_paths.results)
             if expand:
                 self.keyspace.add_draws(expand["num_draws"])
                 self.keyspace.add_seeds(expand["num_seeds"])
-                self.keyspace.persist(self.output_directory)
+                self.keyspace.persist(self.output_paths.keyspace, self.output_paths.branches)
         else:
             model_specification = build_model_specification(model_specification_file)
 
-            self.keyspace = Keyspace.from_branch_configuration(
-                num_input_draws, num_random_seeds, branch_configuration_file
-            )
+
             if artifact_path:
                 if vct_globals.FULL_ARTIFACT_PATH_KEY in self.keyspace:
                     raise ConfigurationError(
@@ -86,16 +100,13 @@ class RunContext:
                     {vct_globals.ARTIFACT_PATH_KEY: artifact_path}, source=__file__
                 )
 
-            with open(
-                self.output_directory / vct_globals.MODEL_SPEC_FILENAME, "w"
-            ) as config_file:
+            with self.output_paths.model_specification_file.open('w') as config_file:
                 yaml.dump(model_specification.to_dict(), config_file)
 
             self.existing_outputs = None
 
             # Log some basic stuff about the simulation to be run.
-            self.keyspace.persist(self.output_directory)
-        self.model_specification = self.output_directory / vct_globals.MODEL_SPEC_FILENAME
+            self.keyspace.persist(self.output_paths.root)
 
 
 def build_job_list(ctx: RunContext) -> List[dict]:
@@ -202,14 +213,12 @@ def try_run_vipin(log_path: Path):
 
 
 def main(
-    model_specification_file: str,
-    branch_configuration_file: str,
-    artifact_path: str,
+    model_specification_file: Optional[str],
+    branch_configuration_file: Optional[str],
+    artifact_path: Optional[str],
     result_directory: str,
     native_specification: dict,
     redis_processes: int,
-    num_input_draws: int = None,
-    num_random_seeds: int = None,
     restart: bool = False,
     expand: Dict[str, int] = None,
     no_batch: bool = False,
@@ -217,32 +226,25 @@ def main(
 ):
     cluster.exit_if_on_submit_host(cluster.get_hostname())
 
-    output_dir, logging_dirs = results.setup_directories(
-        model_specification_file,
-        result_directory,
-        restart,
-        expand=bool(num_input_draws or num_random_seeds),
+    output_paths = OutputPaths.from_entry_point_args(
+        result_directory=result_directory,
+        input_model_specification_path=model_specification_file,
+        restart=restart,
+        expand=bool(expand),
     )
 
-    if not no_cleanup:
-        atexit.register(results.check_for_empty_results_dir, output_dir=output_dir)
+    logs.configure_main_process_logging_to_file(output_paths.logging_root)
 
-    atexit.register(lambda: logger.remove())
+    programming_environment.validate(output_paths.environment_file)
 
-    native_specification["job_name"] = output_dir.parts[-2]
+    native_specification["job_name"] = output_paths.root.parts[-2]
     native_specification = cluster.NativeSpecification(**native_specification)
-
-    logs.configure_main_process_logging_to_file(logging_dirs["main"])
-    programming_environment.validate(output_dir)
 
     ctx = RunContext(
         model_specification_file,
         branch_configuration_file,
         artifact_path,
-        output_dir,
-        logging_dirs,
-        num_input_draws,
-        num_random_seeds,
+        output_paths,
         restart,
         expand,
         no_batch,
@@ -254,31 +256,33 @@ def main(
         logger.info("Nothing to do")
         return
 
-    logger.info("Starting jobs. Results will be written to: {}".format(ctx.output_directory))
+    logger.info(f"Starting jobs. Results will be written to: {str(output_paths.root)}")
 
     if redis_processes == -1:
         redis_processes = int(math.ceil(len(jobs) / cluster.DEFAULT_JOBS_PER_REDIS_INSTANCE))
 
     worker_template, redis_ports = cluster.launch_redis_processes(
-        redis_processes, logging_dirs
+        redis_processes, output_paths.logging_root,
     )
-    worker_file = output_dir / "settings.py"
-    with worker_file.open("w") as f:
-        f.write(worker_template)
+    output_paths.worker_settings.write_text(worker_template)
 
     registry_manager = RegistryManager(redis_ports, ctx.number_already_completed)
     registry_manager.enqueue(jobs)
 
     cluster.start_cluster(
         len(jobs),
-        ctx.sge_log_directory,
-        ctx.worker_log_directory,
-        worker_file,
+        output_paths.cluster_logging_root,
+        output_paths.worker_logging_root,
+        output_paths.worker_settings,
         native_specification,
     )
 
+    atexit.register(lambda: logger.remove())
+    if not no_cleanup:
+        atexit.register(delete_on_catastrophic_failure, output_paths=output_paths)
+
     process_job_results(registry_manager, ctx)
 
-    try_run_vipin(logging_dirs["worker"])
+    try_run_vipin(output_paths.worker_logging_root)
 
-    logger.info("Jobs completed. Results written to: {}".format(ctx.output_directory))
+    logger.info(f"Jobs completed. Results written to: {str(output_paths.root)}")

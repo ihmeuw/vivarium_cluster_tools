@@ -13,9 +13,7 @@ from typing import Dict, List, Tuple
 from loguru import logger
 
 
-def validate(output_dir: Path):
-    original_environment_file = output_dir / "requirements.txt"
-
+def validate(original_environment_file: Path):
     pip_list_proc = subprocess.Popen(
         ["pip", "list", "--format=freeze"], stdout=subprocess.PIPE, stderr=subprocess.PIPE
     )
