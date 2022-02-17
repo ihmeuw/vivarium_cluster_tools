@@ -7,8 +7,6 @@ Shared constants for psimulate runs.
 """
 
 
-
-
 # Configuration key constants
 INPUT_DATA_KEY = "input_data"
 ARTIFACT_PATH_KEY = "artifact_path"

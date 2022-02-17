@@ -8,7 +8,7 @@ Tools for managing the parameter space of a parallel run.
 """
 from itertools import product
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Optional, Union
 
 import numpy as np
 import yaml
@@ -25,11 +25,11 @@ class Keyspace:
         self._keyspace = keyspace
 
     @classmethod
-    def from_branch_configuration(cls, branch_configuration_file):
+    def from_branch_configuration(cls, branch_configuration_file: Union[str, Path]):
         """
         Parameters
         ----------
-        branch_configuration_file: str
+        branch_configuration_file
             Absolute path to the branch configuration file.
         """
         branches, input_draw_count, random_seed_count = load_branch_configuration(

@@ -26,7 +26,7 @@ from vivarium.framework.utilities import collapse_nested_dict
 from vivarium_cluster_tools import logs
 from vivarium_cluster_tools.psimulate import cluster
 from vivarium_cluster_tools.psimulate import globals as vct_globals
-from vivarium_cluster_tools.psimulate import programming_environment, results
+from vivarium_cluster_tools.psimulate import paths, programming_environment, results
 from vivarium_cluster_tools.psimulate.branches import Keyspace
 from vivarium_cluster_tools.psimulate.paths import OutputPaths, delete_on_catastrophic_failure
 from vivarium_cluster_tools.psimulate.registry import RegistryManager
@@ -36,9 +36,7 @@ from vivarium_cluster_tools.vipin.perf_report import report_performance
 class RunContext:
     def __init__(
         self,
-        model_specification_file: str,
-
-        artifact_path: str,
+        input_paths: paths.InputPaths,
         output_paths: OutputPaths,
         restart: bool,
         expand: Dict[str, int],
@@ -56,7 +54,6 @@ class RunContext:
                 self.keyspace.add_seeds(expand["num_seeds"])
                 self.keyspace.persist(self.output_paths.keyspace, self.output_paths.branches)
         else:
-
 
             self.existing_outputs = None
 
@@ -200,10 +197,7 @@ def try_run_vipin(log_path: Path):
 
 
 def main(
-    model_specification_file: Optional[str],
-    branch_configuration_file: Optional[str],
-    artifact_path: Optional[str],
-    result_directory: str,
+    input_paths: paths.InputPaths,
     native_specification: dict,
     redis_processes: int,
     restart: bool = False,
@@ -215,8 +209,8 @@ def main(
 
     # Generate a programmatic representation of the output directory structure.
     output_paths = OutputPaths.from_entry_point_args(
-        result_directory=result_directory,
-        input_model_specification_path=model_specification_file,
+        result_directory=input_paths.result_directory,
+        input_model_specification_path=input_paths.model_specification,
         restart=restart,
         expand=bool(expand),
     )
@@ -227,7 +221,7 @@ def main(
     programming_environment.validate(output_paths.environment_file)
 
     keyspace = Keyspace.from_entry_point_args(
-        input_branch_configuration_path=branch_configuration_file,
+        input_branch_configuration_path=input_paths.branch_configuration,
         restart=restart,
         expand=expand,
         keyspace_path=output_paths.keyspace,
@@ -239,9 +233,7 @@ def main(
     native_specification = cluster.NativeSpecification(**native_specification)
 
     ctx = RunContext(
-        model_specification_file,
-        branch_configuration_file,
-        artifact_path,
+        input_paths,
         output_paths,
         restart,
         expand,
