@@ -134,7 +134,8 @@ def main(
     # Either write a requirements.txt with the current environment
     # or verify the current environment matches the prior environment
     # used when doing a restart.
-    pip_env.validate(output_paths.environment_file)
+    # XXX DEBUG: reenable later...
+    # pip_env.validate(output_paths.environment_file)
 
     logger.info(
         "Parsing input arguments into model specification and branches and writing to disk."
