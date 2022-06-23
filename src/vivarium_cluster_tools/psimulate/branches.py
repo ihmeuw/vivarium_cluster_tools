@@ -138,8 +138,6 @@ def calculate_input_draws(
         min_input_draw_count_allowed = 1
     np.random.shuffle(possible)
     if min_input_draw_count_allowed <= input_draw_count <= len(possible):
-        # XXX
-        breakpoint()
         return possible[:input_draw_count]
     else:
         raise ValueError(
@@ -175,12 +173,9 @@ def calculate_random_seeds(
 
     np.random.seed(654321)
     possible = list(range(100000))
-
     if existing_seeds:
         possible = list(set(possible).difference(existing_seeds))
     np.random.shuffle(possible)
-    # XXX
-    breakpoint()
     return possible[:random_seed_count]
 
 
