@@ -132,12 +132,10 @@ def calculate_input_draws(
     np.random.seed(123456)
     possible = list(range(1000))
     if existing_draws:
-        possible = [list(set(possible).difference(existing_draws))]
+        possible = list(set(possible).difference(existing_draws))
         min_input_draw_count_allowed = 0
     else:
         min_input_draw_count_allowed = 1
-    # XXX
-    breakpoint()
     np.random.shuffle(possible)
     if min_input_draw_count_allowed <= input_draw_count <= len(possible):
         return possible[:input_draw_count]
@@ -177,7 +175,7 @@ def calculate_random_seeds(
     possible = list(range(100000))
 
     if existing_seeds:
-        possible = [list(set(possible).difference(existing_seeds))]
+        possible = list(set(possible).difference(existing_seeds))
     # XXX
     breakpoint()
     np.random.shuffle(possible)
