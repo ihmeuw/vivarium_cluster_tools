@@ -129,8 +129,12 @@ def calculate_input_draws(
         existing draw numbers.
 
     """
+    MAX_DRAW_COUNT = 1000
+    if input_draw_count > MAX_DRAW_COUNT:
+        raise ValueError(f"Input draw count must be less than {MAX_DRAW_COUNT}.")
+
     np.random.seed(123456)
-    possible = list(range(1000))
+    possible = list(range(MAX_DRAW_COUNT))
     if existing_draws:
         possible = list(set(possible).difference(existing_draws))
         min_input_draw_count_allowed = 0
@@ -171,8 +175,12 @@ def calculate_random_seeds(
     if not random_seed_count:
         return []
 
+    MAX_SEED_COUNT = 10000
+    if random_seed_count > MAX_SEED_COUNT:
+        raise ValueError(f"Random seed count must be less than {MAX_SEED_COUNT}.")
+
     np.random.seed(654321)
-    possible = list(range(100000))
+    possible = list(range(MAX_SEED_COUNT))
     if existing_seeds:
         possible = list(set(possible).difference(existing_seeds))
     np.random.shuffle(possible)
