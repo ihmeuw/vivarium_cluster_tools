@@ -130,15 +130,17 @@ def calculate_input_draws(
 
     """
     np.random.seed(123456)
+    possible = list(range(1000))
     if existing_draws:
-        possible = list(set(range(1000)).difference(existing_draws))
+        possible = [list(set(possible).difference(existing_draws))]
         min_input_draw_count_allowed = 0
     else:
-        possible = list(range(1000))
         min_input_draw_count_allowed = 1
-
+    # XXX
+    breakpoint()
+    np.random.shuffle(possible)
     if min_input_draw_count_allowed <= input_draw_count <= len(possible):
-        return np.random.choice(possible, input_draw_count, replace=False).tolist()
+        return possible[:input_draw_count]
     else:
         raise ValueError(
             f"Input draw count must be between {min_input_draw_count_allowed} "
@@ -172,16 +174,14 @@ def calculate_random_seeds(
         return []
 
     np.random.seed(654321)
+    possible = list(range(100000))
 
     if existing_seeds:
-        min_possible = max(existing_seeds) + 1
-    else:
-        existing_seeds = []
-        min_possible = 0
-
-    low, high = min_possible, min_possible + 10 * random_seed_count
-    possible = list(range(low, high))
-    return np.random.choice(possible, random_seed_count, replace=False).tolist()
+        possible = [list(set(possible).difference(existing_seeds))]
+    # XXX
+    breakpoint()
+    np.random.shuffle(possible)
+    return possible[:random_seed_count]
 
 
 def calculate_keyspace(branches: List[Dict]) -> Dict:
