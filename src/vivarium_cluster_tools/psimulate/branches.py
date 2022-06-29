@@ -129,17 +129,17 @@ def calculate_input_draws(
         existing draw numbers.
 
     """
-    MAX_DRAW_COUNT = 1000
-    if input_draw_count > MAX_DRAW_COUNT:
-        raise ValueError(f"Input draw count must be less than {MAX_DRAW_COUNT}.")
+    max_draw_count = 1000
+    if input_draw_count > max_draw_count:
+        raise ValueError(f"Input draw count must be less than {max_draw_count}.")
 
-    np.random.seed(123456)
-    possible = list(range(MAX_DRAW_COUNT))
+    possible = list(range(max_draw_count))
     if existing_draws:
-        possible = list(set(possible).difference(existing_draws))
+        possible = sorted(list(set(possible).difference(existing_draws)))
         min_input_draw_count_allowed = 0
     else:
         min_input_draw_count_allowed = 1
+    np.random.seed(123456)
     np.random.shuffle(possible)
     if min_input_draw_count_allowed <= input_draw_count <= len(possible):
         return possible[:input_draw_count]
@@ -175,14 +175,14 @@ def calculate_random_seeds(
     if not random_seed_count:
         return []
 
-    MAX_SEED_COUNT = 10000
-    if random_seed_count > MAX_SEED_COUNT:
-        raise ValueError(f"Random seed count must be less than {MAX_SEED_COUNT}.")
+    max_seed_count = 10000
+    if random_seed_count > max_seed_count:
+        raise ValueError(f"Random seed count must be less than {max_seed_count}.")
 
-    np.random.seed(654321)
-    possible = list(range(MAX_SEED_COUNT))
+    possible = list(range(max_seed_count))
     if existing_seeds:
-        possible = list(set(possible).difference(existing_seeds))
+        possible = sorted(list(set(possible).difference(existing_seeds)))
+    np.random.seed(654321)
     np.random.shuffle(possible)
     return possible[:random_seed_count]
 
