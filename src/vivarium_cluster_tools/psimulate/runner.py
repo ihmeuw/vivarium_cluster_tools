@@ -108,7 +108,7 @@ def try_run_vipin(log_path: Path) -> None:
         logger.warning(f"Performance reporting failed with: {e}")
 
 
-def setup_dashboard(redis_urls: list[str]) -> None:
+def setup_dashboard(redis_urls: list) -> None:
     #todo: make rq-dashboard -u urls happen here with Popen\
     # log url so it is not lost in simulation terminal
     split_urls = " ".join(url for url in redis_urls)
