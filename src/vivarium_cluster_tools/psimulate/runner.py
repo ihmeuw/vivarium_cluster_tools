@@ -8,6 +8,7 @@ The main process loop for `psimulate` runs.
 """
 import atexit
 from pathlib import Path
+import subprocess
 from time import sleep, time
 
 import pandas as pd
@@ -105,6 +106,14 @@ def try_run_vipin(log_path: Path) -> None:
         )
     except Exception as e:
         logger.warning(f"Performance reporting failed with: {e}")
+
+
+def setup_dashboard(redis_urls: list[str]) -> None:
+    #todo: make rq-dashboard -u urls happen here with Popen\
+    # log url so it is not lost in simulation terminal
+    split_urls = " ".join(url for url in redis_urls)
+    command = 'rq-dashboard -u ' + split_urls
+    subprocess.run(command, shell=True)
 
 
 def main(
@@ -208,6 +217,12 @@ def main(
     # Generate a worker template that chooses a redis DB at random to connect to.
     # This should (approximately) evenly distribute the workers over the work.
     redis_urls = [f"redis://{hostname}:{port}" for hostname, port in redis_ports]
+
+    # Grab redis urls for dashboard and send them to function for popen
+    rq_urls = [f"redis://{hostname}.cluster.ihme.washington.edu:{port}" for hostname, port in redis_ports]
+    # todo: add logger and make sure this works
+    setup_dashboard(rq_urls)
+
     worker_template = (
         f"import random\nredis_urls = {redis_urls}\nREDIS_URL = random.choice(redis_urls)\n\n"
     )
