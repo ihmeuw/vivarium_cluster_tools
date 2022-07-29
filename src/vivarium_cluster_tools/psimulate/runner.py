@@ -111,9 +111,10 @@ def try_run_vipin(log_path: Path) -> None:
 def setup_dashboard(redis_urls: list) -> None:
     #todo: make rq-dashboard -u urls happen here with Popen\
     # log url so it is not lost in simulation terminal
-    split_urls = " ".join(url for url in redis_urls)
+    logger.info("Fetching redis urls and starting RQ-Dashboard")
+    split_urls = " -u ".join(url for url in redis_urls)
     command = 'rq-dashboard -u ' + split_urls
-    subprocess.run(command, shell=True)
+    subprocess.Popen(command, shell=True)
 
 
 def main(
