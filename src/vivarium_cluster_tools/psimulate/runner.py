@@ -113,7 +113,7 @@ def setup_dashboard(redis_urls: list) -> None:
     # log url so it is not lost in simulation terminal
     logger.info("Fetching redis urls and starting RQ-Dashboard")
     split_urls = " -u ".join(url for url in redis_urls)
-    command = 'rq-dashboard -u ' + split_urls
+    command = 'rq-dashboard -u ' + split_urls + " --debug"
     subprocess.Popen(command, shell=True)
 
 
