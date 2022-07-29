@@ -7,6 +7,7 @@ The main process loop for `psimulate` runs.
 
 """
 import atexit
+import logging
 from pathlib import Path
 import subprocess
 from time import sleep, time
@@ -108,12 +109,16 @@ def try_run_vipin(log_path: Path) -> None:
         logger.warning(f"Performance reporting failed with: {e}")
 
 
-def setup_dashboard(redis_urls: list) -> None:
+def setup_dashboard(redis_urls: list, output_directory: Path) -> None:
     #todo: make rq-dashboard -u urls happen here with Popen\
     # log url so it is not lost in simulation terminal
+    logging.basicConfig(filename=output_directory / "rq.log")
     logger.info("Fetching redis urls and starting RQ-Dashboard")
     split_urls = " -u ".join(url for url in redis_urls)
     command = 'rq-dashboard -u ' + split_urls + " --debug"
+    logger.info(redis_urls)
+    logger.info(f"Initializing RQ-Dashboard with command: {command}")
+    lgger.info("Dashboard running at http://0.0.0.0.cluster.ihme.washington.edu:9181")
     subprocess.Popen(command, shell=True)
 
 
@@ -222,7 +227,7 @@ def main(
     # Grab redis urls for dashboard and send them to function for popen
     rq_urls = [f"redis://{hostname}.cluster.ihme.washington.edu:{port}" for hostname, port in redis_ports]
     # todo: add logger and make sure this works
-    setup_dashboard(rq_urls)
+    setup_dashboard(rq_urls, output_paths.logging_root)
 
     worker_template = (
         f"import random\nredis_urls = {redis_urls}\nREDIS_URL = random.choice(redis_urls)\n\n"
