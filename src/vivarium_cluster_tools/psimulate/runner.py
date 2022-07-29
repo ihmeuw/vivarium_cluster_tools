@@ -118,7 +118,7 @@ def setup_dashboard(redis_urls: list, output_directory: Path) -> None:
     command = 'rq-dashboard -u ' + split_urls + " --debug"
     logger.info(redis_urls)
     logger.info(f"Initializing RQ-Dashboard with command: {command}")
-    lgger.info("Dashboard running at http://0.0.0.0.cluster.ihme.washington.edu:9181")
+    logger.info("Dashboard running at http://0.0.0.0.cluster.ihme.washington.edu:9181")
     subprocess.Popen(command, shell=True)
 
 
