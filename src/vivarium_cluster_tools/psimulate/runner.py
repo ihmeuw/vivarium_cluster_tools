@@ -109,7 +109,7 @@ def try_run_vipin(log_path: Path) -> None:
         logger.warning(f"Performance reporting failed with: {e}")
 
 
-def setup_dashboard(hostname: str, redis_urls: list, output_directory: Path) -> None:
+def setup_dashboard(redis_urls: list, output_directory: Path) -> None:
     #todo: make rq.log capture urls and other info
 
     # Get generic hostname url
