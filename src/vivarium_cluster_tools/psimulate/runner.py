@@ -109,16 +109,21 @@ def try_run_vipin(log_path: Path) -> None:
         logger.warning(f"Performance reporting failed with: {e}")
 
 
-def setup_dashboard(redis_urls: list, output_directory: Path) -> None:
-    #todo: make rq-dashboard -u urls happen here with Popen\
-    # log url so it is not lost in simulation terminal
+def setup_dashboard(hostname: str, redis_urls: list, output_directory: Path) -> None:
+    #todo: make rq.log capture urls and other info
+
+    # Get generic hostname url
+    url = redis_urls[0].split("//")[1]
+    hostname = url.split(":")[0]
+
     logging.basicConfig(filename=output_directory / "rq.log")
     logger.info("Fetching redis urls and starting RQ-Dashboard")
     split_urls = " -u ".join(url for url in redis_urls)
     command = 'rq-dashboard -u ' + split_urls + " --debug"
+
     logger.info(redis_urls)
     logger.info(f"Initializing RQ-Dashboard with command: {command}")
-    logger.info("Dashboard running at http://0.0.0.0.cluster.ihme.washington.edu:9181")
+    logger.info(f"Dashboard running at http://{hostname}:9181")
     subprocess.Popen(command, shell=True)
 
 
