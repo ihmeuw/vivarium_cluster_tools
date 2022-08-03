@@ -8,18 +8,26 @@ The main process loop for `psimulate` runs.
 """
 import atexit
 import logging
+from pathlib import Path
 import subprocess
 import sys
-from pathlib import Path
 from time import sleep, time
 
 import pandas as pd
 from loguru import logger
 from vivarium_cluster_tools import logs
-from vivarium_cluster_tools.psimulate import (COMMANDS, branches, cluster,
-                                              jobs, model_specification, paths,
-                                              pip_env, redis_dbs, results,
-                                              worker)
+from vivarium_cluster_tools.psimulate import (
+    COMMANDS,
+    branches,
+    cluster,
+    jobs,
+    model_specification,
+    paths,
+    pip_env,
+    redis_dbs,
+    results,
+    worker,
+)
 from vivarium_cluster_tools.vipin.perf_report import report_performance
 
 
