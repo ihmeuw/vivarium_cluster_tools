@@ -109,9 +109,7 @@ def try_run_vipin(log_path: Path) -> None:
         logger.warning(f"Performance reporting failed with: {e}")
 
 
-def setup_dashboard(redis_urls: list, output_directory: Path) -> None:
-    #todo: make rq.log capture urls and other info
-
+def run_rq_dashboard(redis_urls: list, output_directory: Path) -> None:
     # Get generic hostname url
     url = redis_urls[0].split("//")[1]
     hostname = url.split(":")[0]
@@ -124,8 +122,9 @@ def setup_dashboard(redis_urls: list, output_directory: Path) -> None:
     logger.info(redis_urls)
     logger.info(f"Initializing RQ-Dashboard with command: {command}")
     logger.info(f"Dashboard running at http://{hostname}:9181")
-    subprocess.Popen(command, shell=True)
 
+    proc = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    atexit.register(proc.kill())
 
 def main(
     command: str,
@@ -232,7 +231,7 @@ def main(
     # Grab redis urls for dashboard and send them to function for popen
     rq_urls = [f"redis://{hostname}.cluster.ihme.washington.edu:{port}" for hostname, port in redis_ports]
     # todo: add logger and make sure this works
-    setup_dashboard(rq_urls, output_paths.logging_root)
+    run_rq_dashboard(rq_urls, output_paths.logging_root)
 
     worker_template = (
         f"import random\nredis_urls = {redis_urls}\nREDIS_URL = random.choice(redis_urls)\n\n"
