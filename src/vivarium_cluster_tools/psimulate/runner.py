@@ -115,19 +115,16 @@ def run_rq_dashboard(redis_urls: list, output_directory: Path) -> None:
     url = redis_urls[0].split("//")[1]
     hostname = url.split(":")[0]
 
-    # Set up logger
+    # Set up log file
     rq_dashboard_log = (output_directory / "rq.log").open("a")
-
     logger.info("Fetching redis urls and starting RQ-Dashboard")
     split_urls = " -u ".join(url for url in redis_urls)
     command = 'rq-dashboard -u ' + split_urls + " --debug"
 
-    logger.info(redis_urls)
-    logger.info(f"Initializing RQ-Dashboard with command: {command}")
+    rq_dashboard_log.write(f"Dashboard running at http://{hostname}:9181")
     logger.info(f"Dashboard running at http://{hostname}:9181")
     proc = subprocess.Popen(command, shell=True, stdout=rq_dashboard_log, stderr=rq_dashboard_log)
 
-    logger.info("Closing dashboard...")
     atexit.register(proc.kill)
 
 def main(
