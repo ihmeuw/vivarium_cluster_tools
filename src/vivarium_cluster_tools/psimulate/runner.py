@@ -51,10 +51,7 @@ def process_job_results(
 
             if len(unwritten_results) > batch_size:
                 written_results, unwritten_results = results.write_results_batch(
-                    output_directory,
-                    written_results,
-                    unwritten_results,
-                    batch_size,
+                    output_directory, written_results, unwritten_results, batch_size
                 )
 
             registry_manager.update_and_report()
@@ -64,10 +61,7 @@ def process_job_results(
         batch_size = 500
         while unwritten_results:
             written_results, unwritten_results = results.write_results_batch(
-                output_directory,
-                written_results,
-                unwritten_results,
-                batch_size=batch_size,
+                output_directory, written_results, unwritten_results, batch_size=batch_size
             )
             logger.info(f"Unwritten results: {len(unwritten_results)}")
             logger.info(f"Elapsed time: {(time() - start_time) / 60:.1f} minutes.")
@@ -119,13 +113,16 @@ def run_rq_dashboard(redis_urls: list, output_directory: Path) -> None:
     rq_dashboard_log = (output_directory / "rq.log").open("a")
     logger.info("Fetching redis urls and starting RQ-Dashboard")
     split_urls = " -u ".join(url for url in redis_urls)
-    command = 'rq-dashboard -u ' + split_urls + " --debug"
+    command = "rq-dashboard -u " + split_urls + " --debug"
 
     rq_dashboard_log.write(f"Dashboard running at http://{hostname}:9181")
     logger.info(f"Dashboard running at http://{hostname}:9181")
-    proc = subprocess.Popen(command, shell=True, stdout=rq_dashboard_log, stderr=rq_dashboard_log)
+    proc = subprocess.Popen(
+        command, shell=True, stdout=rq_dashboard_log, stderr=rq_dashboard_log
+    )
 
     atexit.register(proc.kill)
+
 
 def main(
     command: str,
@@ -230,7 +227,10 @@ def main(
     redis_urls = [f"redis://{hostname}:{port}" for hostname, port in redis_ports]
 
     # Grab redis urls for dashboard and send them to function for popen
-    rq_urls = [f"redis://{hostname}.cluster.ihme.washington.edu:{port}" for hostname, port in redis_ports]
+    rq_urls = [
+        f"redis://{hostname}.cluster.ihme.washington.edu:{port}"
+        for hostname, port in redis_ports
+    ]
     # todo: add logger and make sure this works
     run_rq_dashboard(rq_urls, output_paths.logging_root)
 
