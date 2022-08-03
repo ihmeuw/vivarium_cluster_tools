@@ -124,7 +124,7 @@ def run_rq_dashboard(redis_urls: list, output_directory: Path) -> None:
     logger.info(f"Dashboard running at http://{hostname}:9181")
 
     proc = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    atexit.register(proc.kill())
+    atexit.register(proc.kill)
 
 def main(
     command: str,
