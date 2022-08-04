@@ -13,6 +13,7 @@ from time import sleep, time
 
 import pandas as pd
 from loguru import logger
+
 from vivarium_cluster_tools import logs
 from vivarium_cluster_tools.psimulate import (
     COMMANDS,
