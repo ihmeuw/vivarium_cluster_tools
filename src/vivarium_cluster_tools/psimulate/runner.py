@@ -8,9 +8,9 @@ The main process loop for `psimulate` runs.
 """
 import atexit
 import logging
-from pathlib import Path
 import subprocess
 import sys
+from pathlib import Path
 from time import sleep, time
 
 import pandas as pd
@@ -114,7 +114,7 @@ def run_rq_dashboard(redis_urls: list, output_directory: Path) -> None:
     split_urls = " -u ".join(url for url in redis_urls)
     command = "rq-dashboard -u " + split_urls + " --debug"
 
-    rq_dashboard_log.write(f"Dashboard running at http://{hostname}:9181")
+    rq_dashboard_log.write(f"Dashboard running at http://{hostname}:9181\n")
     logger.info(f"Dashboard running at http://{hostname}:9181")
     proc = subprocess.Popen(
         command, shell=True, stdout=rq_dashboard_log, stderr=rq_dashboard_log
