@@ -7,9 +7,7 @@ The main process loop for `psimulate` runs.
 
 """
 import atexit
-import logging
 import subprocess
-import sys
 from pathlib import Path
 from time import sleep, time
 
