@@ -6,8 +6,7 @@ psimulate Runner
 The main process loop for `psimulate` runs.
 
 """
-import atexit
-import subprocess
+
 from pathlib import Path
 from time import sleep, time
 
@@ -21,6 +20,7 @@ from vivarium_cluster_tools.psimulate import (
     cluster,
     jobs,
     model_specification,
+    monitoring,
     paths,
     pip_env,
     redis_dbs,
@@ -100,26 +100,6 @@ def try_run_vipin(log_path: Path) -> None:
         )
     except Exception as e:
         logger.warning(f"Performance reporting failed with: {e}")
-
-
-def run_rq_dashboard(redis_urls: list, output_directory: Path) -> None:
-    # Get generic hostname url
-    url = redis_urls[0].split("//")[1]
-    hostname = url.split(":")[0]
-
-    # Set up log file
-    rq_dashboard_log = (output_directory / "rq.log").open("a")
-    logger.info("Fetching redis urls and starting RQ-Dashboard")
-    split_urls = " -u ".join(url for url in redis_urls)
-    command = "rq-dashboard -u " + split_urls + " --debug"
-
-    rq_dashboard_log.write(f"Dashboard running at http://{hostname}:9181\n")
-    logger.info(f"Dashboard running at http://{hostname}:9181")
-    proc = subprocess.Popen(
-        command, shell=True, stdout=rq_dashboard_log, stderr=rq_dashboard_log
-    )
-
-    atexit.register(proc.kill)
 
 
 def main(
@@ -229,8 +209,7 @@ def main(
         f"redis://{hostname}.cluster.ihme.washington.edu:{port}"
         for hostname, port in redis_ports
     ]
-    # todo: add logger and make sure this works
-    run_rq_dashboard(rq_urls, output_paths.logging_root)
+    monitoring.run_rq_dashboard(rq_urls, output_paths.logging_root)
 
     worker_template = (
         f"import random\nredis_urls = {redis_urls}\nREDIS_URL = random.choice(redis_urls)\n\n"
