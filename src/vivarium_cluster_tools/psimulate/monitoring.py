@@ -26,4 +26,7 @@ def run_rq_dashboard(redis_urls: list, logging_root: Path) -> None:
     )
     rq_dashboard_log.write(f"Dashboard running at http://{hostname}:9181\n")
     logger.info(f"Dashboard running at http://{hostname}:9181")
+
+    # Cleanup
     atexit.register(proc.kill)
+    atexit.register(rq_dashboard_log.close)
