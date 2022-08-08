@@ -6,7 +6,6 @@ psimulate Runner
 The main process loop for `psimulate` runs.
 
 """
-import atexit
 from pathlib import Path
 from time import sleep, time
 
@@ -121,8 +120,9 @@ def main(
     # Generate programmatic representation of the output directory structure
     output_paths = paths.OutputPaths.from_entry_point_args(
         command=command,
-        input_artifact_path=input_paths.artifact,
         result_directory=input_paths.result_directory,
+        input_artifact_path=input_paths.artifact,
+        input_model_spec_path=input_paths.model_specification,
     )
     logger.info("Setting up output directory and all subdirectories.")
     output_paths.touch()

@@ -8,6 +8,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import NamedTuple, Optional, Union
 
+import yaml
+
 from vivarium_cluster_tools import utilities as vct_utils
 from vivarium_cluster_tools.psimulate import COMMANDS
 
@@ -70,14 +72,29 @@ class OutputPaths(NamedTuple):
         cls,
         *,
         command: str,
-        input_artifact_path: Optional[Path],
         result_directory: Path,
+        input_artifact_path: Optional[Path] = None,
+        input_model_spec_path: Path,
     ) -> "OutputPaths":
         launch_time = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
 
         output_directory = result_directory
         if command == COMMANDS.run:
-            output_directory = output_directory / input_artifact_path.stem / launch_time
+            # Peek at the CLI args and model spec YAML to determine a good subdirectory name
+            # for the results. If we don't have an artifact, use the stem of the model spec,
+            # which must exist. NB: Actual determination of the artifact path is done in the
+            # model_specification.py code.
+            if input_artifact_path:
+                location = input_artifact_path.stem
+            else:
+                # check for YAML
+                with open(input_model_spec_path) as model_spec_file:
+                    model_spec = yaml.safe_load(model_spec_file)
+                try:
+                    location = model_spec["configuration"]["input_data"]["artifact_path"].stem
+                except KeyError:
+                    location = input_model_spec_path.stem
+            output_directory = output_directory / location / launch_time
         elif command == COMMANDS.load_test:
             output_directory = output_directory / launch_time
 
