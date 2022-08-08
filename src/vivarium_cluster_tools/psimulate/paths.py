@@ -91,7 +91,7 @@ class OutputPaths(NamedTuple):
                 with open(input_model_spec_path) as model_spec_file:
                     model_spec = yaml.safe_load(model_spec_file)
                 try:
-                    location = model_spec["configuration"]["input_data"]["artifact_path"].stem
+                    location = Path(model_spec["configuration"]["input_data"]["artifact_path"]).stem
                 except KeyError:
                     location = input_model_spec_path.stem
             output_directory = output_directory / location / launch_time
