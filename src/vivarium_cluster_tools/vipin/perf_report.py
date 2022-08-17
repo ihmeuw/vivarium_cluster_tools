@@ -118,6 +118,8 @@ def add_jobapi_data(perf_df: pd.DataFrame):
 
 def print_stat_report(perf_df: pd.DataFrame, scenario_cols: list):
     """Print some helpful stats from the performance data, grouped by scenario_cols"""
+    # XXXX
+    breakpoint()
     pd.set_option("display.max_rows", None)
     pd.set_option("display.max_columns", None)
     pd.options.display.float_format = "{:.2f}".format
