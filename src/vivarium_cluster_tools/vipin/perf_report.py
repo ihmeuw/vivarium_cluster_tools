@@ -22,6 +22,17 @@ BASE_PERF_INDEX_COLS = ["host", "job_number", "task_number", "draw", "seed"]
 # The number of scenario columns beyond which we shorten the scenarios to a single string
 COMPOUND_SCENARIO_COL_COUNT = 2
 
+# Scenario columns that are not useful describe a scenario or are duplicated
+EXTRANEOUS_SCENARIO_COLS = [
+    "scenario_run_configuration_run_id",
+    "scenario_run_configuration_results_directory",
+    "scenario_run_configuration_run_key_input_draw",
+    "scenario_run_configuration_run_key_random_seed",
+    "scenario_randomness_random_seed",
+    "scenario_randomness_additional_seed",
+    "scenario_input_data_input_draw_number",
+]
+
 
 class PerformanceSummary:
     """
@@ -85,8 +96,10 @@ class PerformanceSummary:
 
 
 def set_index_scenario_cols(perf_df: pd.DataFrame) -> Tuple[pd.DataFrame, list]:
-    """Given a dataframe from PerformanceSummary.to_df, add QPID Job API data for the job"""
+    """Get the columns useful to index performance data by."""
     index_cols = BASE_PERF_INDEX_COLS
+    # TODO: should we drop these columns? They are extraneous, but maybe useful...
+    # perf_df = perf_df.drop(EXTRANEOUS_SCENARIO_COLS, axis=1)
     scenario_cols = [col for col in perf_df.columns if col.startswith("scenario_")]
     index_cols.extend(scenario_cols)
     perf_df = perf_df.set_index(index_cols)
@@ -118,12 +131,11 @@ def add_jobapi_data(perf_df: pd.DataFrame):
 
 def print_stat_report(perf_df: pd.DataFrame, scenario_cols: list):
     """Print some helpful stats from the performance data, grouped by scenario_cols"""
-    # XXXX
-    breakpoint()
     pd.set_option("display.max_rows", None)
     pd.set_option("display.max_columns", None)
     pd.options.display.float_format = "{:.2f}".format
 
+    scenario_cols = [col for col in scenario_cols if col not in EXTRANEOUS_SCENARIO_COLS]
     do_compound = len(scenario_cols) > COMPOUND_SCENARIO_COL_COUNT
 
     perf_df = perf_df.reset_index()
@@ -184,7 +196,6 @@ def report_performance(
     perf_summary = PerformanceSummary(input_directory)
 
     perf_df = perf_summary.to_df()
-
     if len(perf_df) < 1:
         logger.warning(f"No performance data found in {input_directory}.")
         return  # nothing left to do
