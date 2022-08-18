@@ -98,8 +98,7 @@ class PerformanceSummary:
 def set_index_scenario_cols(perf_df: pd.DataFrame) -> Tuple[pd.DataFrame, list]:
     """Get the columns useful to index performance data by."""
     index_cols = BASE_PERF_INDEX_COLS
-    # TODO: should we drop these columns? They are extraneous, but maybe useful...
-    # perf_df = perf_df.drop(EXTRANEOUS_SCENARIO_COLS, axis=1)
+    perf_df = perf_df.drop(EXTRANEOUS_SCENARIO_COLS, axis=1)
     scenario_cols = [col for col in perf_df.columns if col.startswith("scenario_")]
     index_cols.extend(scenario_cols)
     perf_df = perf_df.set_index(index_cols)
@@ -135,7 +134,6 @@ def print_stat_report(perf_df: pd.DataFrame, scenario_cols: list):
     pd.set_option("display.max_columns", None)
     pd.options.display.float_format = "{:.2f}".format
 
-    scenario_cols = [col for col in scenario_cols if col not in EXTRANEOUS_SCENARIO_COLS]
     do_compound = len(scenario_cols) > COMPOUND_SCENARIO_COL_COUNT
 
     perf_df = perf_df.reset_index()
