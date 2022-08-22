@@ -112,7 +112,6 @@ def add_squid_api_data(perf_df: pd.DataFrame):
     try:
         job_numbers = perf_df["job_number"].unique()
         assert len(job_numbers) == 1
-        print(job_numbers)
         squid_api_data = requests.get(
             f"http://squid.ihme.washington.edu/api/jobs?job_ids={job_numbers[0]}"
         ).json()
