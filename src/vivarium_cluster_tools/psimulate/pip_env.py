@@ -22,7 +22,7 @@ def validate(environment_file: Path) -> None:
     current_environment_list = out.decode().strip().split("\n")
 
     # Update permissions mask (assign to variable to avoid printing previous value)
-    old_mask = os.umask(0o002)
+    _ = os.umask(0o002)
 
     if not environment_file.exists():  # original run
         logger.info(f"Writing environment file to {str(environment_file)}.")
