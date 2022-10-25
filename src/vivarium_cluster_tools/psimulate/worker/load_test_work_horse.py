@@ -44,6 +44,7 @@ def sleep_test(job_parameters: JobParameters) -> pd.DataFrame:
 
 def large_results_test(job_parameters: JobParameters) -> pd.DataFrame:
     time.sleep(30)
+    np.random.seed(seed=get_hash(f"large_results_test_{job_parameters.random_seed}"))
     return pd.DataFrame(
         np.random.random(10_000_000).reshape((1_000_000, 10))
     )
