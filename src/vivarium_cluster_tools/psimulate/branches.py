@@ -207,6 +207,8 @@ def load_branch_configuration(path: Path) -> Tuple[List[Dict], int, int]:
 
     input_draw_count = data.get("input_draw_count", 1)
     random_seed_count = data.get("random_seed_count", 1)
+    # TODO XXX add reading of input_draw_list here
+    breakpoint()
 
     assert input_draw_count <= 1000, "Cannot use more that 1000 draws from GBD"
 
