@@ -23,7 +23,7 @@ if __name__ == "__main__":
         "drmaa",
         "redis",
         "rq",
-        "vivarium>=1.1.1",
+        "vivarium>=1.2.0",
         "click",
         "psutil",
         "requests",
