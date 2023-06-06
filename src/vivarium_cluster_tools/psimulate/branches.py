@@ -57,7 +57,6 @@ class Keyspace:
         branches_path: Path,
         extras: Dict,
     ) -> "Keyspace":
-        breakpoint()
         if input_branch_configuration_path is not None:
             keyspace = cls.from_branch_configuration(
                 input_branch_configuration_path,

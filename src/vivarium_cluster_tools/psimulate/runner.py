@@ -142,7 +142,6 @@ def main(
     )
     # Parse the branches configuration into a parameter space
     # and a flat representation of all parameters to be run.
-    breakpoint()
     keyspace = branches.Keyspace.from_entry_point_args(
         input_branch_configuration_path=input_paths.branch_configuration,
         keyspace_path=output_paths.keyspace,
