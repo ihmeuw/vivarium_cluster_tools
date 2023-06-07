@@ -226,7 +226,7 @@ def load_branch_configuration(path: Path) -> Tuple[List[Dict], int, int, Optiona
                 f"input_draws contains draws outside of 0-999: {[d for d in input_draws if d not in range(0, 1000)]}"
             )
     if input_draw_count < 1 or input_draw_count > 1000:
-        raise ValueError(f"Must use 1-1000 draws from GBD")
+        raise ValueError(f"input_draw_count must be within 1-1000. Given: {input_draw_count}")
 
     if "branches" in data:
         branches = expand_branch_templates(data["branches"])
