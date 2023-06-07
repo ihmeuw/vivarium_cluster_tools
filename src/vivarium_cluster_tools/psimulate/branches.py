@@ -42,12 +42,6 @@ class Keyspace:
         ) = load_branch_configuration(branch_configuration_file)
         keyspace = calculate_keyspace(branches)
         keyspace["input_draw"] = input_draws if input_draws else calculate_input_draws(input_draw_count)
-        # if input_draws:
-        #     # input_draws were specified
-        #     keyspace["input_draw"] = input_draws
-        # else:
-        #     # input_draws weren't specified
-        #     keyspace["input_draw"] = calculate_input_draws(input_draw_count)
         keyspace["random_seed"] = calculate_random_seeds(random_seed_count)
         return Keyspace(branches, keyspace)
 
