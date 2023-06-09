@@ -48,7 +48,7 @@ This key refers to an integer that represents the number of different input draw
 
 .. note::
     Instead of, or in addition to, specifying an ``input_draw_count``, a list of draws can be specified using the
-    ``input_draws`` key. If ``input_draw_count`` is also specified, the two values are expected to agree, i.e., the
+    ``input_draws`` key. If ``input_draw_count`` is also specified, the two values must agree, i.e., the
     length of the ``input_draws`` list must be the same as ``input_draw_count``.
 
 When we use this branch configuration along with the original :term:`model specification<Model Specification>`,
