@@ -274,7 +274,7 @@ def _check_count_and_values(
     if values:
         if [d for d in values if d not in range(0, max_count)]:
             raise ValueError(
-                f"{values} contains draws outside of 0-{max_count - 1}: "
+                f"{values_name} contains draws outside of 0-{max_count - 1}: "
                 f"{[d for d in values if d not in range(0, max_count)]}"
             )
     if value_count < 1 or value_count > max_count:
