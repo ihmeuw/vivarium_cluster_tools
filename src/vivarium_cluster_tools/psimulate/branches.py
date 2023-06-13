@@ -219,12 +219,12 @@ def load_branch_configuration(
     input_draws = data.get("input_draws", None)
     random_seeds = data.get("random_seeds", None)
 
-    # Validate configuration of input_draws and input_draw_count
+    # Validate configuration of counts and values for input_draws and random_seeds
     _check_count_and_values(
-        data.columns, input_draw_count, input_draws, "input_draw_count", "input_draws", 1000
+        data, input_draw_count, input_draws, "input_draw_count", "input_draws", 1000
     )
     _check_count_and_values(
-        data.columns,
+        data,
         random_seed_count,
         random_seeds,
         "random_seed_count",
@@ -241,7 +241,7 @@ def load_branch_configuration(
 
 
 def _check_count_and_values(
-    columns: List[str],
+    configuration: Dict,
     value_count: int,
     values: List[int],
     count_name: str,
@@ -252,26 +252,20 @@ def _check_count_and_values(
 
     Parameters
     ----------
-    columns
-        List of column strings in the data.
-
+    configuration
+        Dictionary of the configuration data.
     value_count
         Integer for the number of values provided.
-
     values
         List of integer values.
-
     count_name
         Configuration key string for value count.
-
     values_name
         Configuration key string for values list.
-
     max_count
         Integer for the maximum number of values, maximum value is max_count - 1.
-
     """
-    if count_name in columns and values_name in columns:
+    if count_name in configuration and values_name in configuration:
         if len(values) != value_count:
             raise ValueError(
                 f"Both {count_name} and {values_name} are defined but they are inconsistent. "
