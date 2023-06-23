@@ -3,7 +3,6 @@ import os
 from setuptools import find_packages, setup
 
 if __name__ == "__main__":
-
     base_dir = os.path.dirname(__file__)
     src_dir = os.path.join(base_dir, "src")
 
@@ -29,9 +28,7 @@ if __name__ == "__main__":
         "requests",
     ]
 
-    setup_requires = [
-        "setuptools_scm"
-    ]
+    setup_requires = ["setuptools_scm"]
 
     test_requirements = [
         "pytest",
