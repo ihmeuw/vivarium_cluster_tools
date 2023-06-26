@@ -28,16 +28,16 @@ about = {}
 with (base_dir / "__about__.py").open() as f:
     exec(f.read(), about)
 
-_version = {}
-print(f"base_dir.parent.parent {base_dir.parent.parent}")
-print(f"base_dir.parent {base_dir.parent}")
-print(f"base_dir {base_dir}")
-try:
-    # with (base_dir.parent.parent / "_version.py").open() as f:
-    with (base_dir / "_version.py").open() as f:
-        exec(f.read(), _version)
-except FileNotFoundError:
-    raise UserWarning("To make docs, install via setup the official package or from source.")
+# _version = {}
+# print(f"base_dir.parent.parent {base_dir.parent.parent}")
+# print(f"base_dir.parent {base_dir.parent}")
+# print(f"base_dir {base_dir}")
+# try:
+#     # with (base_dir.parent.parent / "_version.py").open() as f:
+#     with (base_dir / "_version.py").open() as f:
+#         exec(f.read(), _version)
+# except FileNotFoundError:
+#     raise UserWarning("To make docs, install via setup the official package or from source.")
 
 
 sys.path.insert(0, str(Path("..").resolve()))
@@ -49,9 +49,9 @@ copyright = f'2021, {about["__author__"]}'
 author = about["__author__"]
 
 # The short X.Y version.
-version = _version["__version__"]
+version = vivarium_cluster_tools.__version__
 # The full version, including alpha/beta/rc tags.
-release = _version["__version__"]
+release = vivarium_cluster_tools.__version__
 
 
 # -- General configuration ------------------------------------------------
