@@ -31,6 +31,7 @@ with (base_dir / "__about__.py").open() as f:
 _version = {}
 print(f"base_dir.parent.parent {base_dir.parent.parent}")
 print(f"base_dir.parent {base_dir.parent}")
+print(f"base_dir {base_dir}")
 try:
     with (base_dir.parent.parent / "_version.py").open() as f:
         exec(f.read(), _version)
