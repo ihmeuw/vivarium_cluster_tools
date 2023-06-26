@@ -28,6 +28,14 @@ about = {}
 with (base_dir / "__about__.py").open() as f:
     exec(f.read(), about)
 
+_version = {}
+try:
+    with (base_dir.parent.parent / "_version.py").open() as f:
+        exec(f.read(), _version)
+except FileNotFoundError:
+    raise UserWarning("To make docs, install via setup the official package or from source.")
+
+
 sys.path.insert(0, str(Path("..").resolve()))
 
 # -- Project information -----------------------------------------------------
@@ -37,9 +45,9 @@ copyright = f'2021, {about["__author__"]}'
 author = about["__author__"]
 
 # The short X.Y version.
-version = about["__version__"]
+version = _version["__version__"]
 # The full version, including alpha/beta/rc tags.
-release = about["__version__"]
+release = _version["__version__"]
 
 
 # -- General configuration ------------------------------------------------
