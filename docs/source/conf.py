@@ -28,18 +28,6 @@ about = {}
 with (base_dir / "__about__.py").open() as f:
     exec(f.read(), about)
 
-# _version = {}
-# print(f"base_dir.parent.parent {base_dir.parent.parent}")
-# print(f"base_dir.parent {base_dir.parent}")
-# print(f"base_dir {base_dir}")
-# try:
-#     # with (base_dir.parent.parent / "_version.py").open() as f:
-#     with (base_dir / "_version.py").open() as f:
-#         exec(f.read(), _version)
-# except FileNotFoundError:
-#     raise UserWarning("To make docs, install via setup the official package or from source.")
-
-
 sys.path.insert(0, str(Path("..").resolve()))
 
 # -- Project information -----------------------------------------------------

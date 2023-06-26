@@ -67,7 +67,6 @@ if __name__ == "__main__":
         zip_safe=False,
         use_scm_version={
             "write_to": "src/vivarium_cluster_tools/_version.py",
-            # "write_to": "_version.py",
             "write_to_template": '__version__ = "{version}"\n',
             "tag_regex": r"^(?P<prefix>v)?(?P<version>[^\+]+)(?P<suffix>.*)?$",
         },
