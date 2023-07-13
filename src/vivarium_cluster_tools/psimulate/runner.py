@@ -6,7 +6,7 @@ psimulate Runner
 The main process loop for `psimulate` runs.
 
 """
-import atexit
+
 from pathlib import Path
 from time import sleep, time
 
@@ -20,6 +20,7 @@ from vivarium_cluster_tools.psimulate import (
     cluster,
     jobs,
     model_specification,
+    monitoring,
     paths,
     pip_env,
     redis_dbs,
@@ -48,10 +49,7 @@ def process_job_results(
 
             if len(unwritten_results) > batch_size:
                 written_results, unwritten_results = results.write_results_batch(
-                    output_directory,
-                    written_results,
-                    unwritten_results,
-                    batch_size,
+                    output_directory, written_results, unwritten_results, batch_size
                 )
 
             registry_manager.update_and_report()
@@ -61,10 +59,7 @@ def process_job_results(
         batch_size = 500
         while unwritten_results:
             written_results, unwritten_results = results.write_results_batch(
-                output_directory,
-                written_results,
-                unwritten_results,
-                batch_size=batch_size,
+                output_directory, written_results, unwritten_results, batch_size=batch_size
             )
             logger.info(f"Unwritten results: {len(unwritten_results)}")
             logger.info(f"Elapsed time: {(time() - start_time) / 60:.1f} minutes.")
@@ -209,6 +204,14 @@ def main(
     # Generate a worker template that chooses a redis DB at random to connect to.
     # This should (approximately) evenly distribute the workers over the work.
     redis_urls = [f"redis://{hostname}:{port}" for hostname, port in redis_ports]
+
+    # Grab redis urls for dashboard and send them to function for popen
+    rq_urls = [
+        f"redis://{hostname}.cluster.ihme.washington.edu:{port}"
+        for hostname, port in redis_ports
+    ]
+    monitoring.run_rq_dashboard(rq_urls, output_paths.logging_root)
+
     worker_template = (
         f"import random\nredis_urls = {redis_urls}\nREDIS_URL = random.choice(redis_urls)\n\n"
     )
