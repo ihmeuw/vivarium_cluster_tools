@@ -247,5 +247,6 @@ def main(
 
     # Spit out a performance report for the workers.
     try_run_vipin(output_paths.worker_logging_root)
+    registry_manager.update_and_report()
 
     logger.info(f"Jobs completed. Results written to: {str(output_paths.root)}")
