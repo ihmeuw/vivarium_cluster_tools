@@ -6,7 +6,7 @@ psimulate Runner
 The main process loop for `psimulate` runs.
 
 """
-import atexit
+from collections import defaultdict
 from pathlib import Path
 from time import sleep, time
 
@@ -34,10 +34,11 @@ def process_job_results(
     existing_outputs: pd.DataFrame,
     output_directory: Path,
     no_batch: bool,
-) -> None:
+) -> defaultdict:
     written_results = existing_outputs
     unwritten_results = []
     batch_size = 0 if no_batch else 200
+    status = defaultdict(int)
 
     logger.info("Entering main processing loop.")
     start_time = time()
@@ -55,7 +56,6 @@ def process_job_results(
                 )
 
             status = registry_manager.update_and_report()
-            breakpoint()
             logger.info(f"Unwritten results: {len(unwritten_results)}")
             logger.info(f"Elapsed time: {(time() - start_time)/60:.1f} minutes.")
     finally:
@@ -69,6 +69,7 @@ def process_job_results(
             )
             logger.info(f"Unwritten results: {len(unwritten_results)}")
             logger.info(f"Elapsed time: {(time() - start_time) / 60:.1f} minutes.")
+        return status
 
 
 def load_existing_outputs(result_path: Path, restart: bool) -> pd.DataFrame:
@@ -239,7 +240,7 @@ def main(
     # Enter the main monitoring and processing loop, which will check on
     # all the queues periodically, report status updates, and gather
     # and write results when they are available.
-    process_job_results(
+    status = process_job_results(
         registry_manager=registry_manager,
         existing_outputs=existing_outputs,
         output_directory=output_paths.root,
@@ -248,5 +249,13 @@ def main(
 
     # Spit out a performance report for the workers.
     try_run_vipin(output_paths.worker_logging_root)
+    template = (
+        "Final status - Total jobs: {total}, % Done: {done:.2f}% "
+        "Pending: {pending}, Running: {running}, Failed: {failed}, Finished: {finished} "
+        "Workers: {workers}."
+    )
 
+    logger.info(template.format(**status))
+    if status["failed"] > 0:
+        logger.warning(f"*** There {'was' if status['failed'] == 1 else 'were'} {status['failed']} failure{'' if status['failed'] == 1 else 's'}. ***")
     logger.info(f"Jobs completed. Results written to: {str(output_paths.root)}")
