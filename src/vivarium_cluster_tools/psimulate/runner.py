@@ -249,7 +249,8 @@ def main(
 
     # Spit out a performance report for the workers.
     try_run_vipin(output_paths.worker_logging_root)
-    breakpoint()
+
+    # Emit warning if any jobs failed
     if status["failed"] > 0:
         logger.warning(
             f"*** NOTE: There {'was' if status['failed'] == 1 else 'were'} "
@@ -257,5 +258,5 @@ def main(
         )
 
     logger.info(
-        f"{status['finished']} jobs completed. Results written to: {str(output_paths.root)}"
+        f"{status['finished']} of {status['total']} jobs completed. Results written to: {str(output_paths.root)}"
     )
