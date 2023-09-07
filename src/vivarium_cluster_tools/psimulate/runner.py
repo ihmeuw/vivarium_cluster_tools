@@ -249,18 +249,13 @@ def main(
 
     # Spit out a performance report for the workers.
     try_run_vipin(output_paths.worker_logging_root)
-
-    template = (
-        "Final status - Total jobs: {total}, % Done: {done:.2f}% "
-        "Pending: {pending}, Running: {running}, Failed: {failed}, Finished: {finished} "
-        "Workers: {workers}."
-    )
     breakpoint()
-    logger.info(template.format(**status))
     if status["failed"] > 0:
         logger.warning(
-            f"*** There {'was' if status['failed'] == 1 else 'were'} "
-            f"{status['failed']} failure{'' if status['failed'] == 1 else 's'}. ***"
+            f"*** NOTE: There {'was' if status['failed'] == 1 else 'were'} "
+            f"{status['failed']} failed job{'' if status['failed'] == 1 else 's'}. ***"
         )
 
-    logger.info(f"Jobs completed. Results written to: {str(output_paths.root)}")
+    logger.info(
+        f"{status['finished']} jobs completed. Results written to: {str(output_paths.root)}"
+    )
