@@ -54,7 +54,8 @@ def process_job_results(
                     batch_size,
                 )
 
-            registry_manager.update_and_report()
+            status = registry_manager.update_and_report()
+            breakpoint()
             logger.info(f"Unwritten results: {len(unwritten_results)}")
             logger.info(f"Elapsed time: {(time() - start_time)/60:.1f} minutes.")
     finally:
@@ -247,6 +248,5 @@ def main(
 
     # Spit out a performance report for the workers.
     try_run_vipin(output_paths.worker_logging_root)
-    registry_manager.update_and_report()
 
     logger.info(f"Jobs completed. Results written to: {str(output_paths.root)}")
