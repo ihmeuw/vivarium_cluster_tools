@@ -258,5 +258,6 @@ def main(
         )
 
     logger.info(
-        f"{status['finished']} of {status['total']} jobs completed. Results written to: {str(output_paths.root)}"
+        f"{status['finished']} of {status['total']} jobs completed successfully. "
+        f"Results written to: {str(output_paths.root)}"
     )
