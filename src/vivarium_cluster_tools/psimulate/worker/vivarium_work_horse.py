@@ -36,36 +36,7 @@ def work_horse(job_parameters: dict) -> pd.DataFrame:
     logger.info(f"Starting job: {job_parameters}")
 
     try:
-        configuration = ConfigTree(
-            job_parameters.branch_configuration, layers=["base", "update"]
-        )
-        # TODO: Need to test serialization of an empty dict, then this
-        #   can go away.  If you're successfully running code and this
-        #   assert is still here, delete it.
-        assert configuration is not None
-
-        configuration.update(
-            {
-                "run_configuration": {
-                    "run_id": str(get_current_job().id) + "_" + str(time()),
-                    "results_directory": job_parameters.results_path,
-                    "run_key": job_parameters.job_specific,
-                },
-                "randomness": {
-                    "random_seed": job_parameters.random_seed,
-                    "additional_seed": job_parameters.input_draw,
-                },
-                "input_data": {
-                    "input_draw_number": job_parameters.input_draw,
-                },
-            },
-            layer="update",
-            source="branch_config",
-        )
-
-        sim = SimulationContext(
-            job_parameters.model_specification, configuration=configuration.to_dict()
-        )
+        sim = setup_sim(job_parameters)
         logger.info("Simulation configuration:")
         logger.info(str(sim.configuration))
 
@@ -133,6 +104,33 @@ def work_horse(job_parameters: dict) -> pd.DataFrame:
         raise
     finally:
         logger.info(f"Exiting job: {job_parameters}")
+
+def setup_sim(job_parameters: JobParameters) -> SimulationContext:
+    assert job_parameters.branch_configuration is not None
+    configuration = ConfigTree(
+        job_parameters.branch_configuration, layers=["base", "update"]
+    )
+
+    configuration.update(
+        {
+            "run_configuration": {
+                "run_id": str(get_current_job().id) + "_" + str(time()),
+                "results_directory": job_parameters.results_path,
+                "run_key": job_parameters.job_specific,
+            },
+            "randomness": {
+                "random_seed": job_parameters.random_seed,
+                "additional_seed": job_parameters.input_draw,
+            },
+            "input_data": {
+                "input_draw_number": job_parameters.input_draw,
+            },
+        },
+        layer="update",
+        source="branch_config",
+    )
+
+    return SimulationContext(job_parameters.model_specification, configuration=configuration)
 
 
 def do_sim_epilogue(
