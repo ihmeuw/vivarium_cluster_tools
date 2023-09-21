@@ -64,7 +64,7 @@ def work_horse(job_parameters: dict) -> pd.DataFrame:
         )
 
         sim = SimulationContext(
-            job_parameters.model_specification, configuration=configuration
+            job_parameters.model_specification, configuration=configuration.to_dict()
         )
         logger.info("Simulation configuration:")
         logger.info(str(sim.configuration))
