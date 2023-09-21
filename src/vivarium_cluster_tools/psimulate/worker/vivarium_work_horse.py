@@ -15,6 +15,7 @@ from traceback import format_exc
 import pandas as pd
 from loguru import logger
 from rq import get_current_job
+from vivarium.config_tree import ConfigTree
 from vivarium.framework.engine import SimulationContext
 from vivarium.framework.utilities import collapse_nested_dict
 
@@ -35,7 +36,7 @@ def work_horse(job_parameters: dict) -> pd.DataFrame:
     logger.info(f"Starting job: {job_parameters}")
 
     try:
-        configuration = job_parameters.branch_configuration
+        configuration = ConfigTree(job_parameters.branch_configuration)
         # TODO: Need to test serialization of an empty dict, then this
         #   can go away.  If you're successfully running code and this
         #   assert is still here, delete it.
