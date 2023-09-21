@@ -41,22 +41,20 @@ def work_horse(job_parameters: dict) -> pd.DataFrame:
         #   assert is still here, delete it.
         assert configuration is not None
 
-        configuration["run_configuration"].update(
+        configuration.update(
             {
-                "run_id": str(get_current_job().id) + "_" + str(time()),
-                "results_directory": job_parameters.results_path,
-                "run_key": job_parameters.job_specific,
-            }
-        )
-        configuration["randomness"].update(
-            {
-                "random_seed": job_parameters.random_seed,
-                "additional_seed": job_parameters.input_draw,
-            }
-        )
-        configuration["input_data"].update(
-            {
-                "input_draw_number": job_parameters.input_draw,
+                "run_configuration": {
+                    "run_id": str(get_current_job().id) + "_" + str(time()),
+                    "results_directory": job_parameters.results_path,
+                    "run_key": job_parameters.job_specific,
+                },
+                "randomness": {
+                    "random_seed": job_parameters.random_seed,
+                    "additional_seed": job_parameters.input_draw,
+                },
+                "input_data": {
+                    "input_draw_number": job_parameters.input_draw,
+                },
             }
         )
 
