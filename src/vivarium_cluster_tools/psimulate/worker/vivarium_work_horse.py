@@ -36,7 +36,9 @@ def work_horse(job_parameters: dict) -> pd.DataFrame:
     logger.info(f"Starting job: {job_parameters}")
 
     try:
-        configuration = ConfigTree(job_parameters.branch_configuration)
+        configuration = ConfigTree(
+            job_parameters.branch_configuration, layers=["base", "update"]
+        )
         # TODO: Need to test serialization of an empty dict, then this
         #   can go away.  If you're successfully running code and this
         #   assert is still here, delete it.
@@ -56,7 +58,9 @@ def work_horse(job_parameters: dict) -> pd.DataFrame:
                 "input_data": {
                     "input_draw_number": job_parameters.input_draw,
                 },
-            }
+            },
+            layer="update",
+            source="branch_config",
         )
 
         sim = SimulationContext(
