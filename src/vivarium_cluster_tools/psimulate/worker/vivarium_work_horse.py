@@ -108,7 +108,7 @@ def work_horse(job_parameters: dict) -> pd.DataFrame:
 def setup_sim(job_parameters: JobParameters) -> SimulationContext:
     assert job_parameters.branch_configuration is not None
     configuration = ConfigTree(
-        job_parameters.branch_configuration, layers=["base", "update"]
+        job_parameters.branch_configuration, layers=["branch_base", "branch_expanded"]
     )
 
     configuration.update(
@@ -126,7 +126,7 @@ def setup_sim(job_parameters: JobParameters) -> SimulationContext:
                 "input_draw_number": job_parameters.input_draw,
             },
         },
-        layer="update",
+        layer="branch_expanded",
         source="branch_config",
     )
 
