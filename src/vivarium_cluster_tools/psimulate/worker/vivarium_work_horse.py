@@ -105,6 +105,7 @@ def work_horse(job_parameters: dict) -> pd.DataFrame:
     finally:
         logger.info(f"Exiting job: {job_parameters}")
 
+
 def setup_sim(job_parameters: JobParameters) -> SimulationContext:
     assert job_parameters.branch_configuration is not None
     configuration = ConfigTree(
