@@ -3,9 +3,6 @@ import pytest
 from vivarium_cluster_tools.psimulate.worker.vivarium_work_horse import setup_sim
 from vivarium_cluster_tools.psimulate.jobs import JobParameters
 
-# from rq import get_current_job
-
-
 def test_setup_sim(mocker):
     mocker.patch(
         "vivarium_cluster_tools.psimulate.worker.vivarium_work_horse.get_current_job",
