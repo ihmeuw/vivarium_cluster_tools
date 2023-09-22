@@ -105,9 +105,7 @@ def work_horse(job_parameters: dict) -> pd.DataFrame:
 
 
 def setup_sim(job_parameters: JobParameters) -> SimulationContext:
-    """Set up a simulation context from a job parameters object, with the
-    branch/job-specific configuration parameters.
-    """
+    """Set up a simulation context with the branch/job-specific configuration parameters."""
     configuration = ConfigTree(
         job_parameters.branch_configuration, layers=["branch_base", "branch_expanded"]
     )
