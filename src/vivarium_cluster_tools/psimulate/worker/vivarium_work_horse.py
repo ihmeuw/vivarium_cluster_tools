@@ -37,8 +37,6 @@ def work_horse(job_parameters: dict) -> pd.DataFrame:
 
     try:
         sim = setup_sim(job_parameters)
-        logger.info("Simulation configuration:")
-        logger.info(str(sim.configuration))
 
         start_time = pd.Timestamp(**sim.configuration.time.start.to_dict())
         end_time = pd.Timestamp(**sim.configuration.time.end.to_dict())
@@ -107,7 +105,19 @@ def work_horse(job_parameters: dict) -> pd.DataFrame:
 
 
 def setup_sim(job_parameters: JobParameters) -> SimulationContext:
-    assert job_parameters.branch_configuration is not None
+    """Set up a simulation context from a job parameters object, with the
+    branch/job-specific configuration parameters.
+
+    Parameters
+    ----------
+    job_parameters : JobParameters
+        The branch/job-specific configuration parameters.
+
+    Returns
+    -------
+    SimulationContext
+        The simulation context.
+    """
     configuration = ConfigTree(
         job_parameters.branch_configuration, layers=["branch_base", "branch_expanded"]
     )
@@ -131,7 +141,11 @@ def setup_sim(job_parameters: JobParameters) -> SimulationContext:
         source="branch_config",
     )
 
-    return SimulationContext(job_parameters.model_specification, configuration=configuration)
+    sim = SimulationContext(job_parameters.model_specification, configuration=configuration)
+    logger.info("Simulation configuration:")
+    logger.info(str(sim.configuration))
+
+    return sim
 
 
 def do_sim_epilogue(
