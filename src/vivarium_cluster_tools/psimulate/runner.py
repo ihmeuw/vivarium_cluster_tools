@@ -221,13 +221,20 @@ def main(
         worker_log_directory=output_paths.worker_logging_root,
     )
     logger.info(f"Submitting redis workers to the cluster.")
-    # Start an rq worker for every job using the cluster scheduler. The workers
-    # will start as soon as they get scheduled and start looking for work. They
-    # run in burst mode which means they shut down if they can't find anything
-    # to do. This means it's critical that we put the jobs on the queue before
-    # the workers land, otherwise they'll just show up and shut down.
+    # Start an rq worker for every job using the cluster scheduler, up to an
+    # optional user-specified limit. The workers will start as soon as they get
+    # scheduled and start looking for work. They run in burst mode which means
+    # they shut down if they can't find anything to do. This means it's
+    # critical that we put the jobs on the queue before the workers land,
+    # otherwise they'll just show up and shut down.
+
+    num_workers = (
+        extra_args["max_workers"]
+        and min(extra_args["max_workers"], len(job_parameters))
+        or len(job_parameters)
+    )
     cluster.submit_worker_jobs(
-        num_workers=len(job_parameters),
+        num_workers=num_workers,
         worker_launch_script=worker_launch_script,
         cluster_logging_root=output_paths.cluster_logging_root,
         native_specification=native_specification,

@@ -81,6 +81,13 @@ shared_options = [
     "configuration file.",
     callback=cli_tools.coerce_to_full_path,
 )
+@click.option(
+    "--max-workers",
+    type=click.INT,
+    help="The maximum number of workers (and therefore jobs) to run concurrently."
+    "If unset, submit all jobs at once and let the cluster schedule them.",
+)
+
 @cli_tools.pass_shared_options(shared_options)
 def run(
     model_specification: Path,
@@ -128,7 +135,7 @@ def run(
         ),
         redis_processes=options["redis"],
         no_batch=options["no_batch"],
-        extra_args={},
+        extra_args={"max_workers": options["max_workers"]},
     )
 
 
