@@ -83,11 +83,10 @@ shared_options = [
 )
 @click.option(
     "--max-workers",
-    type=click.INT,
+    type=click.IntRange(min=1),
     help="The maximum number of workers (and therefore jobs) to run concurrently."
     "If unset, submit all jobs at once and let the cluster schedule them.",
 )
-
 @cli_tools.pass_shared_options(shared_options)
 def run(
     model_specification: Path,
