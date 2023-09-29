@@ -9,6 +9,7 @@ The main process loop for `psimulate` runs.
 from collections import defaultdict
 from pathlib import Path
 from time import sleep, time
+import math
 
 import pandas as pd
 from loguru import logger
@@ -192,12 +193,30 @@ def main(
         return
     else:
         logger.info(f"Found {len(job_parameters)} jobs to run.")
+    
+    num_workers = (
+        extra_args["max_workers"]
+        and min(extra_args["max_workers"], len(job_parameters))
+        or len(job_parameters)
+    )
+    num_queues = len(registry_manager)
+    ## Rough estimate of the number of workers needed to ensure that each queue gets at least
+    ## one worker. cf. https://w.wiki/7bnb
+    expected_sufficient_workers = int(math.ceil(num_queues * (math.log(num_queues) + 0.57)))
+    if num_workers < expected_sufficient_workers:
+        logger.warning(
+            f"With {num_queues} queues, you should have at least {expected_sufficient_workers} workers, but you only have {num_workers}."
+            "Failure to allocate sufficent workers may result in jobs not being processed."
+            "Consider increasing the number of workers, or decreasing the number of redis queues."
+        )
+
+    
 
     logger.info("Spinning up Redis DBs and connecting to main process.")
     # Spin up the job & result dbs and get back (hostname, port) pairs for all the dbs.
     redis_ports = redis_dbs.launch(
         num_processes=redis_processes,
-        num_jobs=len(job_parameters),
+        num_workers=num_workers,
         redis_logging_root=output_paths.logging_root,
     )
     # Spin up a unified interface to all the redis databases
@@ -228,11 +247,6 @@ def main(
     # critical that we put the jobs on the queue before the workers land,
     # otherwise they'll just show up and shut down.
 
-    num_workers = (
-        extra_args["max_workers"]
-        and min(extra_args["max_workers"], len(job_parameters))
-        or len(job_parameters)
-    )
     cluster.submit_worker_jobs(
         num_workers=num_workers,
         worker_launch_script=worker_launch_script,
