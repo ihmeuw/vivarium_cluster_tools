@@ -9,8 +9,8 @@ Command line options for configuring job/result queue Redis DBs in psimulate run
 import click
 
 from vivarium_cluster_tools.psimulate.redis_dbs.launcher import (
-    DEFAULT_WORKERS_PER_REDIS_INSTANCE,
     DEFAULT_NUM_REDIS_DBS,
+    DEFAULT_WORKERS_PER_REDIS_INSTANCE,
 )
 
 with_redis = click.option(
