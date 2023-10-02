@@ -199,18 +199,6 @@ def main(
         and min(extra_args["max_workers"], len(job_parameters))
         or len(job_parameters)
     )
-    num_queues = len(registry_manager)
-    ## Rough estimate of the number of workers needed to ensure that each queue gets at least
-    ## one worker. cf. https://w.wiki/7bnb
-    expected_sufficient_workers = int(math.ceil(num_queues * (math.log(num_queues) + 0.57)))
-    if num_workers < expected_sufficient_workers:
-        logger.warning(
-            f"With {num_queues} queues, you should have at least {expected_sufficient_workers} workers, but you only have {num_workers}."
-            "Failure to allocate sufficent workers may result in jobs not being processed."
-            "Consider increasing the number of workers, or decreasing the number of redis queues."
-        )
-
-    
 
     logger.info("Spinning up Redis DBs and connecting to main process.")
     # Spin up the job & result dbs and get back (hostname, port) pairs for all the dbs.
