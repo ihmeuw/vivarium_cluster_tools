@@ -6,10 +6,10 @@ psimulate Runner
 The main process loop for `psimulate` runs.
 
 """
+import math
 from collections import defaultdict
 from pathlib import Path
 from time import sleep, time
-import math
 
 import pandas as pd
 from loguru import logger
@@ -193,7 +193,7 @@ def main(
         return
     else:
         logger.info(f"Found {len(job_parameters)} jobs to run.")
-    
+
     num_workers = (
         extra_args["max_workers"]
         and min(extra_args["max_workers"], len(job_parameters))
