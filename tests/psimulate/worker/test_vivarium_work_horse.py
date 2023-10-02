@@ -1,11 +1,12 @@
-import pytest
-
 from time import time
+
+import pytest
 from vivarium.framework.utilities import collapse_nested_dict
+
 from vivarium_cluster_tools.psimulate.jobs import JobParameters
 from vivarium_cluster_tools.psimulate.worker.vivarium_work_horse import (
-    setup_sim,
     parameter_update_format,
+    setup_sim,
 )
 
 
