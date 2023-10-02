@@ -128,7 +128,7 @@ def setup_sim(job_parameters: JobParameters) -> SimulationContext:
         layer="branch_expanded",
         source="branch_config",
     )
-
+    job_parameters.branch_configuration.update(configuration.to_dict())
     sim = SimulationContext(job_parameters.model_specification, configuration=configuration)
     logger.info("Simulation configuration:")
     logger.info(str(sim.configuration))
