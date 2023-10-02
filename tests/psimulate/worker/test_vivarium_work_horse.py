@@ -36,6 +36,8 @@ def test_setup_sim(mocker):
     sim_config = setup_sim(job_parameters).configuration.to_dict()
     job_config = job_parameters.branch_configuration
 
+    ## Check that for all nested key, value pairs in ref_dict,
+    ## the test dict has that key with the same value.
     def compare_dicts(test_dict, ref_dict):
         for k, v in ref_dict.items():
             if isinstance(v, dict):
