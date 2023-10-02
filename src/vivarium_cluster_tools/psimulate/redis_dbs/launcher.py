@@ -49,8 +49,9 @@ def _get_num_redis_dbs(num_processes: int, num_workers: int) -> int:
         min_workers = _expected_sufficient_workers(num_processes)
         if num_workers < min_workers:
             logger.warning(
-                f"With {num_processes} queues, you should have >> {min_workers} workers, but you only have {num_workers}."
-                "Failure to allocate sufficent workers may result in jobs not being processed."
+                f"With {num_processes} queues, you should have >> {min_workers} workers, "
+                "but you only have {num_workers}. "
+                "Failure to allocate sufficent workers may result in jobs not being processed. "
                 "Consider increasing the number of workers, or decreasing the number of redis queues."
             )
     return num_processes
