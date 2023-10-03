@@ -194,11 +194,10 @@ def main(
     else:
         logger.info(f"Found {len(job_parameters)} jobs to run.")
 
-    num_workers = (
-        extra_args["max_workers"]
-        and min(extra_args["max_workers"], len(job_parameters))
-        or len(job_parameters)
-    )
+    if extra_args["max_workers"]:
+        num_workers = min(extra_args["max_workers"], len(job_parameters))
+    else:
+        num_workers = len(job_parameters)
 
     logger.info("Spinning up Redis DBs and connecting to main process.")
     # Spin up the job & result dbs and get back (hostname, port) pairs for all the dbs.
