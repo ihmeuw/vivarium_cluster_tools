@@ -260,14 +260,19 @@ class RegistryManager:
 
     def enqueue(self, jobs: List[Dict], workhorse_import_path: str) -> None:
         workers_per_queue = int(math.ceil(len(jobs) / len(self._queues)))
-        for queue, jobs_chunk in zip(self._queues, self._chunks(jobs, workers_per_queue)):
+        for queue, jobs_chunk in self.allocate_jobs(jobs):
             queue.enqueue(jobs_chunk, workhorse_import_path)
 
     @staticmethod
-    def _chunks(sequence: List, n: int) -> Iterator[List]:
+    def _chunks(sequence: List, n: int) -> Iterator[Tuple[Queue, List]]:
         """Yield successive n-sized chunks from l."""
         for i in range(0, len(sequence), n):
             yield sequence[i : i + n]
+    
+    def allocate_jobs(self, jobs: List[Dict]) -> List[List[Dict]]:
+        """Allocate jobs to queues in a round robin fashion."""
+        for mod, queue in enumerate(self._queues):
+            yield (queue, [job for i, job in enumerate(jobs) if i % num_queues == mod])
 
     def get_results(self) -> List:
         to_check = [q for q in self._queues if q.jobs_to_finish]
