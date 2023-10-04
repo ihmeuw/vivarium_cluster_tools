@@ -20,7 +20,6 @@ from rq.registry import FinishedJobRegistry, StartedJobRegistry
 
 
 class QueueManager:
-
     retries_before_fail = 10
     backoff = 30
 
@@ -259,14 +258,14 @@ class RegistryManager:
         return any([q.jobs_to_finish for q in self._queues])
 
     def enqueue(self, jobs: List[Dict], workhorse_import_path: str) -> None:
-        workers_per_queue = int(math.ceil(len(jobs) / len(self._queues)))
-        for queue, jobs_chunk in self.allocate_jobs(jobs):
+        for queue, jobs_chunk in zip(self._queues, self.allocate_jobs(jobs)):
             queue.enqueue(jobs_chunk, workhorse_import_path)
 
-    def allocate_jobs(self, jobs: List[Dict]) -> Iterator[Tuple[Queue, List]]:
+    def allocate_jobs(self, jobs: List[Dict]) -> Iterator[List[Dict]]:
         """Allocate jobs to queues in a round robin fashion."""
-        for mod, queue in enumerate(self._queues):
-            yield (queue, [job for i, job in enumerate(jobs) if i % num_queues == mod])
+        num_queues = len(self._queues)
+        for mod in range(num_queues):
+            yield [job for i, job in enumerate(jobs) if i % num_queues == mod]
 
     def get_results(self) -> List:
         to_check = [q for q in self._queues if q.jobs_to_finish]
