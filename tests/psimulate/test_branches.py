@@ -4,7 +4,9 @@ from vivarium.framework.utilities import collapse_nested_dict
 from vivarium_cluster_tools.psimulate.branches import (
     calculate_random_seeds,
     expand_branch_templates,
+    Keyspace,
 )
+from itertools import product
 
 
 def test_expand_branch_template():
@@ -52,3 +54,20 @@ def test_calculate_random_seeds_existing(seed_count):
     assert len(seeds) == len(set(seeds))
     assert len(seeds + existing) == len(set(seeds + existing))
     assert len(seeds) == seed_count
+
+
+def test_keyspace_order():
+    ## divide an integer range of 15 into five bins
+    input_draw, random_seed, foo, bar, baz =  [list(range(i, i+3)) for i in range(0, 15, 3)]
+    branches = [
+        {"foo": foo, "bar": bar, "baz": baz} for foo, bar, baz in product(foo, bar, baz)
+    ]
+    # Define the correct ordering of the keyspace
+    ordered_keys = product(input_draw, random_seed, branches)
+
+    full_keyspace = Keyspace(
+        branches=branches, keyspace={"input_draw": input_draw, "random_seed": random_seed}
+    )
+
+    for test_key, reference_key in zip(full_keyspace, ordered_keys):
+        assert test_key == reference_key
