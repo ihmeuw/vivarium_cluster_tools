@@ -1,12 +1,13 @@
+from itertools import product
+
 import pytest
 from vivarium.framework.utilities import collapse_nested_dict
 
 from vivarium_cluster_tools.psimulate.branches import (
+    Keyspace,
     calculate_random_seeds,
     expand_branch_templates,
-    Keyspace,
 )
-from itertools import product
 
 
 def test_expand_branch_template():
@@ -58,7 +59,7 @@ def test_calculate_random_seeds_existing(seed_count):
 
 def test_keyspace_order():
     ## divide an integer range of 15 into five bins
-    input_draw, random_seed, foo, bar, baz =  [list(range(i, i+3)) for i in range(0, 15, 3)]
+    input_draw, random_seed, foo, bar, baz = [list(range(i, i + 3)) for i in range(0, 15, 3)]
     branches = [
         {"foo": foo, "bar": bar, "baz": baz} for foo, bar, baz in product(foo, bar, baz)
     ]
