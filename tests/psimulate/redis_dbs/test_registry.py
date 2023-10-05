@@ -23,6 +23,3 @@ def test_allocate_jobs(mocker, num_queues, num_jobs):
             else:
                 jobs_by_queue.pop(i)
     assert test_jobs == jobs
-    
-    
-    
