@@ -1,4 +1,3 @@
-import numpy as np
 import pytest
 
 from vivarium_cluster_tools.psimulate.redis_dbs.registry import RegistryManager
