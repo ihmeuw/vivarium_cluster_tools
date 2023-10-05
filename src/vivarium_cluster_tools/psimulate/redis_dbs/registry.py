@@ -20,6 +20,7 @@ from rq.registry import FinishedJobRegistry, StartedJobRegistry
 
 
 class QueueManager:
+    
     retries_before_fail = 10
     backoff = 30
 
@@ -244,7 +245,6 @@ class QueueManager:
 
 
 class RegistryManager:
-    
     def __init__(self, redis_processes: List[Tuple[str, int]], num_already_completed: int):
         self._logger = logger.bind(queue="all")
         self._logger.info("Building registries.")
