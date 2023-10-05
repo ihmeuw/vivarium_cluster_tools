@@ -20,7 +20,7 @@ from rq.registry import FinishedJobRegistry, StartedJobRegistry
 
 
 class QueueManager:
-    
+
     retries_before_fail = 10
     backoff = 30
 
