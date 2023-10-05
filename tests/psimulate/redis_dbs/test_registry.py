@@ -18,10 +18,10 @@ def test_allocate_jobs(mocker, num_queues, num_jobs):
     # Simulate the order that a single worker would pick up jobs round-robin
     while jobs_by_queue:
         for i, queue in enumerate(jobs_by_queue):
-            if not queue:
-                jobs_by_queue.pop(i)
-            else:
+            if queue:
                 test_jobs.append(queue.pop(0))
+            else:
+                jobs_by_queue.pop(i)
     assert test_jobs == jobs
     
     
