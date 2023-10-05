@@ -244,6 +244,7 @@ class QueueManager:
 
 
 class RegistryManager:
+    
     def __init__(self, redis_processes: List[Tuple[str, int]], num_already_completed: int):
         self._logger = logger.bind(queue="all")
         self._logger.info("Building registries.")
