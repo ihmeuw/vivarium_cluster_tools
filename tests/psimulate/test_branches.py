@@ -1,5 +1,3 @@
-from itertools import product
-
 import pytest
 from vivarium.framework.utilities import collapse_nested_dict
 
