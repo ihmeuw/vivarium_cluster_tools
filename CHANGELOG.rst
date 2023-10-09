@@ -1,4 +1,4 @@
-**1.4.0 - 10/05/23**
+**1.4.0 - 10/09/23**
 
  - Drop support for Python 3.8
  - Add priorities for draw/seed/branch job groups
