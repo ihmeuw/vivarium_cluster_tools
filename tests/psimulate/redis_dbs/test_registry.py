@@ -14,14 +14,9 @@ def test_allocate_jobs(mocker, num_queues, num_jobs):
     jobs = [{"job": i} for i in range(num_jobs)]
     # make an array of all the jobs in every queue
     jobs_by_queue = list(manager.allocate_jobs(jobs))
-    # Check that each "layer" of jobs 
+    # Check that each "layer" of jobs has strictly smaller-priority jobs than the next
     largest_queue_size = max(len(queue) for queue in jobs_by_queue)
     for i in range(largest_queue_size - 1):
         this_layer = {queue[i]["job"] for queue in jobs_by_queue if len(queue) > i}
         next_layer = {queue[i + 1]["job"] for queue in jobs_by_queue if len(queue) > i + 1}
         assert max(this_layer) < min(next_layer)
-        
-            
-            
-        
-    
