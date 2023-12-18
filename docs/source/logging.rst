@@ -8,8 +8,9 @@ Logging
 Sometimes, even with perfect code, things can go wrong at sufficient scale.
 When they do, it's useful to look to the logs to see what happened.  ``psimulate``
 logs to the results directory, in a subdirectory called ``logs``. Inside that directory,
-there will be a directory for each simulation run or restart. If ``psimulate restart`` was
-never used, there will be only one directory for the run.
+there will be a directory for each simulation run or restart. If neither
+``psimulate restart`` nor ``psimulate expand`` was
+ever used for the run, there will be only one directory for the run.
 
 Top-level logs
 ----------------
