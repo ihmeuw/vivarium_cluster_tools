@@ -81,7 +81,7 @@ class QueueManager:
             )
 
     def get_results(self) -> List:
-        self._logger.info(f"Checking queue {self.name}")
+        self._logger.debug(f"Checking queue {self.name}")
         finished_jobs = self._get_finished_jobs()
         start = time.time()
         results = []
@@ -89,7 +89,7 @@ class QueueManager:
             result = self._get_result(job_id)
             if result is not None:
                 results.append(result)
-        self._logger.info(
+        self._logger.debug(
             f"Retrieved {len(results)} results from queue {self.name} in {time.time() - start:.2f}s"
         )
         return results
@@ -107,7 +107,7 @@ class QueueManager:
 
     def _update_status(self) -> None:
         if self.jobs_to_finish and self._retries > 0:
-            self._logger.info(f"Updating status for queue {self.name}")
+            self._logger.debug(f"Updating status for queue {self.name}")
             # TODO: Sometimes there are duplicate job_ids, why?
             try:
                 # Account for timing discrepancies in accounting and the
@@ -244,7 +244,7 @@ class QueueManager:
 
 
 class RegistryManager:
-    def __init__(self, redis_processes: List[Tuple[str, int]], num_already_completed: int):
+    def __init__(self, redis_processes: List[Tuple[str, int]], submitted_workers: int, num_already_completed: int):
         self._logger = logger.bind(queue="all")
         self._logger.info("Building registries.")
         self._queues = [
@@ -252,6 +252,7 @@ class RegistryManager:
             for i, (hostname, port) in enumerate(redis_processes)
         ]
         self._previously_completed = num_already_completed
+        self.submitted_workers = submitted_workers
 
     @property
     def jobs_to_finish(self) -> bool:
@@ -282,11 +283,12 @@ class RegistryManager:
                 status[k] += v
         status["done"] = status["finished"] / status["total"] * 100
         status["finished"] += self._previously_completed
+        status["unscheduled"] = self.submitted_workers - status["workers"]
 
         template = (
             "Queue all - Total jobs: {total}, % Done: {done:.2f}% "
             "Pending: {pending}, Running: {running}, Failed: {failed}, Finished: {finished} "
-            "Workers: {workers}."
+            "Active Workers: {workers}, Inactive Workers: {unscheduled}."
         )
 
         self._logger.info(template.format(**status))
