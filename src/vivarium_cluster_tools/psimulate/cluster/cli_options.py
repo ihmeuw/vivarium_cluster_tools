@@ -32,8 +32,9 @@ def _validate_and_split_hardware(
     bad_requests = set(hardware) - set(_AVAILABLE_HARDWARE)
     if bad_requests:
         raise click.BadParameter(
-            f"Hardware request(s) {bad_requests} are not supported. "
-            f"Supported hardware requests: {_AVAILABLE_HARDWARE}"
+            f"Hardware request(s) {bad_requests} are not supported.\n"
+            f"Supported hardware requests: {_AVAILABLE_HARDWARE}.\n"
+            "Refer to https://docs.cluster.ihme.washington.edu/#hpc-execution-host-hardware-specifications"
         )
     return hardware
 
