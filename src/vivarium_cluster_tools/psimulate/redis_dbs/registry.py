@@ -40,7 +40,7 @@ class QueueManager:
             "pending": 0,
             "running": 0,
             "failed": 0,
-            "finished": 0,
+            "successful": 0,
             "done": 0.0,
             "workers": 0,
         }
@@ -98,7 +98,7 @@ class QueueManager:
         self._update_status()
         template = (
             f"Queue {self.name} - Total jobs: {{total}}, % Done: {{done:.2f}}% "
-            f"Pending: {{pending}}, Running: {{running}}, Failed: {{failed}}, Finished: {{finished}} "
+            f"Pending: {{pending}}, Running: {{running}}, Failed: {{failed}}, Successful: {{successful}} "
             f"Workers: {{workers}}."
         )
         if not (self.completed or self.failed):
@@ -112,16 +112,16 @@ class QueueManager:
             try:
                 # Account for timing discrepancies in accounting and the
                 # fact that a job might legit be in more than one of these.
-                finished_ids = set(self._finished.get_job_ids()) if self._queue else set()
+                successful_ids = set(self._finished.get_job_ids()) if self._queue else set()
 
                 running_ids = set(self._wip.get_job_ids()) if self._queue else set()
-                # "Finished" for our purposes means the job is done
+                # "Successful" for our purposes means the job is done
                 # and the results have been retrieved, whereas for rq
                 # finished means the job is done and the results have
                 # not been retrieved. Once retrieved, jobs disappear
                 # from the finished job registry and we'd see all our
                 # account eventually just go to zero.
-                running_ids = running_ids | finished_ids
+                running_ids = running_ids | successful_ids
 
                 pending_ids = set(self._queue.job_ids) if self._queue else set()
                 pending_ids = pending_ids - running_ids
@@ -136,21 +136,21 @@ class QueueManager:
                 q_workers = len(rq.Worker.all(queue=self._queue)) if self._queue else 0
 
                 self._status["pending"] = len(pending_ids)
-                self._status["running"] = len(running_ids) + len(finished_ids)
+                self._status["running"] = len(running_ids) + len(successful_ids)
                 self._status["failed"] = len(failed_ids)
-                self._status["finished"] = self._status["finished"]
+                self._status["successful"] = self._status["successful"]
                 self._status["total"] = (
                     len(pending_ids)
                     + len(running_ids)
                     + len(failed_ids)
-                    + self._status["finished"]
+                    + self._status["successful"]
                 )
                 self._status["workers"] = q_workers
-                self._status["done"] = 100 * self._status["finished"] / self._status["total"]
+                self._status["done"] = 100 * self._status["successful"] / self._status["total"]
 
                 if len(pending_ids) + len(running_ids) == 0:
                     self._mark_complete()
-                elif len(pending_ids) + len(finished_ids) + q_workers == 0:
+                elif len(pending_ids) + len(successful_ids) + q_workers == 0:
                     self._logger.info(
                         f"Queue {self.name} ran out of workers with running jobs.  Marking finished."
                     )
@@ -182,7 +182,7 @@ class QueueManager:
             self._logger.debug(
                 f"Deserialized {job_id} result from queue {self.name} in {end - start:.2f}s."
             )
-            self._status["finished"] += 1
+            self._status["successful"] += 1
             self._remove_finished_job(job)
         return result
 
@@ -236,7 +236,7 @@ class QueueManager:
     def _mark_complete(self) -> None:
         if not (self.failed or self.completed):
             self._logger.info(f"All jobs on queue {self.name} complete.")
-            self._status["finished"] += self._status["pending"] + self._status["running"]
+            self._status["successful"] += self._status["pending"] + self._status["running"]
             self._status["pending"] = 0
             self._status["running"] = 0
             self._status["workers"] = 0
@@ -286,13 +286,13 @@ class RegistryManager:
             queue_status = queue.update_and_report()
             for k, v in queue_status.items():
                 status[k] += v
-        status["done"] = status["finished"] / status["total"] * 100
-        status["finished"] += self._previously_completed
+        status["done"] = status["successful"] / status["total"] * 100
+        status["successful"] += self._previously_completed
         status["unscheduled"] = self.submitted_workers - status["workers"]
 
         template = (
             "Queue all - Total jobs: {total}, % Done: {done:.2f}% "
-            "Pending: {pending}, Running: {running}, Failed: {failed}, Finished: {finished} "
+            "Pending: {pending}, Running: {running}, Failed: {failed}, Successful: {successful} "
             "Active Workers: {workers}, Inactive Workers: {unscheduled}."
         )
 
