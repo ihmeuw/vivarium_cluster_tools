@@ -49,8 +49,7 @@ with_project = click.option(
             "proj_csu",
         ]
     ),
-    default="proj_simscience_prod",
-    show_default=True,
+    required=True,
     help="The cluster project under which to run the simulation.",
 )
 
