@@ -28,7 +28,6 @@ from vivarium_cluster_tools.vipin import perf_report
 @click.option(
     "--hdf/--csv",
     default=False,
-    show_default=True,
     help="Choose hdf or csv for output data. Defaults to csv.",
 )
 @click.option("-v", "verbose", count=True, help="Configure logging verbosity.")
