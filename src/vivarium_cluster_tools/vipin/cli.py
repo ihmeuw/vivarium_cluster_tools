@@ -26,7 +26,10 @@ from vivarium_cluster_tools.vipin import perf_report
     "Defaults to given logs directory if not given.",
 )
 @click.option(
-    "--hdf/--csv", default=False, help="Choose hdf or csv for output data. Defaults to csv."
+    "--hdf/--csv",
+    default=False,
+    show_default=True,
+    help="Choose hdf or csv for output data. Defaults to csv.",
 )
 @click.option("-v", "verbose", count=True, help="Configure logging verbosity.")
 def vipin(logs_directory, result_directory, hdf, verbose):
