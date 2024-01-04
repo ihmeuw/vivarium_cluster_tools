@@ -99,7 +99,6 @@ class QueueManager:
         template = (
             f"Queue {self.name} - Total jobs: {{total}}, % Done: {{done:.2f}}% "
             f"Pending: {{pending}}, Running: {{running}}, Failed: {{failed}}, Successful: {{successful}} "
-            f"Workers: {{workers}}."
         )
         if not (self.completed or self.failed):
             self._logger.info(template.format(**self._status))
@@ -293,7 +292,7 @@ class RegistryManager:
         template = (
             "Queue all - Total jobs: {total}, % Done: {done:.2f}% "
             "Pending: {pending}, Running: {running}, Failed: {failed}, Successful: {successful} "
-            "Active Workers: {workers}, Inactive Workers: {unscheduled}."
+            "Inactive Workers: {unscheduled}."
         )
 
         self._logger.info(template.format(**status))
