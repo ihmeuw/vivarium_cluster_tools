@@ -145,7 +145,9 @@ class QueueManager:
                     + self._status["successful"]
                 )
                 self._status["workers"] = q_workers
-                self._status["done"] = 100 * self._status["successful"] / self._status["total"]
+                self._status["done"] = (
+                    100 * self._status["successful"] / self._status["total"]
+                )
 
                 if len(pending_ids) + len(running_ids) == 0:
                     self._mark_complete()
