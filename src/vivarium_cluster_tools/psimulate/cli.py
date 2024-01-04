@@ -254,6 +254,9 @@ def expand(results_root, **options):
 def test(test_type, num_workers, result_directory, **options):
     logs.configure_main_process_logging_to_terminal(options["verbose"])
     main = handle_exceptions(runner.main, logger, options["with_debugger"])
+    # overwrite the memory and time requests so as not to hit fairshare so hard
+    options["peak_memory"] = get_psimulate_test_dict()[test_type]["peak_memory"]
+    options["max_runtime"] = get_psimulate_test_dict()[test_type]["max_runtime"]
     main(
         command=COMMANDS.load_test,
         input_paths=paths.InputPaths.from_entry_point_args(
