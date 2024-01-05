@@ -260,13 +260,13 @@ def test(test_type, num_workers, result_directory, **options):
     peak_memory = get_psimulate_test_dict()[test_type]["peak_memory"]
     max_runtime = get_psimulate_test_dict()[test_type]["max_runtime"]
     peak_memory_msg = (
-        f"Manually over-riding the peak memory request '{test_type}' test to {peak_memory}GB."
+        f"Manually overriding the peak memory request '{test_type}' test to {peak_memory}GB."
     )
     logger.warning(peak_memory_msg) if options[
         "peak_memory"
     ] != cluster.PEAK_MEMORY_DEFAULT else logger.info(peak_memory_msg)
     max_runtime_msg = (
-        f"Manually over-riding the max runtime request '{test_type}' test to {max_runtime}."
+        f"Manually overriding the max runtime request '{test_type}' test to {max_runtime}."
     )
     logger.warning(max_runtime_msg) if options[
         "max_runtime"
