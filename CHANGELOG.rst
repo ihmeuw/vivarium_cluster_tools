@@ -1,3 +1,7 @@
+**1.5.3 - 01/04/24**
+
+ - Hard-code psimulate test cluster requirements
+
 **1.5.2 - 12/29/23**
 
  - Automatically remove duplicative perf logs after log_summary.csv is created
