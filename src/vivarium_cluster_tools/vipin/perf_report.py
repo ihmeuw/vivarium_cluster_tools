@@ -195,10 +195,10 @@ def append_perf_data_to_central_logs(perf_df: pd.DataFrame, output_directory: Pa
     """Append performance data to the central logs."""
     perf_df = perf_df.reset_index()
     # add location data to perf_df
-    artifact_path_col = ['scenario_input_data_artifact_path']
-    if artifact_path_col in perf_df.columns:
+    artifact_path_col = 'scenario_input_data_artifact_path'
+    if artifact_path_col in perf_df.columns: # if we parallelized across artifact paths
         perf_df['location'] = perf_df[artifact_path_col].apply(lambda filepath: Path(filepath).stem)
-    else:
+    else: # else get from output directory
         perf_df['location'] = output_directory.parents[4].stem
 
     ## aggregate scenario information into one column
@@ -209,44 +209,49 @@ def append_perf_data_to_central_logs(perf_df: pd.DataFrame, output_directory: Pa
                             not col.startswith('scenario_run_configuration')]
     perf_df['scenario_parameters'] = perf_df[unique_scenario_cols].to_dict(orient='records')
     perf_df['scenario_parameters'] = perf_df['scenario_parameters'].apply(json.dumps)
-    perf_df = perf_df.drop(all_scenario_cols + ['compound_scenario'], axis=1)
+    perf_df = perf_df.drop(all_scenario_cols, axis=1)
 
     # append child job data
     NUM_ROWS_PER_FILE = 100_000
     performance_logs_dir = Path('/mnt/team/simulation_science/pub/performance_logs/')
     log_files = glob.glob(Path(performance_logs_dir).as_posix() + '/log_summary_*.csv')
     sorted_files = sorted(log_files, key=lambda x: Path(x).stem.replace('log_summary_',''))
-    most_recent_file = sorted_files[-1]
+    most_recent_file_path = sorted_files[-1]
+    most_recent_data = pd.read_csv(most_recent_file_path)
 
-    data_fits_in_file = (len(most_recent_file) + len(perf_df)) <= NUM_ROWS_PER_FILE
+    data_fits_in_file = (len(most_recent_data) + len(perf_df)) <= NUM_ROWS_PER_FILE
 
     if data_fits_in_file:
-        first_file_with_data = most_recent_file
-        #perf_df.to_csv(most_recent_file, mode='a', index=False)
+        first_file_with_data = most_recent_file_path
+        #perf_df.to_csv(most_recent_file_path, mode='a', header=False, index=False)
     else:
-        most_recent_index = int(Path(most_recent_file).stem.replace('log_summary_',''))
+        # fill up the most recent file (possibly with 0 rows)
+        first_file_with_data = most_recent_file_path
+        rows_to_append = NUM_ROWS_PER_FILE - len(most_recent_data)
+        #perf_df[:rows_to_append].to_csv(most_recent_file_path, mode='a', header=False, index=False)
+        perf_df = perf_df[rows_to_append:]
+
+        most_recent_index = int(Path(most_recent_file_path).stem.replace('log_summary_',''))
         new_index = most_recent_index + 1
 
-        if len(most_recent_file) != NUM_ROWS_PER_FILE:
-            first_file_with_data = most_recent_file
-            rows_to_append = NUM_ROWS_PER_FILE - len(perf_df)
-            #perf_df[:rows_to_append].to_csv(most_recent_file, mode='a', index=False)
-            perf_df = perf_df[rows_to_append:]
-        else:
-            first_file_with_data = Path(performance_logs_dir) / f'log_summary_{new_index}.csv'
+        # record first file with data as new file if no data was appended to most recent file
+        if rows_to_append == 0:
+            formatted_new_index = '{:04}'.format(new_index)
+            first_file_with_data = Path(performance_logs_dir) / f'log_summary_{formatted_new_index}.csv'
 
         num_appends = math.ceil(len(perf_df) / NUM_ROWS_PER_FILE)
 
         for append_num in range(num_appends):
-            new_file = Path(performance_logs_dir) / f'log_summary_{new_index}.csv'
+            formatted_new_index = '{:04}'.format(new_index)
+            new_file = Path(performance_logs_dir) / f'log_summary_{formatted_new_index}.csv'
             start_idx = NUM_ROWS_PER_FILE * append_num
             end_idx = NUM_ROWS_PER_FILE * (append_num+1)
             #perf_df[start_idx:end_idx].to_csv(new_file, index=False)
             new_index += 1
 
     # append runner data
-    runner_data = pd.DataFrame({'job_number': int(perf_df['job_number'].unique()[0])}) # only one job number
-    runner_data['project_name'] = output_directory.parents[6].stem
+    runner_data = pd.DataFrame({'job_number': [int(perf_df['job_number'].unique()[0])]}) # only one job number
+    runner_data['project_name'] = output_directory.parents[5].stem
     runner_data['root_path'] = output_directory.parents[3]
     runner_data['original_run_date'] = output_directory.parents[2].stem
     full_run_date = output_directory.parents[0].stem
@@ -254,8 +259,9 @@ def append_perf_data_to_central_logs(perf_df: pd.DataFrame, output_directory: Pa
     runner_data['run_type'] = full_run_date[full_run_date.rindex('_')+1:]
     runner_data['log_summary_file_path'] = first_file_with_data
     runner_data['original_log_file_path'] = output_directory / 'log_summary.csv'
+    runner_data_file = Path(performance_logs_dir) / 'test_runner_data.csv'
+    runner_data.to_csv(runner_data_file, mode='a', header=False, index=False)
     breakpoint()
-    #runner_data.to_csv('')
 
 
 def report_performance(
