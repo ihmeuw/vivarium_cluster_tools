@@ -223,12 +223,12 @@ def append_perf_data_to_central_logs(perf_df: pd.DataFrame, output_directory: Pa
 
     if data_fits_in_file:
         first_file_with_data = most_recent_file_path
-        #perf_df.to_csv(most_recent_file_path, mode='a', header=False, index=False)
+        perf_df.to_csv(most_recent_file_path, mode='a', header=False, index=False)
     else:
         # fill up the most recent file (possibly with 0 rows)
         first_file_with_data = most_recent_file_path
         rows_to_append = NUM_ROWS_PER_FILE - len(most_recent_data)
-        #perf_df[:rows_to_append].to_csv(most_recent_file_path, mode='a', header=False, index=False)
+        perf_df[:rows_to_append].to_csv(most_recent_file_path, mode='a', header=False, index=False)
         perf_df = perf_df[rows_to_append:]
 
         most_recent_index = int(Path(most_recent_file_path).stem.replace('log_summary_',''))
@@ -246,22 +246,21 @@ def append_perf_data_to_central_logs(perf_df: pd.DataFrame, output_directory: Pa
             new_file = Path(performance_logs_dir) / f'log_summary_{formatted_new_index}.csv'
             start_idx = NUM_ROWS_PER_FILE * append_num
             end_idx = NUM_ROWS_PER_FILE * (append_num+1)
-            #perf_df[start_idx:end_idx].to_csv(new_file, index=False)
+            perf_df[start_idx:end_idx].to_csv(new_file, index=False)
             new_index += 1
 
     # append runner data
     runner_data = pd.DataFrame({'job_number': [int(perf_df['job_number'].unique()[0])]}) # only one job number
-    runner_data['project_name'] = output_directory.parents[5].stem
+    runner_data['project_name'] = output_directory.parents[6].stem
     runner_data['root_path'] = output_directory.parents[3]
     runner_data['original_run_date'] = output_directory.parents[2].stem
     full_run_date = output_directory.parents[0].stem
     runner_data['run_date'] = full_run_date[:full_run_date.rindex('_')]
     runner_data['run_type'] = full_run_date[full_run_date.rindex('_')+1:]
     runner_data['log_summary_file_path'] = first_file_with_data
-    runner_data['original_log_file_path'] = output_directory / 'log_summary.csv'
+    runner_data['original_log_file_path'] = (output_directory / 'log_summary.csv').as_posix()
     runner_data_file = Path(performance_logs_dir) / 'test_runner_data.csv'
     runner_data.to_csv(runner_data_file, mode='a', header=False, index=False)
-    breakpoint()
 
 
 def report_performance(
