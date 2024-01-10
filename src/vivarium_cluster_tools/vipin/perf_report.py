@@ -201,7 +201,7 @@ def append_perf_data_to_central_logs(perf_df: pd.DataFrame, output_directory: Pa
             lambda filepath: Path(filepath).stem
         )
     else:  # else get from output directory
-        perf_df["location"] = output_directory.parents[4].stem
+        perf_df["location"] = output_directory.parents[3].stem
 
     ## aggregate scenario information into one column
     all_scenario_cols = [col for col in perf_df.columns if col.startswith("scenario_")]
