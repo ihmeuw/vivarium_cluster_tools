@@ -267,7 +267,7 @@ def append_perf_data_to_central_logs(perf_df: pd.DataFrame, output_directory: Pa
     runner_data["run_type"] = full_run_date[full_run_date.rindex("_") + 1 :]
     runner_data["log_summary_file_path"] = first_file_with_data
     runner_data["original_log_file_path"] = (output_directory / "log_summary.csv").as_posix()
-    runner_data_file = Path(performance_logs_dir) / "test_runner_data.csv"
+    runner_data_file = Path(performance_logs_dir) / "runner_data.csv"
     runner_data.to_csv(runner_data_file, mode="a", header=False, index=False)
 
 
