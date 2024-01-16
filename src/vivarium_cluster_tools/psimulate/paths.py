@@ -14,7 +14,9 @@ from vivarium_cluster_tools import utilities as vct_utils
 from vivarium_cluster_tools.psimulate import COMMANDS
 
 DEFAULT_LOAD_TESTS_DIR = "/mnt/team/simulation_science/priv/engineering/load_tests"
-central_performance_logs_directory = Path("/mnt/team/simulation_science/pub/performance_logs/")
+central_performance_logs_directory = Path(
+    "/mnt/team/simulation_science/pub/performance_logs/"
+)
 
 
 class InputPaths(NamedTuple):

@@ -200,7 +200,9 @@ def append_perf_data_to_central_logs(perf_df: pd.DataFrame, output_directory: Pa
     central_perf_df = perf_df.reset_index().copy()
     # add location data to central_perf_df
     artifact_path_col = "scenario_input_data_artifact_path"
-    if artifact_path_col in central_perf_df.columns:  # if we parallelized across artifact paths
+    if (
+        artifact_path_col in central_perf_df.columns
+    ):  # if we parallelized across artifact paths
         central_perf_df["location"] = central_perf_df[artifact_path_col].apply(
             lambda filepath: Path(filepath).stem
         )
@@ -208,19 +210,27 @@ def append_perf_data_to_central_logs(perf_df: pd.DataFrame, output_directory: Pa
         central_perf_df["location"] = output_directory.parents[3].stem
 
     ## aggregate scenario information into one column
-    all_scenario_cols = [col for col in central_perf_df.columns if col.startswith("scenario_")]
+    all_scenario_cols = [
+        col for col in central_perf_df.columns if col.startswith("scenario_")
+    ]
     # remove duplicate scenario information
     unique_scenario_cols = [
         col for col in all_scenario_cols if not col.startswith("scenario_run_configuration")
     ]
-    central_perf_df["scenario_parameters"] = central_perf_df[unique_scenario_cols].to_dict(orient="records")
-    central_perf_df["scenario_parameters"] = central_perf_df["scenario_parameters"].apply(json.dumps)
+    central_perf_df["scenario_parameters"] = central_perf_df[unique_scenario_cols].to_dict(
+        orient="records"
+    )
+    central_perf_df["scenario_parameters"] = central_perf_df["scenario_parameters"].apply(
+        json.dumps
+    )
     central_perf_df = central_perf_df.drop(all_scenario_cols, axis=1)
     # drop compound scenario col if it exists
-    central_perf_df = central_perf_df.drop('compound_scenario', axis=1, errors='ignore')
+    central_perf_df = central_perf_df.drop("compound_scenario", axis=1, errors="ignore")
 
     # append child job data
-    log_files = glob.glob(central_performance_logs_directory.as_posix() + "/log_summary_*.csv")
+    log_files = glob.glob(
+        central_performance_logs_directory.as_posix() + "/log_summary_*.csv"
+    )
     most_recent_file_path = sorted(log_files)[-1]
     most_recent_data = pd.read_csv(most_recent_file_path)
     first_file_with_data = most_recent_file_path
@@ -252,7 +262,9 @@ def append_perf_data_to_central_logs(perf_df: pd.DataFrame, output_directory: Pa
 
         for file_num in range(num_new_files):
             formatted_new_index = str(new_index).zfill(4)
-            new_file = central_performance_logs_directory / f"log_summary_{formatted_new_index}.csv"
+            new_file = (
+                central_performance_logs_directory / f"log_summary_{formatted_new_index}.csv"
+            )
             start_idx = NUM_ROWS_PER_FILE * file_num
             end_idx = NUM_ROWS_PER_FILE * (file_num + 1)
             central_perf_df[start_idx:end_idx].to_csv(new_file, index=False)
