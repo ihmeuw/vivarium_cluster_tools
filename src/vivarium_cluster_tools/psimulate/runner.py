@@ -7,6 +7,7 @@ The main process loop for `psimulate` runs.
 
 """
 from collections import defaultdict
+from fnmatch import fnmatch
 from pathlib import Path
 from time import sleep, time
 from typing import Optional
@@ -108,6 +109,10 @@ def report_initial_status(
 def append_perf_data_to_central_logs(perf_df: pd.DataFrame, log_path: Path) -> None:
     """Append performance data to the central logs."""
     NUM_ROWS_PER_FILE = 100_000
+
+    if not fnmatch(log_path, "/mnt/team/simulation_science/pub/models/*/results/*"):
+        logger.warning(f"Log path {log_path} not in central results directory. Skipping appending performance logs.")
+        return
 
     central_perf_df = perf_df.reset_index().copy()
     # add location data to central_perf_df
