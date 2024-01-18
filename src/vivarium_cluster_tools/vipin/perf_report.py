@@ -19,7 +19,6 @@ import requests
 from loguru import logger
 from pandas import json_normalize
 
-
 BASE_PERF_INDEX_COLS = ["host", "job_number", "task_number", "draw", "seed"]
 
 # The number of scenario columns beyond which we shorten the scenarios to a single string

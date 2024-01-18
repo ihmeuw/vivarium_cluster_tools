@@ -6,15 +6,15 @@ psimulate Runner
 The main process loop for `psimulate` runs.
 
 """
+import glob
+import json
+import math
 from collections import defaultdict
 from fnmatch import fnmatch
 from pathlib import Path
 from time import sleep, time
 from typing import Optional
 
-import glob
-import json
-import math
 import pandas as pd
 from loguru import logger
 
@@ -31,8 +31,8 @@ from vivarium_cluster_tools.psimulate import (
     results,
     worker,
 )
-from vivarium_cluster_tools.vipin.perf_report import report_performance
 from vivarium_cluster_tools.psimulate.paths import CENTRAL_PERFORMANCE_LOGS_DIRECTORY
+from vivarium_cluster_tools.vipin.perf_report import report_performance
 
 
 def process_job_results(
@@ -111,7 +111,9 @@ def append_perf_data_to_central_logs(perf_df: pd.DataFrame, log_path: Path) -> N
     NUM_ROWS_PER_FILE = 100_000
 
     if not fnmatch(log_path, "/mnt/team/simulation_science/pub/models/*/results/*"):
-        logger.warning(f"Log path {log_path} not in central results directory. Skipping appending performance logs.")
+        logger.warning(
+            f"Log path {log_path} not in central results directory. Skipping appending central performance logs."
+        )
         return
 
     central_perf_df = perf_df.reset_index().copy()
@@ -170,7 +172,7 @@ def append_perf_data_to_central_logs(perf_df: pd.DataFrame, log_path: Path) -> N
         if rows_to_append == 0:
             formatted_new_index = str(new_index).zfill(4)
             first_file_with_data = (
-                    CENTRAL_PERFORMANCE_LOGS_DIRECTORY / f"log_summary_{formatted_new_index}.csv"
+                CENTRAL_PERFORMANCE_LOGS_DIRECTORY / f"log_summary_{formatted_new_index}.csv"
             )
 
         num_new_files = math.ceil(len(central_perf_df) / NUM_ROWS_PER_FILE)
@@ -178,7 +180,7 @@ def append_perf_data_to_central_logs(perf_df: pd.DataFrame, log_path: Path) -> N
         for file_num in range(num_new_files):
             formatted_new_index = str(new_index).zfill(4)
             new_file = (
-                    CENTRAL_PERFORMANCE_LOGS_DIRECTORY / f"log_summary_{formatted_new_index}.csv"
+                CENTRAL_PERFORMANCE_LOGS_DIRECTORY / f"log_summary_{formatted_new_index}.csv"
             )
             start_idx = NUM_ROWS_PER_FILE * file_num
             end_idx = NUM_ROWS_PER_FILE * (file_num + 1)
