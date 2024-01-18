@@ -11,6 +11,9 @@ from pathlib import Path
 from time import sleep, time
 from typing import Optional
 
+import glob
+import json
+import math
 import pandas as pd
 from loguru import logger
 
@@ -28,6 +31,7 @@ from vivarium_cluster_tools.psimulate import (
     worker,
 )
 from vivarium_cluster_tools.vipin.perf_report import report_performance
+from vivarium_cluster_tools.psimulate.paths import CENTRAL_PERFORMANCE_LOGS_DIRECTORY
 
 
 def process_job_results(
@@ -101,13 +105,111 @@ def report_initial_status(
         )
 
 
+def append_perf_data_to_central_logs(perf_df: pd.DataFrame, log_path: Path) -> None:
+    """Append performance data to the central logs."""
+    NUM_ROWS_PER_FILE = 100_000
+
+    central_perf_df = perf_df.reset_index().copy()
+    # add location data to central_perf_df
+    artifact_path_col = "scenario_input_data_artifact_path"
+    if (
+        artifact_path_col in central_perf_df.columns
+    ):  # if we parallelized across artifact paths
+        central_perf_df["location"] = central_perf_df[artifact_path_col].apply(
+            lambda filepath: Path(filepath).stem
+        )
+    else:  # else get from output directory
+        central_perf_df["location"] = log_path.parents[3].stem
+
+    ## aggregate scenario information into one column
+    all_scenario_cols = [
+        col for col in central_perf_df.columns if col.startswith("scenario_")
+    ]
+    # remove duplicate scenario information
+    unique_scenario_cols = [
+        col for col in all_scenario_cols if not col.startswith("scenario_run_configuration")
+    ]
+    central_perf_df["scenario_parameters"] = central_perf_df[unique_scenario_cols].to_dict(
+        orient="records"
+    )
+    central_perf_df["scenario_parameters"] = central_perf_df["scenario_parameters"].apply(
+        json.dumps
+    )
+    central_perf_df = central_perf_df.drop(all_scenario_cols, axis=1)
+    # drop compound scenario col if it exists
+    central_perf_df = central_perf_df.drop("compound_scenario", axis=1, errors="ignore")
+
+    # append child job data
+    log_files = glob.glob(
+        CENTRAL_PERFORMANCE_LOGS_DIRECTORY.as_posix() + "/log_summary_*.csv"
+    )
+    most_recent_file_path = sorted(log_files)[-1]
+    most_recent_data = pd.read_csv(most_recent_file_path)
+    first_file_with_data = most_recent_file_path
+
+    data_fits_in_file = (len(most_recent_data) + len(central_perf_df)) <= NUM_ROWS_PER_FILE
+
+    if data_fits_in_file:
+        central_perf_df.to_csv(most_recent_file_path, mode="a", header=False, index=False)
+    else:
+        # fill up the most recent file (possibly with 0 rows)
+        rows_to_append = NUM_ROWS_PER_FILE - len(most_recent_data)
+        central_perf_df[:rows_to_append].to_csv(
+            most_recent_file_path, mode="a", header=False, index=False
+        )
+        # remove rows appended to most recent file from dataframe
+        central_perf_df = central_perf_df[rows_to_append:]
+
+        most_recent_index = int(Path(most_recent_file_path).stem.replace("log_summary_", ""))
+        new_index = most_recent_index + 1
+
+        # record first file with data as new file if no data was appended to most recent file
+        if rows_to_append == 0:
+            formatted_new_index = str(new_index).zfill(4)
+            first_file_with_data = (
+                    CENTRAL_PERFORMANCE_LOGS_DIRECTORY / f"log_summary_{formatted_new_index}.csv"
+            )
+
+        num_new_files = math.ceil(len(central_perf_df) / NUM_ROWS_PER_FILE)
+
+        for file_num in range(num_new_files):
+            formatted_new_index = str(new_index).zfill(4)
+            new_file = (
+                    CENTRAL_PERFORMANCE_LOGS_DIRECTORY / f"log_summary_{formatted_new_index}.csv"
+            )
+            start_idx = NUM_ROWS_PER_FILE * file_num
+            end_idx = NUM_ROWS_PER_FILE * (file_num + 1)
+            central_perf_df[start_idx:end_idx].to_csv(new_file, index=False)
+            new_index += 1
+
+    # append runner data
+    runner_data = pd.DataFrame(
+        {"job_number": [int(central_perf_df["job_number"].unique()[0])]}
+    )  # only one job number
+    runner_data["project_name"] = log_path.parents[6].stem
+    runner_data["root_path"] = log_path.parents[3]
+    runner_data["original_run_date"] = log_path.parents[2].stem
+    full_run_date = log_path.parents[0].stem
+    runner_data["run_date"] = full_run_date[: full_run_date.rindex("_")]
+    runner_data["run_type"] = full_run_date[full_run_date.rindex("_") + 1 :]
+    runner_data["log_summary_file_path"] = first_file_with_data
+    runner_data["original_log_file_path"] = (log_path / "log_summary.csv").as_posix()
+    runner_data_file = CENTRAL_PERFORMANCE_LOGS_DIRECTORY / "runner_data.csv"
+    runner_data.to_csv(runner_data_file, mode="a", header=False, index=False)
+
+
 def try_run_vipin(log_path: Path) -> None:
     try:
-        report_performance(
+        perf_df = report_performance(
             input_directory=log_path, output_directory=log_path, output_hdf=False, verbose=1
         )
     except Exception as e:
         logger.warning(f"Performance reporting failed with: {e}")
+
+    try:
+        append_perf_data_to_central_logs(perf_df, log_path)
+    except Exception as e:
+        logger.warning(f"Appending performance data to central logs failed with: {e}")
 
 
 def main(
