@@ -213,6 +213,8 @@ def report_performance(
 
     # Set index to include branch configuration/scenario columns
     perf_df, scenario_cols = set_index_scenario_cols(perf_df)
+    # preserve copy before updating for stat report
+    original_perf_df = perf_df.copy()
 
     # Write to file
     out_file = output_directory / "log_summary"
@@ -237,4 +239,4 @@ def report_performance(
         f'Performance summary {"hdf" if output_hdf else "csv"} can be found at {out_file}, with '
         f'{perf_df.shape[0]} row{"s" if perf_df.shape[0] > 1 else ""}.'
     )
-    return perf_df
+    return original_perf_df

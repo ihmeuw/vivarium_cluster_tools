@@ -136,8 +136,6 @@ def append_perf_data_to_central_logs(perf_df: pd.DataFrame, log_path: Path) -> N
         json.dumps
     )
     central_perf_df = central_perf_df.drop(all_scenario_cols, axis=1)
-    # drop compound scenario col if it exists
-    central_perf_df = central_perf_df.drop("compound_scenario", axis=1, errors="ignore")
 
     # append child job data
     log_files = glob.glob(
