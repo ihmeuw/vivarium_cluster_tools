@@ -32,9 +32,8 @@ from vivarium_cluster_tools.psimulate import (
     worker,
 )
 from vivarium_cluster_tools.psimulate.paths import CENTRAL_PERFORMANCE_LOGS_DIRECTORY
+from vivarium_cluster_tools.utilities import NUM_ROWS_PER_CENTRAL_LOG_FILE
 from vivarium_cluster_tools.vipin.perf_report import report_performance
-
-NUM_ROWS_PER_CENTRAL_LOG_FILE = 100_000
 
 
 def process_job_results(
@@ -176,7 +175,7 @@ def append_child_job_data(central_perf_df: pd.DataFrame) -> str:
     most_recent_file_index = int(Path(most_recent_file_path).stem.replace("log_summary_", ""))
     new_file_index = most_recent_file_index + 1
 
-    while not central_perf_df.empty:
+    while len(central_perf_df) != 0:
         # define new filename
         formatted_new_file_index = str(new_file_index).zfill(4)
         new_file = (
