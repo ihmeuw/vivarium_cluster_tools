@@ -17,7 +17,8 @@ from vivarium_cluster_tools.psimulate.runner import (
 
 @pytest.fixture
 def artifact_perf_df():
-    df = pd.read_csv("data/artifact_perf_df.csv")
+    filepath = Path(__file__).parent / "data/artifact_perf_df.csv"
+    df = pd.read_csv(filepath)
     index_cols = ["host", "job_number", "task_number", "draw", "seed"]
     scenario_cols = [col for col in df.columns if col.startswith("scenario")]
     df = df.set_index(index_cols + scenario_cols)
@@ -26,7 +27,8 @@ def artifact_perf_df():
 
 @pytest.fixture
 def artifactless_perf_df():
-    df = pd.read_csv("data/artifactless_perf_df.csv")
+    filepath = Path(__file__).parent / "data/artifactless_perf_df.csv"
+    df = pd.read_csv(filepath)
     index_cols = ["host", "job_number", "task_number", "draw", "seed"]
     scenario_cols = [col for col in df.columns if col.startswith("scenario")]
     df = df.set_index(index_cols + scenario_cols)
