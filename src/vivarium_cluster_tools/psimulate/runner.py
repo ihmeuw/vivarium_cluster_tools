@@ -176,7 +176,7 @@ def append_child_job_data(central_perf_df: pd.DataFrame) -> str:
     most_recent_file_index = int(Path(most_recent_file_path).stem.replace("log_summary_", ""))
     new_file_index = most_recent_file_index + 1
 
-    while len(central_perf_df) != 0:
+    while not central_perf_df.empty:
         # define new filename
         formatted_new_file_index = str(new_file_index).zfill(4)
         new_file = (
