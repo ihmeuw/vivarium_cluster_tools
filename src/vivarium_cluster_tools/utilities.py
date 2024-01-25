@@ -16,7 +16,6 @@ from typing import Any, Callable, Union
 
 from vivarium_cluster_tools.psimulate.environment import ENV_VARIABLES
 
-
 NUM_ROWS_PER_CENTRAL_LOG_FILE = 100_000
 
 
