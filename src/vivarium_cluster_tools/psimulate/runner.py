@@ -34,7 +34,6 @@ from vivarium_cluster_tools.psimulate import (
 from vivarium_cluster_tools.psimulate.paths import CENTRAL_PERFORMANCE_LOGS_DIRECTORY
 from vivarium_cluster_tools.vipin.perf_report import report_performance
 
-
 NUM_ROWS_PER_CENTRAL_LOG_FILE = 100_000
 
 
@@ -110,7 +109,7 @@ def report_initial_status(
 
 
 def transform_perf_df_for_appending(perf_df: pd.DataFrame, log_path: Path) -> pd.DataFrame:
-    '''Transform performance dataframe to append to central logs.'''
+    """Transform performance dataframe to append to central logs."""
     central_perf_df = perf_df.reset_index().copy()
     # add artifact name to central_perf_df
     artifact_path_col = "scenario_input_data_artifact_path"
@@ -143,7 +142,7 @@ def transform_perf_df_for_appending(perf_df: pd.DataFrame, log_path: Path) -> pd
 
 
 def append_child_job_data(central_perf_df: pd.DataFrame) -> str:
-    '''Append child job data and return name of first file containing this data'''
+    """Append child job data and return name of first file containing this data"""
     child_job_data = central_perf_df.copy()
 
     log_files = glob.glob(
@@ -155,11 +154,13 @@ def append_child_job_data(central_perf_df: pd.DataFrame) -> str:
     most_recent_file_is_full = len(most_recent_data) == NUM_ROWS_PER_CENTRAL_LOG_FILE
 
     if most_recent_file_is_full:
-        most_recent_file_index = int(Path(most_recent_file_path).stem.replace("log_summary_", ""))
+        most_recent_file_index = int(
+            Path(most_recent_file_path).stem.replace("log_summary_", "")
+        )
         new_file_index = most_recent_file_index + 1
         formatted_new_file_index = str(new_file_index).zfill(4)
         first_file_with_data = (
-                CENTRAL_PERFORMANCE_LOGS_DIRECTORY / f"log_summary_{formatted_new_file_index}.csv"
+            CENTRAL_PERFORMANCE_LOGS_DIRECTORY / f"log_summary_{formatted_new_file_index}.csv"
         )
     else:
         first_file_with_data = most_recent_file_path
@@ -190,7 +191,9 @@ def append_child_job_data(central_perf_df: pd.DataFrame) -> str:
     return first_file_with_data
 
 
-def generate_runner_job_data(central_perf_df: pd.DataFrame, log_path: Path, first_file_with_data: str) -> pd.DataFrame:
+def generate_runner_job_data(
+    central_perf_df: pd.DataFrame, log_path: Path, first_file_with_data: str
+) -> pd.DataFrame:
     runner_data = pd.DataFrame(
         {"job_number": [int(central_perf_df["job_number"].unique()[0])]}
     )  # only one job number
