@@ -1,5 +1,4 @@
 from loguru import logger
-import mock
 import os
 import pandas as pd
 import pytest
@@ -63,12 +62,12 @@ def test_data_parsing(df_name, log_path, tmp_path, request):
     assert (central_perf_df['artifact_name'] == 'artifact').all()
 
     if df_name == 'artifact_perf_df':
-        scenario_parameters = ['{"scenario_parameter_one": "value_one", "scenario_input_data_artifact_path": "/path/to/artifact.hdf"}',
-                               '{"scenario_parameter_one": "value_two", "scenario_input_data_artifact_path": "/path/to/artifact.hdf"}'] * 6
+        expected_scenario_parameters = ['{"scenario_parameter_one": "value_one", "scenario_input_data_artifact_path": "/path/to/artifact.hdf"}',
+                                        '{"scenario_parameter_one": "value_two", "scenario_input_data_artifact_path": "/path/to/artifact.hdf"}'] * 6
     else:
-        scenario_parameters = ['{"scenario_parameter_one": "value_one"}',
-                               '{"scenario_parameter_one": "value_two"}'] * 6
-    assert (central_perf_df['scenario_parameters'] == scenario_parameters).all()
+        expected_scenario_parameters = ['{"scenario_parameter_one": "value_one"}',
+                                        '{"scenario_parameter_one": "value_two"}'] * 6
+    assert (central_perf_df['scenario_parameters'] == expected_scenario_parameters).all()
 
     runner_data = generate_runner_job_data(central_perf_df, log_path, 'first_file_with_data')
 
@@ -84,7 +83,7 @@ def test_data_parsing(df_name, log_path, tmp_path, request):
 def test_valid_log_path(log_path, artifact_perf_df, caplog, tmp_path, monkeypatch):
     monkeypatch.setattr("vivarium_cluster_tools.psimulate.runner.CENTRAL_PERFORMANCE_LOGS_DIRECTORY", tmp_path)
     monkeypatch.setattr('vivarium_cluster_tools.psimulate.runner.NUM_ROWS_PER_CENTRAL_LOG_FILE', 4)
-    # add some data to central logs directory
+    # add some data to central logs directory to allow appending
     central_perf_df = transform_perf_df_for_appending(artifact_perf_df, log_path)
     pd.DataFrame(columns=central_perf_df).to_csv(tmp_path / 'log_summary_0000.csv')
     # test no warnings were raised
@@ -98,8 +97,6 @@ def test_valid_log_path(log_path, artifact_perf_df, caplog, tmp_path, monkeypatc
     Path('/ihme/homes/user/run/artifact/YYYY_MM_DD_HH_MM_SS/logs/yyyy_mm_dd_hh_mm_ss_runtype/worker_logs')
 ])
 def test_invalid_log_path(invalid_log_path, artifact_perf_df, caplog):
-    # parametrize plausible path names
-    invalid_log_path = Path('/mnt/team/simulation_science/priv/model_run')
     # test we raise specific warning
     append_perf_data_to_central_logs(artifact_perf_df, invalid_log_path)
     assert 'Skipping appending central performance logs.' in caplog.text
@@ -118,7 +115,7 @@ def test_appending(num_rows_in_most_recent_file, num_rows_to_append, artifact_pe
     pd.DataFrame(index=range(num_rows_in_most_recent_file), columns=central_perf_df.columns).to_csv(most_recent_file, index=False)
     # append data
     data_to_append = central_perf_df[:num_rows_to_append]
-    _ = append_child_job_data(data_to_append)
+    append_child_job_data(data_to_append)
 
     # test appended data
     total_num_rows = num_rows_in_most_recent_file + num_rows_to_append
