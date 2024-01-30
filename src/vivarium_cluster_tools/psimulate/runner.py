@@ -6,11 +6,7 @@ psimulate Runner
 The main process loop for `psimulate` runs.
 
 """
-import glob
-import json
-import math
 from collections import defaultdict
-from fnmatch import fnmatch
 from pathlib import Path
 from time import sleep, time
 from typing import Optional
@@ -31,9 +27,8 @@ from vivarium_cluster_tools.psimulate import (
     results,
     worker,
 )
-from vivarium_cluster_tools.psimulate.paths import CENTRAL_PERFORMANCE_LOGS_DIRECTORY
-from vivarium_cluster_tools.utilities import NUM_ROWS_PER_CENTRAL_LOG_FILE
 from vivarium_cluster_tools.vipin.perf_report import report_performance
+from vivarium_cluster_tools.psimulate.performance_logger import append_perf_data_to_central_logs
 
 
 def process_job_results(
@@ -105,123 +100,6 @@ def report_initial_status(
             "has changed between then and now or that the outputs or configuration data "
             "have been modified. This may represent a serious error so give it some thought."
         )
-
-
-def transform_perf_df_for_appending(perf_df: pd.DataFrame, log_path: Path) -> pd.DataFrame:
-    """Transform performance dataframe to append to central logs."""
-    central_perf_df = perf_df.reset_index().copy()
-    # add artifact name to central_perf_df
-    artifact_path_col = "scenario_input_data_artifact_path"
-    if (
-        artifact_path_col in central_perf_df.columns
-    ):  # if we parallelized across artifact paths
-        central_perf_df["artifact_name"] = central_perf_df[artifact_path_col].apply(
-            lambda filepath: Path(filepath).stem
-        )
-    else:  # else get from output directory
-        central_perf_df["artifact_name"] = log_path.parents[3].stem
-
-    ## aggregate scenario information into one column
-    all_scenario_cols = [
-        col for col in central_perf_df.columns if col.startswith("scenario_")
-    ]
-    # remove duplicate scenario information
-    unique_scenario_cols = [
-        col for col in all_scenario_cols if not col.startswith("scenario_run_configuration")
-    ]
-    central_perf_df["scenario_parameters"] = central_perf_df[unique_scenario_cols].to_dict(
-        orient="records"
-    )
-    central_perf_df["scenario_parameters"] = central_perf_df["scenario_parameters"].apply(
-        json.dumps
-    )
-    central_perf_df = central_perf_df.drop(all_scenario_cols, axis=1)
-
-    return central_perf_df
-
-
-def append_child_job_data(central_perf_df: pd.DataFrame) -> str:
-    """Append child job data and return name of first file containing this data"""
-    child_job_data = central_perf_df.copy()
-
-    log_files = glob.glob(
-        CENTRAL_PERFORMANCE_LOGS_DIRECTORY.as_posix() + "/log_summary_*.csv"
-    )
-
-    most_recent_file_path = sorted(log_files)[-1]
-    most_recent_data = pd.read_csv(most_recent_file_path)
-    most_recent_file_is_full = len(most_recent_data) == NUM_ROWS_PER_CENTRAL_LOG_FILE
-
-    if most_recent_file_is_full:
-        most_recent_file_index = int(
-            Path(most_recent_file_path).stem.replace("log_summary_", "")
-        )
-        new_file_index = most_recent_file_index + 1
-        formatted_new_file_index = str(new_file_index).zfill(4)
-        first_file_with_data = (
-            CENTRAL_PERFORMANCE_LOGS_DIRECTORY / f"log_summary_{formatted_new_file_index}.csv"
-        )
-    else:
-        first_file_with_data = most_recent_file_path
-
-    # fill up the most recent file (possibly with 0 rows)
-    rows_to_append = NUM_ROWS_PER_CENTRAL_LOG_FILE - len(most_recent_data)
-    central_perf_df[:rows_to_append].to_csv(
-        most_recent_file_path, mode="a", header=False, index=False
-    )
-    # remove rows appended to most recent file from dataframe
-    central_perf_df = central_perf_df[rows_to_append:]
-
-    most_recent_file_index = int(Path(most_recent_file_path).stem.replace("log_summary_", ""))
-    new_file_index = most_recent_file_index + 1
-
-    while len(central_perf_df) != 0:
-        # define new filename
-        formatted_new_file_index = str(new_file_index).zfill(4)
-        new_file = (
-            CENTRAL_PERFORMANCE_LOGS_DIRECTORY / f"log_summary_{formatted_new_file_index}.csv"
-        )
-        # write to file
-        central_perf_df[:NUM_ROWS_PER_CENTRAL_LOG_FILE].to_csv(new_file, index=False)
-        # remove written rows and update index
-        central_perf_df = central_perf_df[NUM_ROWS_PER_CENTRAL_LOG_FILE:]
-        new_file_index += 1
-
-    return first_file_with_data
-
-
-def generate_runner_job_data(
-    central_perf_df: pd.DataFrame, log_path: Path, first_file_with_data: str
-) -> pd.DataFrame:
-    runner_data = pd.DataFrame(
-        {"job_number": [int(central_perf_df["job_number"].unique()[0])]}
-    )  # only one job number
-    runner_data["project_name"] = log_path.parents[6].stem
-    runner_data["root_path"] = log_path.parents[3]
-    runner_data["original_run_date"] = log_path.parents[2].stem
-    full_run_date = log_path.parents[0].stem
-    runner_data["run_date"] = full_run_date[: full_run_date.rindex("_")]
-    runner_data["run_type"] = full_run_date[full_run_date.rindex("_") + 1 :]
-    runner_data["log_summary_file_path"] = first_file_with_data
-    runner_data["original_log_file_path"] = (log_path / "log_summary.csv").as_posix()
-
-    return runner_data
-
-
-def append_perf_data_to_central_logs(perf_df: pd.DataFrame, log_path: Path) -> None:
-    """Append performance data to the central logs."""
-    if not fnmatch(log_path, "/mnt/team/simulation_science/pub/models/*/results/*"):
-        logger.warning(
-            f"Log path {log_path} not in central results directory. Skipping appending central performance logs."
-        )
-        return
-
-    central_perf_df = transform_perf_df_for_appending(perf_df, log_path)
-    first_file_with_data = append_child_job_data(central_perf_df)
-
-    runner_data = generate_runner_job_data(central_perf_df, log_path, first_file_with_data)
-    runner_data_file = CENTRAL_PERFORMANCE_LOGS_DIRECTORY / "runner_data.csv"
-    runner_data.to_csv(runner_data_file, mode="a", header=False, index=False)
 
 
 def try_run_vipin(log_path: Path) -> None:

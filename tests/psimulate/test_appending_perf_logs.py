@@ -7,7 +7,7 @@ import pytest
 from _pytest.logging import LogCaptureFixture
 from loguru import logger
 
-from vivarium_cluster_tools.psimulate.runner import (
+from vivarium_cluster_tools.psimulate.performance_logger import (
     append_child_job_data,
     append_perf_data_to_central_logs,
     generate_runner_job_data,
@@ -86,7 +86,8 @@ def test_data_parsing(df_name, log_path, tmp_path, request):
         ] * 6
     assert (central_perf_df["scenario_parameters"] == expected_scenario_parameters).all()
 
-    runner_data = generate_runner_job_data(central_perf_df, log_path, "first_file_with_data")
+    job_number = int(central_perf_df["job_number"].unique().squeeze())
+    runner_data = generate_runner_job_data(job_number, log_path, "first_file_with_data")
 
     assert runner_data["project_name"].squeeze() == "project_name"
     assert runner_data["root_path"].squeeze() == Path(
@@ -140,7 +141,7 @@ def test_invalid_log_path(invalid_log_path, artifact_perf_df, caplog):
     "num_rows_in_most_recent_file, num_rows_to_append", [(2, 2), (2, 6), (4, 4), (2, 10)]
 )
 def test_appending(
-    num_rows_in_most_recent_file, num_rows_to_append, artifact_perf_df, tmp_path, monkeypatch
+    num_rows_in_most_recent_file, num_rows_to_append, artifact_perf_df, log_path, tmp_path, monkeypatch
 ):
     MAX_NUM_ROWS = 4
     monkeypatch.setattr(
