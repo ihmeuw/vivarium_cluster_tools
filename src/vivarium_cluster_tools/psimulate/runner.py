@@ -29,6 +29,7 @@ from vivarium_cluster_tools.psimulate import (
 )
 from vivarium_cluster_tools.vipin.perf_report import report_performance
 from vivarium_cluster_tools.psimulate.performance_logger import append_perf_data_to_central_logs
+from vivarium_cluster_tools.psimulate.paths import OutputPaths
 
 
 def process_job_results(
@@ -102,7 +103,8 @@ def report_initial_status(
         )
 
 
-def try_run_vipin(log_path: Path) -> None:
+def try_run_vipin(output_paths: OutputPaths) -> None:
+    log_path = output_paths.worker_logging_root
     try:
         perf_df = report_performance(
             input_directory=log_path, output_directory=log_path, output_hdf=False, verbose=1
@@ -111,7 +113,7 @@ def try_run_vipin(log_path: Path) -> None:
         logger.warning(f"Performance reporting failed with: {e}")
 
     try:
-        append_perf_data_to_central_logs(perf_df, log_path)
+        append_perf_data_to_central_logs(perf_df, output_paths)
     except Exception as e:
         logger.warning(f"Appending performance data to central logs failed with: {e}")
 
@@ -262,7 +264,7 @@ def main(
     )
 
     # Spit out a performance report for the workers.
-    try_run_vipin(output_paths.worker_logging_root)
+    try_run_vipin(output_paths)
 
     # Emit warning if any jobs failed
     if status["failed"] > 0:

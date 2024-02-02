@@ -70,6 +70,27 @@ class OutputPaths(NamedTuple):
     # outputs
     results: Path
 
+    # will be misleading if we parallelized across artifacts
+    @property
+    def artifact_name(self) -> str:
+        return self.root.parent.stem
+
+    @property
+    def run_date(self) -> str:
+        return self.logging_root.stem
+
+    @property
+    def original_run_date(self) -> str:
+        return self.root.stem
+
+    @property
+    def project_name(self) -> str:
+        return self.root.name
+
+    @property
+    def root_path(self) -> str:
+        return self.root.parent
+
     @classmethod
     def from_entry_point_args(
         cls,
