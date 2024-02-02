@@ -1,6 +1,5 @@
 import glob
 import json
-from fnmatch import fnmatch
 from pathlib import Path
 
 import pandas as pd
@@ -160,14 +159,12 @@ def append_perf_data_to_central_logs(perf_df: pd.DataFrame, output_paths: Output
     output_paths
         OutputPaths object from paths.py containing information about the results directory.
     """
-    log_path = output_paths.worker_logging_root
-    if not fnmatch(str(log_path), "/mnt/team/simulation_science/pub/models/*/results/*"):
+    if not output_paths.logging_to_central_results_directory:
         logger.warning(
-            f"Log path {log_path} not in central results directory. Skipping appending central performance logs."
+            f"Log path {output_paths.worker_logging_root} not in central results directory. Skipping appending central performance logs."
         )
         return
 
-    log_path = output_paths.worker_logging_root
     child_job_performance_data = transform_perf_df_for_appending(perf_df, output_paths)
     job_number = int(child_job_performance_data["job_number"].unique().squeeze())
     first_file_with_data = append_child_job_data(child_job_performance_data)

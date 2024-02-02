@@ -5,6 +5,7 @@ File Path Management
 
 """
 from datetime import datetime
+from fnmatch import fnmatch
 from pathlib import Path
 from typing import NamedTuple, Optional, Union
 
@@ -70,7 +71,7 @@ class OutputPaths(NamedTuple):
     # outputs
     results: Path
 
-    # will be misleading if we parallelized across artifacts
+    # will not be reliable if we parallelized across artifacts
     @property
     def artifact_name(self) -> str:
         return self.root.parent.stem
@@ -85,11 +86,19 @@ class OutputPaths(NamedTuple):
 
     @property
     def project_name(self) -> str:
-        return self.root.name
+        if self.logging_to_central_results_directory:
+            return self.root.parents[3].stem
+        else:
+            return self.root.parents[1].stem
 
     @property
     def root_path(self) -> str:
         return self.root.parent
+
+    @property
+    def logging_to_central_results_directory(self) -> bool:
+        return fnmatch(str(self.worker_logging_root),
+                       "/mnt/team/simulation_science/pub/models/*/results/*")
 
     @classmethod
     def from_entry_point_args(
