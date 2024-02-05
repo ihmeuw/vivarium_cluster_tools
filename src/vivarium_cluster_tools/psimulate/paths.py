@@ -78,7 +78,15 @@ class OutputPaths(NamedTuple):
 
     @property
     def run_date(self) -> str:
-        return self.logging_root.stem
+        runtime_info = self.logging_root.stem
+        run_date = runtime_info[: runtime_info.rindex("_")]
+        return run_date
+
+    @property
+    def run_type(self) -> str:
+        runtime_info = self.logging_root.stem
+        run_type = runtime_info[runtime_info.rindex("_") + 1 :]
+        return run_type
 
     @property
     def original_run_date(self) -> str:
@@ -97,10 +105,7 @@ class OutputPaths(NamedTuple):
 
     @property
     def logging_to_central_results_directory(self) -> bool:
-        return fnmatch(
-            str(self.worker_logging_root),
-            "/mnt/team/simulation_science/pub/models/*/results/*",
-        )
+        return fnmatch(str(self.root), "/mnt/team/simulation_science/pub/models/*/results/*")
 
     @classmethod
     def from_entry_point_args(

@@ -38,7 +38,7 @@ def transform_perf_df_for_appending(
     central_perf_df = perf_df.reset_index()
     # add artifact name to central_perf_df
     # TODO: [MIC-4859] refer to key from job_parameters from worker/vivarium_work_horse.py
-    # TODO: instead of 'scenario'
+    #  instead of 'scenario'
     artifact_path_col = "scenario_input_data_artifact_path"
     if (
         artifact_path_col in central_perf_df.columns
@@ -83,13 +83,11 @@ def append_child_job_data(child_job_performance_data: pd.DataFrame) -> str:
     )
 
     most_recent_file_path = sorted(log_files)[-1]
+    most_recent_file_index = int(Path(most_recent_file_path).stem.replace("log_summary_", ""))
     most_recent_data = pd.read_csv(most_recent_file_path)
     most_recent_file_is_full = len(most_recent_data) >= NUM_ROWS_PER_CENTRAL_LOG_FILE
 
     if most_recent_file_is_full:
-        most_recent_file_index = int(
-            Path(most_recent_file_path).stem.replace("log_summary_", "")
-        )
         new_file_index = most_recent_file_index + 1
         formatted_new_file_index = str(new_file_index).zfill(4)
         first_file_with_data = (
@@ -106,7 +104,6 @@ def append_child_job_data(child_job_performance_data: pd.DataFrame) -> str:
     # remove rows appended to most recent file from dataframe
     child_job_performance_data = child_job_performance_data[rows_to_append:]
 
-    most_recent_file_index = int(Path(most_recent_file_path).stem.replace("log_summary_", ""))
     new_file_index = most_recent_file_index + 1
 
     while len(child_job_performance_data) != 0:
@@ -147,9 +144,8 @@ def generate_runner_job_data(
     runner_data["project_name"] = output_paths.project_name
     runner_data["root_path"] = output_paths.root_path
     runner_data["original_run_date"] = output_paths.original_run_date
-    full_run_date = output_paths.run_date
-    runner_data["run_date"] = full_run_date[: full_run_date.rindex("_")]
-    runner_data["run_type"] = full_run_date[full_run_date.rindex("_") + 1 :]
+    runner_data["run_date"] = output_paths.run_date
+    runner_data["run_type"] = output_paths.run_type
     runner_data["log_summary_file_path"] = first_file_with_data
     runner_data["original_log_file_path"] = (
         output_paths.worker_logging_root / "log_summary.csv"
