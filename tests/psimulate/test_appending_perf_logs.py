@@ -8,13 +8,13 @@ import pytest
 from _pytest.logging import LogCaptureFixture
 from loguru import logger
 
+from vivarium_cluster_tools.psimulate.paths import OutputPaths
 from vivarium_cluster_tools.psimulate.performance_logger import (
     append_child_job_data,
     append_perf_data_to_central_logs,
     generate_runner_job_data,
     transform_perf_df_for_appending,
 )
-from vivarium_cluster_tools.psimulate.paths import OutputPaths
 
 
 @pytest.fixture
@@ -39,9 +39,7 @@ def artifactless_perf_df():
 
 @pytest.fixture
 def result_directory():
-    return Path(
-        "/mnt/team/simulation_science/pub/models/project_name/results/model_version/"
-    )
+    return Path("/mnt/team/simulation_science/pub/models/project_name/results/model_version/")
 
 
 @pytest.fixture
@@ -58,9 +56,9 @@ def caplog(caplog: LogCaptureFixture):
 
 
 def get_output_paths_from_output_directory(output_directory):
-    model_name = 'artifact'
+    model_name = "artifact"
     original_launch_time = "YYYY_MM_DD_HH_MM_SS"
-    launch_time = 'yyyy_mm_dd_hh_mm_ss'
+    launch_time = "yyyy_mm_dd_hh_mm_ss"
     output_directory = output_directory / model_name / original_launch_time
 
     logging_directory = output_directory / "logs" / f"{launch_time}_runtype"
@@ -128,12 +126,16 @@ def test_data_parsing(df_name, result_directory, tmp_path, request):
     assert runner_data["run_date"].squeeze() == "yyyy_mm_dd_hh_mm_ss"
     assert runner_data["run_type"].squeeze() == "runtype"
     assert runner_data["log_summary_file_path"].squeeze() == "first_file_with_data"
-    assert runner_data["original_log_file_path"].squeeze() == '/mnt/team/simulation_science/pub/models/project_name/results/model_version/artifact/YYYY_MM_DD_HH_MM_SS/logs/yyyy_mm_dd_hh_mm_ss_runtype/worker_logs/log_summary.csv'
+    assert (
+        runner_data["original_log_file_path"].squeeze()
+        == "/mnt/team/simulation_science/pub/models/project_name/results/model_version/artifact/YYYY_MM_DD_HH_MM_SS/logs/yyyy_mm_dd_hh_mm_ss_runtype/worker_logs/log_summary.csv"
+    )
 
 
 def test_valid_log_path(result_directory, artifact_perf_df, caplog, tmp_path, monkeypatch):
     monkeypatch.setattr(
-        "vivarium_cluster_tools.psimulate.performance_logger.CENTRAL_PERFORMANCE_LOGS_DIRECTORY", tmp_path
+        "vivarium_cluster_tools.psimulate.performance_logger.CENTRAL_PERFORMANCE_LOGS_DIRECTORY",
+        tmp_path,
     )
     monkeypatch.setattr(
         "vivarium_cluster_tools.psimulate.performance_logger.NUM_ROWS_PER_CENTRAL_LOG_FILE", 4
@@ -166,14 +168,21 @@ def test_invalid_log_path(invalid_log_path, artifact_perf_df, caplog):
     "num_rows_in_most_recent_file, num_rows_to_append", [(2, 2), (2, 6), (4, 4), (2, 10)]
 )
 def test_appending(
-    num_rows_in_most_recent_file, num_rows_to_append, artifact_perf_df, result_directory, tmp_path, monkeypatch
+    num_rows_in_most_recent_file,
+    num_rows_to_append,
+    artifact_perf_df,
+    result_directory,
+    tmp_path,
+    monkeypatch,
 ):
     MAX_NUM_ROWS = 4
     monkeypatch.setattr(
-        "vivarium_cluster_tools.psimulate.performance_logger.NUM_ROWS_PER_CENTRAL_LOG_FILE", MAX_NUM_ROWS
+        "vivarium_cluster_tools.psimulate.performance_logger.NUM_ROWS_PER_CENTRAL_LOG_FILE",
+        MAX_NUM_ROWS,
     )
     monkeypatch.setattr(
-        "vivarium_cluster_tools.psimulate.performance_logger.CENTRAL_PERFORMANCE_LOGS_DIRECTORY", tmp_path
+        "vivarium_cluster_tools.psimulate.performance_logger.CENTRAL_PERFORMANCE_LOGS_DIRECTORY",
+        tmp_path,
     )
 
     # create most recent file

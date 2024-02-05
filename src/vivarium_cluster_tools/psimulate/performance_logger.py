@@ -5,10 +5,16 @@ from pathlib import Path
 import pandas as pd
 from loguru import logger
 
-from vivarium_cluster_tools.psimulate.paths import CENTRAL_PERFORMANCE_LOGS_DIRECTORY, OutputPaths
+from vivarium_cluster_tools.psimulate.paths import (
+    CENTRAL_PERFORMANCE_LOGS_DIRECTORY,
+    OutputPaths,
+)
 from vivarium_cluster_tools.utilities import NUM_ROWS_PER_CENTRAL_LOG_FILE
 
-def transform_perf_df_for_appending(perf_df: pd.DataFrame, output_paths: OutputPaths) -> pd.DataFrame:
+
+def transform_perf_df_for_appending(
+    perf_df: pd.DataFrame, output_paths: OutputPaths
+) -> pd.DataFrame:
     """
     Take performance dataframe from performance report and 1) turn index into columns so
     we can write to csv, 2) add artifact name column, and 3) aggregate scenario information
@@ -110,9 +116,13 @@ def append_child_job_data(child_job_performance_data: pd.DataFrame) -> str:
             CENTRAL_PERFORMANCE_LOGS_DIRECTORY / f"log_summary_{formatted_new_file_index}.csv"
         )
         # write to file
-        child_job_performance_data[:NUM_ROWS_PER_CENTRAL_LOG_FILE].to_csv(new_file, index=False)
+        child_job_performance_data[:NUM_ROWS_PER_CENTRAL_LOG_FILE].to_csv(
+            new_file, index=False
+        )
         # remove written rows and update index
-        child_job_performance_data = child_job_performance_data[NUM_ROWS_PER_CENTRAL_LOG_FILE:]
+        child_job_performance_data = child_job_performance_data[
+            NUM_ROWS_PER_CENTRAL_LOG_FILE:
+        ]
         new_file_index += 1
 
     return first_file_with_data
@@ -141,12 +151,16 @@ def generate_runner_job_data(
     runner_data["run_date"] = full_run_date[: full_run_date.rindex("_")]
     runner_data["run_type"] = full_run_date[full_run_date.rindex("_") + 1 :]
     runner_data["log_summary_file_path"] = first_file_with_data
-    runner_data["original_log_file_path"] = (output_paths.worker_logging_root / "log_summary.csv").as_posix()
+    runner_data["original_log_file_path"] = (
+        output_paths.worker_logging_root / "log_summary.csv"
+    ).as_posix()
 
     return runner_data
 
 
-def append_perf_data_to_central_logs(perf_df: pd.DataFrame, output_paths: OutputPaths) -> None:
+def append_perf_data_to_central_logs(
+    perf_df: pd.DataFrame, output_paths: OutputPaths
+) -> None:
     """Append performance data to the central logs. This consists of child job data
     and runner data. The child job data will contain performance information and identifying
     information for each child job and the runner data will contain data about the runner job

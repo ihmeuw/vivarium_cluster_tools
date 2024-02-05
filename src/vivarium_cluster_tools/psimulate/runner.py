@@ -27,9 +27,11 @@ from vivarium_cluster_tools.psimulate import (
     results,
     worker,
 )
-from vivarium_cluster_tools.vipin.perf_report import report_performance
-from vivarium_cluster_tools.psimulate.performance_logger import append_perf_data_to_central_logs
 from vivarium_cluster_tools.psimulate.paths import OutputPaths
+from vivarium_cluster_tools.psimulate.performance_logger import (
+    append_perf_data_to_central_logs,
+)
+from vivarium_cluster_tools.vipin.perf_report import report_performance
 
 
 def process_job_results(

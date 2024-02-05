@@ -97,8 +97,10 @@ class OutputPaths(NamedTuple):
 
     @property
     def logging_to_central_results_directory(self) -> bool:
-        return fnmatch(str(self.worker_logging_root),
-                       "/mnt/team/simulation_science/pub/models/*/results/*")
+        return fnmatch(
+            str(self.worker_logging_root),
+            "/mnt/team/simulation_science/pub/models/*/results/*",
+        )
 
     @classmethod
     def from_entry_point_args(
