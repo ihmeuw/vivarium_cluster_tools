@@ -87,40 +87,44 @@ def append_child_job_data(child_job_performance_data: pd.DataFrame) -> str:
     most_recent_data = pd.read_csv(most_recent_file_path)
     most_recent_file_is_full = len(most_recent_data) >= NUM_ROWS_PER_CENTRAL_LOG_FILE
 
-    if most_recent_file_is_full:
-        new_file_index = most_recent_file_index + 1
-        formatted_new_file_index = str(new_file_index).zfill(4)
-        first_file_with_data = (
-            CENTRAL_PERFORMANCE_LOGS_DIRECTORY / f"log_summary_{formatted_new_file_index}.csv"
-        )
-    else:
-        first_file_with_data = most_recent_file_path
-
-    # fill up the most recent file (possibly with 0 rows)
-    rows_to_append = NUM_ROWS_PER_CENTRAL_LOG_FILE - len(most_recent_data)
-    child_job_performance_data[:rows_to_append].to_csv(
-        most_recent_file_path, mode="a", header=False, index=False
-    )
-    # remove rows appended to most recent file from dataframe
-    child_job_performance_data = child_job_performance_data[rows_to_append:]
-
+    no_data_appended = True
     new_file_index = most_recent_file_index + 1
 
     while len(child_job_performance_data) != 0:
-        # define new filename
-        formatted_new_file_index = str(new_file_index).zfill(4)
-        new_file = (
-            CENTRAL_PERFORMANCE_LOGS_DIRECTORY / f"log_summary_{formatted_new_file_index}.csv"
-        )
-        # write to file
-        child_job_performance_data[:NUM_ROWS_PER_CENTRAL_LOG_FILE].to_csv(
-            new_file, index=False
-        )
-        # remove written rows and update index
-        child_job_performance_data = child_job_performance_data[
-            NUM_ROWS_PER_CENTRAL_LOG_FILE:
-        ]
-        new_file_index += 1
+        # if we have room
+        if not most_recent_file_is_full:
+            first_file_with_data = most_recent_file_path
+            # fill up the most recent file
+            rows_to_append = NUM_ROWS_PER_CENTRAL_LOG_FILE - len(most_recent_data)
+            child_job_performance_data[:rows_to_append].to_csv(
+                most_recent_file_path, mode="a", header=False, index=False
+            )
+            # remove rows appended to most recent file from dataframe
+            child_job_performance_data = child_job_performance_data[rows_to_append:]
+
+            most_recent_file_is_full = True
+            no_data_appended = False
+        else:
+            # define new filename
+            formatted_new_file_index = str(new_file_index).zfill(4)
+            new_file = (
+                CENTRAL_PERFORMANCE_LOGS_DIRECTORY / f"log_summary_{formatted_new_file_index}.csv"
+            )
+
+            if no_data_appended:
+                # update first file with data
+                first_file_with_data = new_file
+                no_data_appended = False
+
+            # write to file
+            child_job_performance_data[:NUM_ROWS_PER_CENTRAL_LOG_FILE].to_csv(
+                new_file, index=False
+            )
+            # remove written rows and update index
+            child_job_performance_data = child_job_performance_data[
+                NUM_ROWS_PER_CENTRAL_LOG_FILE:
+            ]
+            new_file_index += 1
 
     return first_file_with_data
 

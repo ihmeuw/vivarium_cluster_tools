@@ -113,6 +113,7 @@ def try_run_vipin(output_paths: OutputPaths) -> None:
         )
     except Exception as e:
         logger.warning(f"Performance reporting failed with: {e}")
+        return
 
     try:
         append_perf_data_to_central_logs(perf_df, output_paths)
