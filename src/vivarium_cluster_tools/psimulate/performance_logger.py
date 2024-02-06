@@ -108,7 +108,8 @@ def append_child_job_data(child_job_performance_data: pd.DataFrame) -> str:
             # define new filename
             formatted_new_file_index = str(new_file_index).zfill(4)
             new_file = (
-                CENTRAL_PERFORMANCE_LOGS_DIRECTORY / f"log_summary_{formatted_new_file_index}.csv"
+                CENTRAL_PERFORMANCE_LOGS_DIRECTORY
+                / f"log_summary_{formatted_new_file_index}.csv"
             )
 
             if no_data_appended:

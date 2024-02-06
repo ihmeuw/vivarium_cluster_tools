@@ -166,7 +166,12 @@ def test_invalid_log_path(invalid_log_path, artifact_perf_df, caplog):
 
 @pytest.mark.parametrize(
     "num_rows_in_most_recent_file, num_rows_to_append, expected_first_file_with_data",
-    [(2, 2, 'log_summary_0000'), (2, 6, 'log_summary_0000'), (4, 4, 'log_summary_0001'), (2, 10, 'log_summary_0000')]
+    [
+        (2, 2, "log_summary_0000"),
+        (2, 6, "log_summary_0000"),
+        (4, 4, "log_summary_0001"),
+        (2, 10, "log_summary_0000"),
+    ],
 )
 def test_appending(
     num_rows_in_most_recent_file,
@@ -199,7 +204,7 @@ def test_appending(
     first_file_with_data = append_child_job_data(data_to_append)
 
     # test first file_with_data
-    assert(Path(first_file_with_data).stem == expected_first_file_with_data)
+    assert Path(first_file_with_data).stem == expected_first_file_with_data
 
     # test appended data file sizes
     total_num_rows = num_rows_in_most_recent_file + num_rows_to_append
