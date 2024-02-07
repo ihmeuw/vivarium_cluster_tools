@@ -4,6 +4,7 @@ from math import ceil
 from pathlib import Path
 
 import pandas as pd
+from pandas.testing import assert_frame_equal
 import pytest
 from _pytest.logging import LogCaptureFixture
 from loguru import logger
@@ -165,51 +166,67 @@ def test_invalid_log_path(invalid_log_path, artifact_perf_df, caplog):
 
 
 @pytest.mark.parametrize(
-    "num_rows_in_most_recent_file, num_rows_to_append, expected_first_file_with_data",
+    "available_rows, rows_to_append, expected_output_files",
     [
-        (2, 2, "log_summary_0000"),
-        (2, 6, "log_summary_0000"),
-        (4, 4, "log_summary_0001"),
-        (2, 10, "log_summary_0000"),
+        (2, 2, 2),
+        (2, 6, 3),
+        (2, 9, 3),
+        (4, 4, 2),
+        (3, 2, 1),
+        (1, 3, 2),
     ],
 )
 def test_appending(
-    num_rows_in_most_recent_file,
-    num_rows_to_append,
-    expected_first_file_with_data,
+    available_rows,
+    rows_to_append,
+    expected_output_files,
     artifact_perf_df,
     result_directory,
     tmp_path,
     monkeypatch,
 ):
-    MAX_NUM_ROWS = 4
+    max_num_rows = 4
     monkeypatch.setattr(
         "vivarium_cluster_tools.psimulate.performance_logger.NUM_ROWS_PER_CENTRAL_LOG_FILE",
-        MAX_NUM_ROWS,
+        max_num_rows,
     )
     monkeypatch.setattr(
         "vivarium_cluster_tools.psimulate.performance_logger.CENTRAL_PERFORMANCE_LOGS_DIRECTORY",
         tmp_path,
     )
 
-    # create most recent file
-    most_recent_file = tmp_path / "log_summary_0000.csv"
+    # set up tests
+    # create data we want to append
     output_paths = get_output_paths_from_output_directory(result_directory)
     central_perf_df = transform_perf_df_for_appending(artifact_perf_df, output_paths)
-    pd.DataFrame(
-        index=range(num_rows_in_most_recent_file), columns=central_perf_df.columns
-    ).to_csv(most_recent_file, index=False)
-    # append data
-    data_to_append = central_perf_df[:num_rows_to_append]
-    first_file_with_data = append_child_job_data(data_to_append)
+    data_to_append = central_perf_df[:rows_to_append]
+    # create most recent file
+    most_recent_file = tmp_path / "log_summary_0000.csv"
+    initial_data = pd.DataFrame(
+        index=range(max_num_rows-available_rows), columns=central_perf_df.columns
+    )
+    initial_data.to_csv(most_recent_file, index=False)
 
-    # test first file_with_data
-    assert Path(first_file_with_data).stem == expected_first_file_with_data
+    # append data and test
+    append_child_job_data(data_to_append)
 
-    # test appended data file sizes
-    total_num_rows = num_rows_in_most_recent_file + num_rows_to_append
-    expected_num_of_files = int(ceil(total_num_rows / MAX_NUM_ROWS))
+    # test that all files we expect to exist are there
+    absolute_output_filepaths = sorted(tmp_path.glob('*'))
+    output_filenames = [filepath.stem for filepath in absolute_output_filepaths]
+    expected_filenames = [f'log_summary_{str(i).zfill(4)}' for i in range(expected_output_files)]
+    assert expected_filenames == output_filenames
+    # test that each of those files has the right number of rows and the expected data
+    first_file = pd.read_csv(most_recent_file)
+    assert_frame_equal(first_file[:len(initial_data)],
+                       initial_data,
+                       check_dtype=False)
+    assert_frame_equal(first_file[len(initial_data):].reset_index(drop=True),
+                       data_to_append[:(max_num_rows - len(initial_data))],
+                       check_dtype=False)
 
-    output_files = [tmp_path / filename for filename in os.listdir(tmp_path)]
-    assert len(output_files) == expected_num_of_files
-    assert all([len(pd.read_csv(file)) == MAX_NUM_ROWS for file in output_files])
+    data_to_append = data_to_append[(max_num_rows - len(initial_data)):].reset_index(drop=True)
+
+    for file in absolute_output_filepaths[1:]:
+        file_data = pd.read_csv(file)
+        assert_frame_equal(file_data, data_to_append[:max_num_rows], check_dtype=False)
+        data_to_append = data_to_append[max_num_rows:].reset_index(drop=True)
