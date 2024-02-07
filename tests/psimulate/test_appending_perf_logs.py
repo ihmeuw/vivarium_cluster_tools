@@ -4,10 +4,10 @@ from math import ceil
 from pathlib import Path
 
 import pandas as pd
-from pandas.testing import assert_frame_equal
 import pytest
 from _pytest.logging import LogCaptureFixture
 from loguru import logger
+from pandas.testing import assert_frame_equal
 
 from vivarium_cluster_tools.psimulate.paths import OutputPaths
 from vivarium_cluster_tools.psimulate.performance_logger import (
@@ -203,7 +203,7 @@ def test_appending(
     # create most recent file
     most_recent_file = tmp_path / "log_summary_0000.csv"
     initial_data = pd.DataFrame(
-        index=range(max_num_rows-available_rows), columns=central_perf_df.columns
+        index=range(max_num_rows - available_rows), columns=central_perf_df.columns
     )
     initial_data.to_csv(most_recent_file, index=False)
 
@@ -211,20 +211,24 @@ def test_appending(
     append_child_job_data(data_to_append)
 
     # test that all files we expect to exist are there
-    absolute_output_filepaths = sorted(tmp_path.glob('*'))
+    absolute_output_filepaths = sorted(tmp_path.glob("*"))
     output_filenames = [filepath.stem for filepath in absolute_output_filepaths]
-    expected_filenames = [f'log_summary_{str(i).zfill(4)}' for i in range(expected_output_files)]
+    expected_filenames = [
+        f"log_summary_{str(i).zfill(4)}" for i in range(expected_output_files)
+    ]
     assert expected_filenames == output_filenames
     # test that each of those files has the right number of rows and the expected data
     first_file = pd.read_csv(most_recent_file)
-    assert_frame_equal(first_file[:len(initial_data)],
-                       initial_data,
-                       check_dtype=False)
-    assert_frame_equal(first_file[len(initial_data):].reset_index(drop=True),
-                       data_to_append[:(max_num_rows - len(initial_data))],
-                       check_dtype=False)
+    assert_frame_equal(first_file[: len(initial_data)], initial_data, check_dtype=False)
+    assert_frame_equal(
+        first_file[len(initial_data) :].reset_index(drop=True),
+        data_to_append[: (max_num_rows - len(initial_data))],
+        check_dtype=False,
+    )
 
-    data_to_append = data_to_append[(max_num_rows - len(initial_data)):].reset_index(drop=True)
+    data_to_append = data_to_append[(max_num_rows - len(initial_data)) :].reset_index(
+        drop=True
+    )
 
     for file in absolute_output_filepaths[1:]:
         file_data = pd.read_csv(file)
