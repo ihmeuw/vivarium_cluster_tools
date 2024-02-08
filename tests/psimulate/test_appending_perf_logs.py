@@ -166,20 +166,23 @@ def test_invalid_log_path(invalid_log_path, artifact_perf_df, caplog):
 
 
 @pytest.mark.parametrize(
-    "available_rows, rows_to_append, expected_output_files",
+    "available_rows, rows_to_append, expected_output_files, multiple_log_files_exist",
     [
-        (2, 2, 2),
-        (2, 6, 3),
-        (2, 9, 3),
-        (4, 4, 2),
-        (3, 2, 1),
-        (1, 3, 2),
+        (2, 2, 2, False),
+        (2, 2, 2, True),
+        (2, 6, 3, False),
+        (2, 6, 3, True),
+        (2, 9, 3, False),
+        (4, 4, 2, False),
+        (3, 2, 1, False),
+        (1, 3, 2, False),
     ],
 )
 def test_appending(
     available_rows,
     rows_to_append,
     expected_output_files,
+    multiple_log_files_exist,
     artifact_perf_df,
     result_directory,
     tmp_path,
@@ -200,15 +203,22 @@ def test_appending(
     output_paths = get_output_paths_from_output_directory(result_directory)
     central_perf_df = transform_perf_df_for_appending(artifact_perf_df, output_paths)
     data_to_append = central_perf_df[:rows_to_append]
-    # create most recent file
-    most_recent_file = tmp_path / "log_summary_0000.csv"
+    # create most recent files
+    if multiple_log_files_exist:
+        (tmp_path / "log_summary_0000.csv").touch()
+        most_recent_file = tmp_path / "log_summary_0001.csv"
+        expected_output_files += 1
+    else:
+        most_recent_file = tmp_path / "log_summary_0000.csv"
     initial_data = pd.DataFrame(
         index=range(max_num_rows - available_rows), columns=central_perf_df.columns
     )
     initial_data.to_csv(most_recent_file, index=False)
 
     # append data and test
-    append_child_job_data(data_to_append)
+    first_file_with_data = append_child_job_data(data_to_append)
+
+    assert first_file_with_data == str(most_recent_file)
 
     # test that all files we expect to exist are there
     absolute_output_filepaths = sorted(tmp_path.glob("*"))
@@ -217,7 +227,9 @@ def test_appending(
         f"log_summary_{str(i).zfill(4)}" for i in range(expected_output_files)
     ]
     assert expected_filenames == output_filenames
+
     # test that each of those files has the right number of rows and the expected data
+    # inspect first file
     first_file = pd.read_csv(most_recent_file)
     assert_frame_equal(first_file[: len(initial_data)], initial_data, check_dtype=False)
     assert_frame_equal(
@@ -230,6 +242,10 @@ def test_appending(
         drop=True
     )
 
+    if multiple_log_files_exist:
+        # remove empty file from list of files to check
+        absolute_output_filepaths = absolute_output_filepaths[1:]
+    # inspect remaining files
     for file in absolute_output_filepaths[1:]:
         file_data = pd.read_csv(file)
         assert_frame_equal(file_data, data_to_append[:max_num_rows], check_dtype=False)
