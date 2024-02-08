@@ -1,6 +1,6 @@
-**1.5.5 - 02/05/24**
+**1.5.5 - 02/08/24**
 
- - Add central performance logging
+ - Add central performance logging and testing
 
 **1.5.4 - 01/29/24**
 
