@@ -205,7 +205,7 @@ def test_appending(
     data_to_append = central_perf_df[:rows_to_append]
     # create most recent files
     if multiple_log_files_exist:
-        (tmp_path / "log_summary_0000.csv").touch()
+        central_perf_df.to_csv(tmp_path / "log_summary_0000.csv", index=False)
         most_recent_file = tmp_path / "log_summary_0001.csv"
         expected_output_files += 1
     else:
@@ -243,6 +243,9 @@ def test_appending(
     )
 
     if multiple_log_files_exist:
+        # check that existing file wasn't modified
+        existing_file = pd.read_csv(tmp_path / "log_summary_0000.csv")
+        assert_frame_equal(existing_file, central_perf_df, check_dtype=False)
         # remove empty file from list of files to check
         absolute_output_filepaths = absolute_output_filepaths[1:]
     # inspect remaining files
