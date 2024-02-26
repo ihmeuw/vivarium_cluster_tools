@@ -96,7 +96,7 @@ def _compare_environments(current: Dict, original: Dict) -> None:
         differences = "\n".join(differences)
         logger.info(
             "Differences found between current environment and original environment used for "
-            " this run. \n\nDifferences found are as follows: {differences}. Would you like to proceed?"
+            f" this run. \n\nDifferences found are as follows: {differences}. Would you like to proceed?"
         )
         click.confirm(
             "Would you like to proceed psimulate restart with the new environment?",
