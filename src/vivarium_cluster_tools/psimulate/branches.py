@@ -136,7 +136,7 @@ def calculate_input_draws(
         existing draw numbers.
 
     """
-    max_draw_count = 1000
+    max_draw_count = 500
     if input_draw_count > max_draw_count:
         raise ValueError(f"Input draw count must be less than {max_draw_count}.")
 
