@@ -2,8 +2,8 @@ import pandas as pd
 import pytest
 
 from vivarium_cluster_tools.psimulate.results.processing import (
+    _concat_metadata,
     _concat_preserve_types,
-    _concat_results,
 )
 
 
@@ -66,7 +66,7 @@ def test_concat_results(data_types):
     old["input_draw"] = old["random_seed"] = 0.0
     new["input_draw"] = new["random_seed"] = 1.0
 
-    combined = _concat_results(old, [new])
+    combined = _concat_metadata(old, [new])
 
     expected_dtypes = old.dtypes
 
@@ -79,6 +79,6 @@ def test_concat_results(data_types):
     assert combined.dtypes.sort_index().equals(expected_dtypes.sort_index())
 
     # now no existing results
-    no_old_combined = _concat_results(pd.DataFrame(), [new, old])
+    no_old_combined = _concat_metadata(pd.DataFrame(), [new, old])
 
     assert no_old_combined.equals(combined)
