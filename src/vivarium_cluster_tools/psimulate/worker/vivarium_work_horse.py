@@ -97,11 +97,7 @@ def work_horse(job_parameters: dict) -> Tuple[pd.DataFrame, Dict[str, pd.DataFra
 
         results = sim.get_results()  # Dict[measure, results dataframe]
 
-        idx = pd.MultiIndex.from_tuples(
-            [(job_parameters.input_draw, job_parameters.random_seed)],
-            names=["input_draw_number", "random_seed"],
-        )
-        finished_results_metadata = pd.DataFrame(index=idx)
+        finished_results_metadata = pd.DataFrame()
         for key, val in collapse_nested_dict(job_parameters.branch_configuration):
             for _metric, df in results.items():
                 finished_results_metadata[key] = val
