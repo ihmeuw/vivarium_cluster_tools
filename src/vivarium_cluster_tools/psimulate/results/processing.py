@@ -58,9 +58,8 @@ def _concat_metadata(
     # Skips all the pandas index checking because columns are in the same order.
     start = time.time()
 
-    to_concat = [df.reset_index(drop=True) for df in new_metadata]
-    if not old_metadata.empty:
-        to_concat += [old_metadata.reset_index(drop=True)]
+    to_concat_old = [old_metadata.reset_index(drop=True)] if not old_metadata.empty else []
+    to_concat = to_concat_old + [df.reset_index(drop=True) for df in new_metadata]
 
     updated = _concat_preserve_types(to_concat)
 
@@ -77,15 +76,15 @@ def _concat_results(
     results = {}
     metrics = {key for new in new_results for key in new.keys()}
     for metric in metrics:
-        to_concat = [
+        to_concat_old = (
+            [old_results[metric].reset_index(drop=True)] if metric in old_results else []
+        )
+        to_concat = to_concat_old + [
             df.reset_index(drop=True)
             for result in new_results
             for met, df in result.items()
             if met == metric
         ]
-
-        if metric in old_results:
-            to_concat += [old_results[metric].reset_index(drop=True)]
 
         results[metric] = _concat_preserve_types(to_concat)
 
