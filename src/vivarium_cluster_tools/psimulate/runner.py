@@ -97,9 +97,9 @@ def process_job_results(
     return status
 
 
-def load_existing_output_metadata(result_path: Path, restart: bool) -> pd.DataFrame:
+def load_existing_output_metadata(metadata_path: Path, restart: bool) -> pd.DataFrame:
     try:
-        existing_output_metadata = pd.read_csv(result_path)
+        existing_output_metadata = pd.read_csv(metadata_path)
     except FileNotFoundError:
         existing_output_metadata = pd.DataFrame()
     assert (
@@ -109,7 +109,7 @@ def load_existing_output_metadata(result_path: Path, restart: bool) -> pd.DataFr
 
 
 def load_existing_results(result_path: Path, restart: bool) -> Dict[str, pd.DataFrame]:
-    filepaths = list(result_path.glob("*.parquet"))
+    filepaths = result_path.glob("*.parquet")
     results = {filepath.stem: pd.read_parquet(filepath) for filepath in filepaths}
     if results and not restart:
         raise RuntimeError(
@@ -197,7 +197,6 @@ def main(
     # a cartesian product representation of the parameter space and
     # branches is a flat representation with the product expanded out.
     keyspace.persist(output_paths.keyspace, output_paths.branches)
-    total_num_jobs = len(keyspace)
 
     # Parse the model specification and resolve the artifact path
     # and then write to the output directory.
@@ -214,7 +213,7 @@ def main(
     logger.info("Loading existing outputs if present.")
     # Load in any existing partial outputs if present.
     finished_sim_metadata = load_existing_output_metadata(
-        result_path=output_paths.finished_sim_metadata,
+        metadata_path=output_paths.finished_sim_metadata,
         restart=command in [COMMANDS.restart, COMMANDS.expand],
     )
 
@@ -230,6 +229,7 @@ def main(
         extras=extra_args,
     )
     # Let the user know if something is fishy at this point.
+    total_num_jobs = len(keyspace)
     report_initial_status(num_jobs_completed, finished_sim_metadata, total_num_jobs)
     if len(job_parameters) == 0:
         logger.info("No jobs to run, exiting.")
