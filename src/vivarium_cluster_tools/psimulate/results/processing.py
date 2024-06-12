@@ -11,7 +11,6 @@ import time
 from pathlib import Path
 from typing import Dict, List, Tuple
 
-import numpy as np
 import pandas as pd
 from loguru import logger
 
@@ -94,25 +93,15 @@ def _concat_results(
 
 
 def _concat_preserve_types(df_list: List[pd.DataFrame]) -> pd.DataFrame:
-    """Concatenation preserves all ``numpy`` dtypes but does not preserve any
-    pandas specific dtypes (e.g., categories become objects. We assume that all
-    dataframes in the list have identical dtypes to the first. Also, we convert
-    dtypes to their string representations to avoid comparison issues (especially
-    with CategoricalDtype)
+    """Concatenate datasets and preserve all ``numpy`` dtypes (but not any
+    pandas-specific dtypes, e.g. categories become objects). We assume that all
+    dataframes in the list have identical columns and dtypes to the first.
     """
-    col_order = df_list[0].columns
-    dtypes = df_list[0].dtypes.astype(str)
-    columns_by_dtype = [list(dtype_group.index) for _, dtype_group in dtypes.groupby(dtypes)]
-
-    splits = []
-    for columns in columns_by_dtype:
-        original_dtypes = {col: df_list[0][col].dtype for col in columns}
-        slices = [df.filter(columns) for df in df_list]
-        slice_df = pd.DataFrame(data=np.concatenate(slices), columns=columns)
-        for col, dtype in original_dtypes.items():
-            slice_df[col] = slice_df[col].astype(dtype)
-        splits.append(slice_df)
-    return pd.concat(splits, axis=1)[col_order]
+    dtype_mapping = {col: df_list[0][col].dtype for col in df_list[0].columns}
+    for df in df_list:
+        for col, dtype in dtype_mapping.items():
+            df[col] = df[col].astype(dtype)
+    return pd.concat(df_list, axis=0).reset_index(drop=True)
 
 
 @vct_utils.backoff_and_retry(backoff_seconds=30, num_retries=3, log_function=logger.warning)
