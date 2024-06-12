@@ -56,12 +56,6 @@ def process_job_results(
             for metadata, results in registry_manager.get_results():
                 unwritten_metadata.append(metadata)
                 unwritten_results.append(results)
-                if len(unwritten_results) != len(unwritten_metadata):
-                    raise ValueError(
-                        f"Unwritten metadata and results are out of sync:\n"
-                        f"Metadata len ({len(unwritten_metadata)}) != results len "
-                        f"({len(unwritten_results)})"
-                    )
 
             if len(unwritten_results) > batch_size:
                 (

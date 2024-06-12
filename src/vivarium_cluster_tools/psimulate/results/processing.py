@@ -52,52 +52,55 @@ def write_results_batch(
     return metadata_to_write, unwritten_metadata, results_to_write, unwritten_results
 
 
-def _concat_metadata(old: pd.DataFrame, new: List[pd.DataFrame]) -> pd.DataFrame:
+def _concat_metadata(
+    old_metadata: pd.DataFrame, new_metadata: List[pd.DataFrame]
+) -> pd.DataFrame:
     # Skips all the pandas index checking because columns are in the same order.
     start = time.time()
 
-    to_concat = [df.reset_index(drop=True) for df in new]
-    if not old.empty:
-        to_concat += [old.reset_index(drop=True)]
+    to_concat = [df.reset_index(drop=True) for df in new_metadata]
+    if not old_metadata.empty:
+        to_concat += [old_metadata.reset_index(drop=True)]
 
     updated = _concat_preserve_types(to_concat)
 
     end = time.time()
-    logger.info(f"Concatenated {len(new)} metadata in {end - start:.2f}s.")
+    logger.info(f"Concatenated {len(new_metadata)} metadata in {end - start:.2f}s.")
     return updated
 
 
 def _concat_results(
-    old: Dict[str, pd.DataFrame], new: List[Dict[str, pd.DataFrame]]
+    old_results: Dict[str, pd.DataFrame], new_results: List[Dict[str, pd.DataFrame]]
 ) -> Dict[str, pd.DataFrame]:
     # Skips all the pandas index checking because columns are in the same order.
     start = time.time()
     results = {}
-    metrics = {key for new_results in new for key in new_results.keys()}
+    metrics = {key for new in new_results for key in new.keys()}
     for metric in metrics:
         to_concat = [
             df.reset_index(drop=True)
-            for result in new
+            for result in new_results
             for met, df in result.items()
             if met == metric
         ]
 
-        if metric in old:
-            to_concat += [old[metric].reset_index(drop=True)]
+        if metric in old_results:
+            to_concat += [old_results[metric].reset_index(drop=True)]
 
         results[metric] = _concat_preserve_types(to_concat)
 
     end = time.time()
-    logger.info(f"Concatenated {len(new)} results in {end - start:.2f}s.")
+    logger.info(f"Concatenated {len(new_results)} results in {end - start:.2f}s.")
     return results
 
 
 def _concat_preserve_types(df_list: List[pd.DataFrame]) -> pd.DataFrame:
     """Concatenation preserves all ``numpy`` dtypes but does not preserve any
-    pandas specific dtypes (e.g., categories become objects."""
-    # We assume that all dataframes in the list have identical dtypes to the first
-    # Also, we convert dtypes to their string representations to avoid comparison
-    # issues (especially with CategoricalDtype)
+    pandas specific dtypes (e.g., categories become objects. We assume that all
+    dataframes in the list have identical dtypes to the first. Also, we convert
+    dtypes to their string representations to avoid comparison issues (especially
+    with CategoricalDtype)
+    """
     col_order = df_list[0].columns
     dtypes = df_list[0].dtypes.astype(str)
     columns_by_dtype = [list(dtype_group.index) for _, dtype_group in dtypes.groupby(dtypes)]
