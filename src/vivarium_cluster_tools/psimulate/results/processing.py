@@ -24,7 +24,7 @@ def write_results_batch(
     existing_results: Dict[str, pd.DataFrame],
     unwritten_metadata: List[pd.DataFrame],
     unwritten_results: List[Dict[str, pd.DataFrame]],
-    batch_size: int = 50,
+    batch_size: int,
 ) -> Tuple[
     pd.DataFrame, List[pd.DataFrame], Dict[str, pd.DataFrame], List[Dict[str, pd.DataFrame]]
 ]:
@@ -105,14 +105,16 @@ def _concat_preserve_types(df_list: List[pd.DataFrame]) -> pd.DataFrame:
 
 
 @vct_utils.backoff_and_retry(backoff_seconds=30, num_retries=3, log_function=logger.warning)
-def _safe_write(results: pd.DataFrame, output_path: Path) -> None:
+def _safe_write(df: pd.DataFrame, output_path: Path) -> None:
     # Writing to some file types over and over balloons the file size so
     # write to new file and move it over to avoid
-    temp_output_path = output_path.with_name(output_path.name + "update")
+    temp_output_path = output_path.with_name(
+        output_path.stem + "_update" + output_path.suffix
+    )
     if output_path.suffix == ".parquet":
-        results.to_parquet(temp_output_path)
+        df.to_parquet(temp_output_path)
     elif output_path.suffix == ".csv":
-        results.to_csv(temp_output_path, index=False)
+        df.to_csv(temp_output_path, index=False)
     else:
         raise NotImplementedError(f"Writing to {output_path.suffix} is not supported.")
     temp_output_path.replace(output_path)

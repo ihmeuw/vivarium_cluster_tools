@@ -97,11 +97,11 @@ def work_horse(job_parameters: dict) -> Tuple[pd.DataFrame, Dict[str, pd.DataFra
 
         results = sim.get_results()  # Dict[measure, results dataframe]
 
-        finished_results_metadata = pd.DataFrame()
+        finished_results_metadata = pd.DataFrame(index=[0])
         for key, val in collapse_nested_dict(job_parameters.branch_configuration):
             for _metric, df in results.items():
-                finished_results_metadata[key] = val
                 df[key] = val
+            finished_results_metadata[key] = val
         return finished_results_metadata, results
 
     except Exception:
