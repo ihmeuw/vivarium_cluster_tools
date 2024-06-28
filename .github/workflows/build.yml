@@ -22,6 +22,8 @@ jobs:
         shell: bash -le {0}
     steps:
       - uses: actions/checkout@v3
+      - name: Set PYTHONHASHSEED
+        run: echo "PYTHONHASHSEED=42" >> $GITHUB_ENV
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v4
         with:
