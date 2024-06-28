@@ -7,6 +7,7 @@ The main process loop for `psimulate` runs.
 
 """
 
+import os
 from collections import defaultdict
 from pathlib import Path
 from time import sleep, time
@@ -162,6 +163,18 @@ def main(
     no_batch: bool,
     extra_args: dict,
 ) -> None:
+
+    # PYTHONHASHSEED must be set outside the Python process. We don't want to
+    # be tricked if someone has modified it inside the Python process, since
+    # that will have no effect on the actual reproducibility of hashes.
+    if os.environ.get("PYTHONHASHSEED") != "42":
+        raise EnvironmentError(
+            "PYTHONHASHSEED must be set to 42 in the environment to ensure "
+            "reproducibility of hash-based operations.\n"
+            "Please run 'export PYTHONHASHSEED=42' from the command line "
+            "(or add to your .bashrc) before running the simulation."
+        )
+
     logger.info("Validating cluster environment.")
     cluster.validate_cluster_environment()
 
