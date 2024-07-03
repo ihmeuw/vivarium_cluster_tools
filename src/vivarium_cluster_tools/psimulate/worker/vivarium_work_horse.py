@@ -99,8 +99,9 @@ def work_horse(job_parameters: dict) -> Tuple[pd.DataFrame, Dict[str, pd.DataFra
 
         finished_results_metadata = pd.DataFrame(index=[0])
         for key, val in collapse_nested_dict(job_parameters.branch_configuration):
-            for _metric, df in results.items():
-                df[key] = val
+            for df in results.values():
+                # insert the new columns second from the right
+                df.insert(df.shape[1] - 1, key, val)
             finished_results_metadata[key] = val
         return finished_results_metadata, results
 
@@ -182,7 +183,7 @@ def parameter_update_format(
         },
         "randomness": {
             "random_seed": job_parameters.random_seed,
-            "additional_seed": job_parameters.input_draw,  # <- FIXME: is this a typo?
+            "additional_seed": job_parameters.input_draw,
         },
         "input_data": {
             "input_draw_number": job_parameters.input_draw,
