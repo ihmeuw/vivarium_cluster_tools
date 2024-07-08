@@ -97,11 +97,17 @@ def work_horse(job_parameters: dict) -> Tuple[pd.DataFrame, Dict[str, pd.DataFra
 
         results = sim.get_results()  # Dict[measure, results dataframe]
 
+        # Format metadata and results files with configuration information
         finished_results_metadata = pd.DataFrame(index=[0])
         for key, val in collapse_nested_dict(job_parameters.branch_configuration):
-            for df in results.values():
-                # insert the new columns second from the right
-                df.insert(df.shape[1] - 1, key, val)
+            # Exclude the run_configuration values from branch_configuration
+            # since they are duplicates. Also do not include the additional_seed
+            # value since it is identical to input_draw
+            if not (key.startswith("run_configuration") or "additional_seed" in key):
+                for df in results.values():
+                    # insert the new columns second from the right and use the
+                    # last part of the key as the column name
+                    df.insert(df.shape[1] - 1, key.split(".")[-1], val)
             finished_results_metadata[key] = val
         return finished_results_metadata, results
 
