@@ -60,6 +60,8 @@ def build_job_list(
     output_root: Path,
     keyspace: branches.Keyspace,
     finished_sim_metadata: pd.DataFrame,
+    make_backups: bool,
+    backup_freq: int,
     extras: dict,
 ) -> Tuple[List[dict], int]:
     jobs = []
@@ -73,7 +75,7 @@ def build_job_list(
                 input_draw=int(input_draw),
                 random_seed=int(random_seed),
                 results_path=str(output_root),
-                extras={},
+                extras={"backup_freq": backup_freq * 60} if make_backups else {},
             )
 
             if already_complete(parameters, finished_sim_metadata):

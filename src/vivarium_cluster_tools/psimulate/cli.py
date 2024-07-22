@@ -51,6 +51,8 @@ shared_options = [
     redis_dbs.with_max_workers,
     redis_dbs.with_redis,
     results.with_no_batch,
+    results.with_sim_backup,
+    results.sim_backup_freq,
     cli_tools.with_verbose_and_pdb,
 ]
 
@@ -132,6 +134,8 @@ def run(
         max_workers=options["max_workers"],
         redis_processes=options["redis"],
         no_batch=options["no_batch"],
+        make_backups=options["make_backups"],
+        backup_freq=options["backup_freq"],
         extra_args={},
     )
 
@@ -170,6 +174,8 @@ def restart(results_root, **options):
         max_workers=options["max_workers"],
         redis_processes=options["redis"],
         no_batch=options["no_batch"],
+        make_backups=options["make_backups"],
+        backup_freq=options["backup_freq"],
         extra_args={},
     )
 
@@ -224,6 +230,8 @@ def expand(results_root, **options):
         max_workers=options["max_workers"],
         redis_processes=options["redis"],
         no_batch=options["no_batch"],
+        make_backups=options["make_backups"],
+        backup_freq=options["backup_freq"],
         extra_args={
             "num_draws": options["add_draws"],
             "num_seeds": options["add_seeds"],
@@ -295,6 +303,8 @@ def test(test_type, num_workers, result_directory, **options):
         max_workers=options["max_workers"],
         redis_processes=options["redis"],
         no_batch=options["no_batch"],
+        make_backups=options["make_backups"],
+        backup_freq=options["backup_freq"],
         extra_args={
             "test_type": test_type,
             "num_workers": num_workers,

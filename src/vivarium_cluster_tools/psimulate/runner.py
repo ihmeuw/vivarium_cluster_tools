@@ -160,6 +160,8 @@ def main(
     max_workers: Optional[int],
     redis_processes: int,
     no_batch: bool,
+    backup_sim: bool,
+    sim_backup_freq: int,
     extra_args: dict,
 ) -> None:
     logger.info("Validating cluster environment.")
@@ -228,6 +230,8 @@ def main(
         output_root=output_paths.root,
         keyspace=keyspace,
         finished_sim_metadata=finished_sim_metadata,
+        make_backups=options["make_backups"],
+        backup_freq=options["backup_freq"],
         extras=extra_args,
     )
     # Let the user know if something is fishy at this point.

@@ -7,6 +7,7 @@ RQ worker executable for running simulation jobs.
 
 """
 
+import dill
 import json
 import math
 from pathlib import Path
@@ -47,36 +48,50 @@ def work_horse(job_parameters: dict) -> Tuple[pd.DataFrame, Dict[str, pd.DataFra
     logger.info(f"Starting job: {job_parameters}")
 
     try:
-        sim = setup_sim(job_parameters)
-
-        start_time = pd.Timestamp(**sim.configuration.time.start.to_dict())
-        end_time = pd.Timestamp(**sim.configuration.time.end.to_dict())
-        step_size = pd.Timedelta(days=sim.configuration.time.step_size)
-        num_steps = int(math.ceil((end_time - start_time) / step_size))
-
         start_snapshot = CounterSnapshot()
         event = {"start": time()}  # timestamps of application events
         logger.info("Beginning simulation setup.")
-        sim.setup()
-        event["simulant_initialization_start"] = time()
-        exec_time = {
-            "setup_minutes": (event["simulant_initialization_start"] - event["start"]) / 60
-        }  # execution event
-        logger.info(
-            f'Simulation setup completed in {exec_time["setup_minutes"]:.3f} minutes.'
-        )
+        if backup_exists(job_parameters):
+            logger.info(f"Restarting simulation from saved backup")
+            sim = get_backup(job_parameters)
+            event["simulation_start"] = time()
+            exec_time = {
+                "setup_minutes": (event["simulation_start"] - event["start"]) / 60
+            }  # execution event
+            logger.info(
+                f'Simulation setup from backup completed in {exec_time["setup_minutes"]:.3f} minutes.'
+            )
+            logger.info(f"Starting main simulation loop")
+        else:
+            sim = setup_sim(job_parameters)
 
-        sim.initialize_simulants()
-        event["simulation_start"] = time()
-        exec_time["simulant_initialization_minutes"] = (
-            event["simulation_start"] - event["simulant_initialization_start"]
-        ) / 60
-        logger.info(
-            f'Simulant initialization completed in {exec_time["simulant_initialization_minutes"]:.3f} minutes.'
-        )
+            start_time = pd.Timestamp(**sim.configuration.time.start.to_dict())
+            end_time = pd.Timestamp(**sim.configuration.time.end.to_dict())
+            step_size = pd.Timedelta(days=sim.configuration.time.step_size)
+            num_steps = int(math.ceil((end_time - start_time) / step_size))
 
-        logger.info(f"Starting main simulation loop with {num_steps} time steps")
-        sim.run()
+            start_snapshot = CounterSnapshot()
+            event = {"start": time()}  # timestamps of application events
+            logger.info("Beginning simulation setup.")
+            sim.setup()
+            event["simulant_initialization_start"] = time()
+            exec_time = {
+                "setup_minutes": (event["simulant_initialization_start"] - event["start"]) / 60
+            }  # execution event
+            logger.info(
+                f'Simulation setup completed in {exec_time["setup_minutes"]:.3f} minutes.'
+            )
+
+            sim.initialize_simulants()
+            event["simulation_start"] = time()
+            exec_time["simulant_initialization_minutes"] = (
+                event["simulation_start"] - event["simulant_initialization_start"]
+            ) / 60
+            logger.info(
+                f'Simulant initialization completed in {exec_time["simulant_initialization_minutes"]:.3f} minutes.'
+            )
+            logger.info(f"Starting main simulation loop with {num_steps} time steps")
+        run(sim, job_parameters)
         event["results_start"] = time()
         exec_time["main_loop_minutes"] = (
             event["results_start"] - event["simulation_start"]
@@ -203,3 +218,49 @@ def format_and_record_details(
                 df.insert(df.shape[1] - 1, col_name, val)
         finished_results_metadata[key] = val
     return finished_results_metadata
+
+def parameter_update_format(job_parameters: JobParameters) -> dict:
+    return {
+        "run_configuration": {
+            "run_id": str(get_current_job().id) + "_" + str(time()),
+            "results_directory": job_parameters.results_path,
+            "run_key": job_parameters.job_specific,
+        },
+        "randomness": {
+            "random_seed": job_parameters.random_seed,
+            "additional_seed": job_parameters.input_draw,
+        },
+        "input_data": {
+            "input_draw_number": job_parameters.input_draw,
+        },
+    }
+    
+def run(sim: SimulationContext, job_parameters: JobParameters):
+    if job_parameters.extras.get(backup_freq, {}):
+        run_with_backups(sim, job_parameters)
+    else:
+        sim.run()
+        
+def run_with_backups(sim: SimulationContext, job_parameters: JobParameters) -> None:
+    time_to_save = time() + job_parameters.backup_freq
+    while sim._clock.time < sim._clock.stop_time:
+        while time() < time_to_save:
+            sim.step()
+        time_to_save = time() + job_parameters.backup_freq
+        write_backup(sim, job_parameters)
+        
+def backup_filename(job_parameters: JobParameters) -> str:
+    return "_".join(["scenario", job_parameters.branch_configuration, "draw", job_parameters.input_draw, "seed", job_parameters.random_seed])
+
+def write_backup(sim: SimulationContext, job_parameters: JobParameters) -> None:
+    with open(job_parameters.results_path + "/sim_backups/" + backup_filename(job_parameters),"wb") as f:
+        dill.dump(sim,f)
+
+def backup_exists()
+    full_backup_path = Path(job_parameters.results_path + "/sim_backups/" + backup_filename(job_parameters))
+    return full_backup_path.exists():
+
+def get_backup(job_parameters) -> SimulationContext:
+    with open(full_backup_path,"rb") as f:
+        sim = dill.load(f)
+    return sim
