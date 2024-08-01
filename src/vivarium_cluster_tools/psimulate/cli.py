@@ -52,7 +52,7 @@ shared_options = [
     redis_dbs.with_redis,
     results.with_no_batch,
     results.with_sim_backup,
-    results.sim_backup_freq,
+    results.backup_freq,
     cli_tools.with_verbose_and_pdb,
 ]
 

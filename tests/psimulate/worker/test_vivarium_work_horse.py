@@ -28,6 +28,7 @@ def test_setup_sim(mocker):
         input_draw=1,
         random_seed=2,
         results_path="~/tmp",
+        backup_configuration={},
         extras={},
     )
 

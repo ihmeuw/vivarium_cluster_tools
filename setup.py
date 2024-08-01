@@ -20,6 +20,7 @@ if __name__ == "__main__":
         "loguru",
         "pyyaml>=5.1",
         "drmaa",
+        "dill",
         "redis",
         "rq",
         "vivarium>=1.2.1",

@@ -23,6 +23,7 @@ class JobParameters(NamedTuple):
     input_draw: int
     random_seed: int
     results_path: str
+    backup_configuration: dict
     extras: dict
 
     @property
@@ -31,6 +32,7 @@ class JobParameters(NamedTuple):
         return {
             "model_specification": self.model_specification,
             "results_path": self.results_path,
+            "backup_configuration": self.backup_configuration,
         }
 
     @property
@@ -62,6 +64,8 @@ def build_job_list(
     finished_sim_metadata: pd.DataFrame,
     make_backups: bool,
     backup_freq: int,
+    backup_dir: Path,
+    backup_metadata_path: Path,
     extras: dict,
 ) -> Tuple[List[dict], int]:
     jobs = []
@@ -75,7 +79,13 @@ def build_job_list(
                 input_draw=int(input_draw),
                 random_seed=int(random_seed),
                 results_path=str(output_root),
-                extras={"backup_freq": backup_freq * 60} if make_backups else {},
+                backup_configuration={
+                    "make_backups": make_backups,
+                    "backup_dir": backup_dir,
+                    "backup_freq": backup_freq * 60,
+                    "backup_metadata_path": backup_metadata_path,
+                },
+                extras={},
             )
 
             if already_complete(parameters, finished_sim_metadata):

@@ -7,14 +7,15 @@ RQ worker executable for running simulation jobs.
 
 """
 
-import dill
 import json
 import math
+import os
 from pathlib import Path
 from time import time
 from traceback import format_exc
-from typing import Dict, Tuple, Union
+from typing import Dict, Optional, Tuple, Union
 
+import dill
 import pandas as pd
 from layered_config_tree import LayeredConfigTree
 from loguru import logger
@@ -22,6 +23,7 @@ from rq import get_current_job
 from vivarium.framework.engine import SimulationContext
 from vivarium.framework.utilities import collapse_nested_dict
 
+import vivarium_cluster_tools.utilities as vct_utils
 from vivarium_cluster_tools.psimulate.environment import ENV_VARIABLES
 from vivarium_cluster_tools.psimulate.jobs import JobParameters
 from vivarium_cluster_tools.vipin.perf_counters import CounterSnapshot
@@ -51,9 +53,10 @@ def work_horse(job_parameters: dict) -> Tuple[pd.DataFrame, Dict[str, pd.DataFra
         start_snapshot = CounterSnapshot()
         event = {"start": time()}  # timestamps of application events
         logger.info("Beginning simulation setup.")
-        if backup_exists(job_parameters):
+        backup = get_backup(job_parameters)
+        if backup:
             logger.info(f"Restarting simulation from saved backup")
-            sim = get_backup(job_parameters)
+            sim = backup
             event["simulation_start"] = time()
             exec_time = {
                 "setup_minutes": (event["simulation_start"] - event["start"]) / 60
@@ -76,7 +79,8 @@ def work_horse(job_parameters: dict) -> Tuple[pd.DataFrame, Dict[str, pd.DataFra
             sim.setup()
             event["simulant_initialization_start"] = time()
             exec_time = {
-                "setup_minutes": (event["simulant_initialization_start"] - event["start"]) / 60
+                "setup_minutes": (event["simulant_initialization_start"] - event["start"])
+                / 60
             }  # execution event
             logger.info(
                 f'Simulation setup completed in {exec_time["setup_minutes"]:.3f} minutes.'
@@ -219,6 +223,7 @@ def format_and_record_details(
         finished_results_metadata[key] = val
     return finished_results_metadata
 
+
 def parameter_update_format(job_parameters: JobParameters) -> dict:
     return {
         "run_configuration": {
@@ -234,33 +239,45 @@ def parameter_update_format(job_parameters: JobParameters) -> dict:
             "input_draw_number": job_parameters.input_draw,
         },
     }
-    
+
+
 def run(sim: SimulationContext, job_parameters: JobParameters):
-    if job_parameters.extras.get(backup_freq, {}):
-        run_with_backups(sim, job_parameters)
+    backup_freq = job_parameters.backup_configuration["backup_freq"]
+    if backup_freq:
+        backup_dir = job_parameters.backup_configuration["backup_dir"]
+        backup_path = (backup_dir / str(get_current_job().id)).with_suffix(".pkl")
+        time_to_save = time() + backup_freq
+        while not sim.past_stop_time():
+            sim.step()
+            if time() >= time_to_save:
+                sim.write_backup(backup_path)
+                time_to_save = time() + backup_freq
     else:
         sim.run()
-        
-def run_with_backups(sim: SimulationContext, job_parameters: JobParameters) -> None:
-    time_to_save = time() + job_parameters.backup_freq
-    while sim._clock.time < sim._clock.stop_time:
-        while time() < time_to_save:
-            sim.step()
-        time_to_save = time() + job_parameters.backup_freq
-        write_backup(sim, job_parameters)
-        
-def backup_filename(job_parameters: JobParameters) -> str:
-    return "_".join(["scenario", job_parameters.branch_configuration, "draw", job_parameters.input_draw, "seed", job_parameters.random_seed])
 
-def write_backup(sim: SimulationContext, job_parameters: JobParameters) -> None:
-    with open(job_parameters.results_path + "/sim_backups/" + backup_filename(job_parameters),"wb") as f:
-        dill.dump(sim,f)
 
-def backup_exists()
-    full_backup_path = Path(job_parameters.results_path + "/sim_backups/" + backup_filename(job_parameters))
-    return full_backup_path.exists():
+def get_backup(job_parameters: JobParameters) -> Optional[SimulationContext]:
+    backup_dir = job_parameters.backup_configuration["backup_dir"]
+    if not backup_dir.exists() or not os.listdir(backup_dir):
+        # No sim backups to load
+        return None
+    metadata_path = job_parameters.backup_configuration["backup_metadata_path"]
+    try:
+        pickle_metadata = pd.read_csv(metadata_path)
+    except FileNotFoundError:
+        return None
+    query_conditions = f"input_draw == {job_parameters.input_draw} & random_seed == {job_parameters.random_seed}"
 
-def get_backup(job_parameters) -> SimulationContext:
-    with open(full_backup_path,"rb") as f:
-        sim = dill.load(f)
-    return sim
+    # Add branch parameter conditions to the query
+    for k, v in collapse_nested_dict(job_parameters.branch_configuration):
+        query_conditions += f' & `{k}` == "{v}"'
+
+    # Use the query method to find rows that match the lookup parameters
+    run_ids = pickle_metadata.query(query_conditions)["job_id"].to_list()
+    if run_ids:
+        filename = Path(run_ids[0] + ".pkl")
+        if filename.exists():
+            with open(backup_dir / filename, "rb") as f:
+                sim = dill.load(f)
+            return sim
+    return None
