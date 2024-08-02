@@ -10,6 +10,7 @@ Unified interface to multiple Redis Databases.
 import random
 import time
 from collections import defaultdict
+from itertools import chain
 from typing import Any, Dict, Iterator, List, Tuple, Union
 
 import redis
@@ -301,8 +302,6 @@ class RegistryManager:
         return status
 
     def get_params_by_job(self):
-        from itertools import chain
-
         jobs = list(chain.from_iterable([q._queue.jobs for q in self._queues]))
         return {job.id: job.kwargs["job_parameters"] for job in jobs}
 

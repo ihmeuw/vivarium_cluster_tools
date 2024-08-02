@@ -153,8 +153,9 @@ def try_run_vipin(output_paths: OutputPaths) -> None:
         logger.warning(f"Appending performance data to central logs failed with: {e}")
 
 
-def write_backup_metadata(output_paths: OutputPaths, registry_manager) -> None:
-    parameters_by_job = registry_manager.get_params_by_job()
+def write_backup_metadata(
+    backup_metadata_path: Path, parameters_by_job: dict[str, dict]
+) -> None:
     lookup_table = []
     for job_id, params in parameters_by_job.items():
         job_dict = {
@@ -168,7 +169,7 @@ def write_backup_metadata(output_paths: OutputPaths, registry_manager) -> None:
         lookup_table.append(job_dict)
 
     df = pd.DataFrame(lookup_table)
-    df.to_csv(output_paths.backup_metadata_path)
+    df.to_csv(backup_metadata_path, index=False)
 
 
 def main(
@@ -284,7 +285,10 @@ def main(
     )
 
     if make_backups:
-        write_backup_metadata(output_paths, registry_manager)
+        write_backup_metadata(
+            backup_metadata_path=output_paths.backup_metadata_path,
+            parameters_by_job=registry_manager.get_params_by_job(),
+        )
     # Generate a worker template that chooses a redis DB at random to connect to.
     # This should (approximately) evenly distribute the workers over the work.
     redis_urls = [f"redis://{hostname}:{port}" for hostname, port in redis_ports]

@@ -1,10 +1,10 @@
-from time import time
-
+import dill
+import pandas as pd
 import pytest
-from vivarium.framework.utilities import collapse_nested_dict
 
 from vivarium_cluster_tools.psimulate.jobs import JobParameters
 from vivarium_cluster_tools.psimulate.worker.vivarium_work_horse import (
+    get_backup,
     parameter_update_format,
     setup_sim,
 )
@@ -49,3 +49,49 @@ def test_setup_sim(mocker):
     for test_dict in [sim_config, job_config]:
         for ref_dict in [initial_job_params, update_dict]:
             compare_dicts(test_dict, ref_dict)
+
+
+@pytest.mark.parametrize(
+    "make_dir,has_metadata_file,has_backup",
+    [(False, False, False), (True, False, False), (True, True, False), (True, True, True)],
+)
+def test_backup_no_dir(tmp_path, make_dir, has_metadata_file, has_backup):
+    input_draw = 1
+    random_seed = 2
+    branch_configuration = {"branch_key": "branch_value"}
+    job_id = "job_id"
+    job_parameters = JobParameters(
+        model_specification=None,
+        branch_configuration=branch_configuration,
+        input_draw=input_draw,
+        random_seed=random_seed,
+        results_path="~/tmp",
+        backup_configuration={
+            "backup_dir": tmp_path / "backups",
+            "backup_metadata_path": tmp_path / "backups" / "backup_metadata.csv",
+        },
+        extras={},
+    )
+    if make_dir:
+        (tmp_path / "backups").mkdir(exist_ok=False)
+        if has_metadata_file:
+            metadata_draw = input_draw if has_backup else 7
+            metadata = pd.DataFrame(
+                {
+                    "input_draw": [metadata_draw],
+                    "random_seed": [random_seed],
+                    "job_id": job_id,
+                    "branch_key": ["branch_value"],
+                }
+            )
+            metadata.to_csv(tmp_path / "backups" / "backup_metadata.csv", index=False)
+
+    if make_dir and has_metadata_file and has_backup:
+        pickle = [1, 2, 3, 4, 5]
+        with open(tmp_path / "backups" / "job_id.pkl", "wb") as f:
+            dill.dump(pickle, f)
+        backup = get_backup(job_parameters)
+        assert backup == pickle
+    else:
+        backup = get_backup(job_parameters)
+        assert not backup

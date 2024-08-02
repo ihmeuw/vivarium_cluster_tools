@@ -275,9 +275,9 @@ def get_backup(job_parameters: JobParameters) -> Optional[SimulationContext]:
     # Use the query method to find rows that match the lookup parameters
     run_ids = pickle_metadata.query(query_conditions)["job_id"].to_list()
     if run_ids:
-        filename = Path(run_ids[0] + ".pkl")
+        filename = Path(backup_dir / run_ids[0]).with_suffix(".pkl")
         if filename.exists():
-            with open(backup_dir / filename, "rb") as f:
+            with open(filename, "rb") as f:
                 sim = dill.load(f)
             return sim
     return None
