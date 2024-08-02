@@ -109,7 +109,7 @@ def work_horse(job_parameters: dict) -> Tuple[pd.DataFrame, Dict[str, pd.DataFra
         do_sim_epilogue(start_snapshot, end_snapshot, event, exec_time, job_parameters)
         results = sim.get_results()  # Dict[measure, results dataframe]
         finished_results_metadata = format_and_record_details(job_parameters, results)
-        remove_backups(job_parameters)
+        remove_backups(job_parameters.backup_configuration["backup_dir"])
 
         return finished_results_metadata, results
 
@@ -261,8 +261,7 @@ def get_backup(job_parameters: JobParameters) -> Optional[SimulationContext]:
     return None
 
 
-def remove_backups(job_parameters) -> None:
-    backup_dir = job_parameters.backup_configuration["backup_dir"]
+def remove_backups(backup_dir: Path) -> None:
     backup_path = (backup_dir / str(get_current_job().id)).with_suffix(".pkl")
     try:
         os.remove(backup_path)

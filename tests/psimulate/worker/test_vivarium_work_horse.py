@@ -56,7 +56,7 @@ def test_setup_sim(mocker):
     "make_dir,has_metadata_file,has_backup",
     [(False, False, False), (True, False, False), (True, True, False), (True, True, True)],
 )
-def test_get_and_remove_backup(mocker, tmp_path, make_dir, has_metadata_file, has_backup):
+def test_get_backup(tmp_path, make_dir, has_metadata_file, has_backup) -> None:
     input_draw = 1
     random_seed = 2
     branch_configuration = {"branch_key": "branch_value"}
@@ -94,14 +94,20 @@ def test_get_and_remove_backup(mocker, tmp_path, make_dir, has_metadata_file, ha
             dill.dump(pickle, f)
         backup = get_backup(job_parameters)
         assert backup == pickle
-        # Check we can remove the backup
-        mocker.patch(
-            "vivarium_cluster_tools.psimulate.worker.vivarium_work_horse.get_current_job",
-            return_value=mocker.Mock(id=job_id),
-        )
-        remove_backups(job_parameters)
-        assert not pickle_path.exists()
 
     else:
         backup = get_backup(job_parameters)
         assert not backup
+
+
+def test_remove_backups(mocker, tmp_path) -> None:
+    mocker.patch(
+        "vivarium_cluster_tools.psimulate.worker.vivarium_work_horse.get_current_job",
+        return_value=mocker.Mock(id="job_id"),
+    )
+    # touch a file
+    (tmp_path / "job_id.pkl").touch()
+    assert (tmp_path / "job_id.pkl").exists()
+    # remove the file
+    remove_backups(tmp_path)
+    assert not (tmp_path / "job_id.pkl").exists()
