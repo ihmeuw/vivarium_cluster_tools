@@ -15,7 +15,7 @@ if __name__ == "__main__":
 
     install_requires = [
         "pandas",
-        "numpy<2.0.0",
+        "numpy",
         "tables",
         "loguru",
         "pyyaml>=5.1",
