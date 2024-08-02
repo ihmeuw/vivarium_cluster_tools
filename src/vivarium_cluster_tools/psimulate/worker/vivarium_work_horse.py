@@ -115,6 +115,7 @@ def work_horse(job_parameters: dict) -> Tuple[pd.DataFrame, Dict[str, pd.DataFra
         do_sim_epilogue(start_snapshot, end_snapshot, event, exec_time, job_parameters)
         results = sim.get_results()  # Dict[measure, results dataframe]
         finished_results_metadata = format_and_record_details(job_parameters, results)
+        remove_backups(job_parameters)
 
         return finished_results_metadata, results
 
@@ -264,3 +265,12 @@ def get_backup(job_parameters: JobParameters) -> Optional[SimulationContext]:
                 sim = dill.load(f)
             return sim
     return None
+
+
+def remove_backups(job_parameters) -> None:
+    backup_dir = job_parameters.backup_configuration["backup_dir"]
+    backup_path = (backup_dir / str(get_current_job().id)).with_suffix(".pkl")
+    try:
+        os.remove(backup_path)
+    except FileNotFoundError:
+        pass
