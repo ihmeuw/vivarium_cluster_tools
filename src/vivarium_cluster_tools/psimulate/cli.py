@@ -51,7 +51,7 @@ shared_options = [
     redis_dbs.with_max_workers,
     redis_dbs.with_redis,
     results.with_no_batch,
-    results.with_sim_backup,
+    results.with_make_backups,
     results.backup_freq,
     cli_tools.with_verbose_and_pdb,
 ]
