@@ -5,6 +5,7 @@ import pytest
 from vivarium_cluster_tools.psimulate.jobs import JobParameters
 from vivarium_cluster_tools.psimulate.worker.vivarium_work_horse import (
     get_backup,
+    remove_backups,
     parameter_update_format,
     setup_sim,
 )
@@ -55,7 +56,7 @@ def test_setup_sim(mocker):
     "make_dir,has_metadata_file,has_backup",
     [(False, False, False), (True, False, False), (True, True, False), (True, True, True)],
 )
-def test_backup_no_dir(tmp_path, make_dir, has_metadata_file, has_backup):
+def test_get_and_remove_backup(mocker, tmp_path, make_dir, has_metadata_file, has_backup):
     input_draw = 1
     random_seed = 2
     branch_configuration = {"branch_key": "branch_value"}
@@ -87,11 +88,20 @@ def test_backup_no_dir(tmp_path, make_dir, has_metadata_file, has_backup):
             metadata.to_csv(tmp_path / "backups" / "backup_metadata.csv", index=False)
 
     if make_dir and has_metadata_file and has_backup:
+        pickle_path = tmp_path / "backups" / f"{job_id}.pkl"
         pickle = [1, 2, 3, 4, 5]
-        with open(tmp_path / "backups" / "job_id.pkl", "wb") as f:
+        with open(pickle_path, "wb") as f:
             dill.dump(pickle, f)
         backup = get_backup(job_parameters)
         assert backup == pickle
+        # Check we can remove the backup
+        mocker.patch(
+            "vivarium_cluster_tools.psimulate.worker.vivarium_work_horse.get_current_job",
+            return_value=mocker.Mock(id=job_id),
+        )
+        remove_backups(job_parameters)
+        assert not pickle_path.exists()
+
     else:
         backup = get_backup(job_parameters)
         assert not backup
