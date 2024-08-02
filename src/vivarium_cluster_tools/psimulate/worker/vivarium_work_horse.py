@@ -23,7 +23,6 @@ from rq import get_current_job
 from vivarium.framework.engine import SimulationContext
 from vivarium.framework.utilities import collapse_nested_dict
 
-import vivarium_cluster_tools.utilities as vct_utils
 from vivarium_cluster_tools.psimulate.environment import ENV_VARIABLES
 from vivarium_cluster_tools.psimulate.jobs import JobParameters
 from vivarium_cluster_tools.vipin.perf_counters import CounterSnapshot
@@ -62,20 +61,11 @@ def work_horse(job_parameters: dict) -> Tuple[pd.DataFrame, Dict[str, pd.DataFra
                 "setup_minutes": (event["simulation_start"] - event["start"]) / 60
             }  # execution event
             logger.info(
-                f'Simulation setup from backup completed in {exec_time["setup_minutes"]:.3f} minutes.'
+                f'Simulation setup completed in {exec_time["setup_minutes"]:.3f} minutes.'
             )
-            logger.info(f"Starting main simulation loop")
+            start_time = sim.current_time
         else:
             sim = setup_sim(job_parameters)
-
-            start_time = pd.Timestamp(**sim.configuration.time.start.to_dict())
-            end_time = pd.Timestamp(**sim.configuration.time.end.to_dict())
-            step_size = pd.Timedelta(days=sim.configuration.time.step_size)
-            num_steps = int(math.ceil((end_time - start_time) / step_size))
-
-            start_snapshot = CounterSnapshot()
-            event = {"start": time()}  # timestamps of application events
-            logger.info("Beginning simulation setup.")
             sim.setup()
             event["simulant_initialization_start"] = time()
             exec_time = {
@@ -94,7 +84,11 @@ def work_horse(job_parameters: dict) -> Tuple[pd.DataFrame, Dict[str, pd.DataFra
             logger.info(
                 f'Simulant initialization completed in {exec_time["simulant_initialization_minutes"]:.3f} minutes.'
             )
-            logger.info(f"Starting main simulation loop with {num_steps} time steps")
+            start_time = pd.Timestamp(**sim.configuration.time.start.to_dict())
+        end_time = pd.Timestamp(**sim.configuration.time.end.to_dict())
+        step_size = pd.Timedelta(days=sim.configuration.time.step_size)
+        num_steps = int(math.ceil((end_time - start_time) / step_size))
+        logger.info(f"Starting main simulation loop with {num_steps} time steps")
         run(sim, job_parameters)
         event["results_start"] = time()
         exec_time["main_loop_minutes"] = (
