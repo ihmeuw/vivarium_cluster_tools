@@ -224,23 +224,6 @@ def format_and_record_details(
     return finished_results_metadata
 
 
-def parameter_update_format(job_parameters: JobParameters) -> dict:
-    return {
-        "run_configuration": {
-            "run_id": str(get_current_job().id) + "_" + str(time()),
-            "results_directory": job_parameters.results_path,
-            "run_key": job_parameters.job_specific,
-        },
-        "randomness": {
-            "random_seed": job_parameters.random_seed,
-            "additional_seed": job_parameters.input_draw,
-        },
-        "input_data": {
-            "input_draw_number": job_parameters.input_draw,
-        },
-    }
-
-
 def run(sim: SimulationContext, job_parameters: JobParameters):
     backup_freq = job_parameters.backup_configuration["backup_freq"]
     if backup_freq:
