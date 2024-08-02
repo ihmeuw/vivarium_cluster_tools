@@ -5,8 +5,8 @@ import pytest
 from vivarium_cluster_tools.psimulate.jobs import JobParameters
 from vivarium_cluster_tools.psimulate.worker.vivarium_work_horse import (
     get_backup,
-    remove_backups,
     parameter_update_format,
+    remove_backups,
     setup_sim,
 )
 
