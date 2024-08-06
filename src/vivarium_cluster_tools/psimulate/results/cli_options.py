@@ -18,13 +18,9 @@ with_no_cleanup = click.option(
     help="Hidden developer option, if flagged, don't automatically "
     "cleanup results directory on failure.",
 )
-with_make_backups = click.option(
-    "--make-backups", is_flag=True, help="Periodically save simulation state to disk."
-)
 backup_freq = click.option(
     "--backup-freq",
-    type=int,
-    default=5,
+    default=None,
     show_default=True,
-    help="Interval in hours between saving backups.",
+    help="Interval in seconds between saving backups.",
 )

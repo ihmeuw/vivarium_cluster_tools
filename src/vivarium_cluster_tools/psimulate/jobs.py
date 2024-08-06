@@ -6,7 +6,7 @@ psimulate Jobs
 """
 
 from pathlib import Path
-from typing import List, NamedTuple, Tuple
+from typing import List, NamedTuple, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -62,8 +62,7 @@ def build_job_list(
     output_root: Path,
     keyspace: branches.Keyspace,
     finished_sim_metadata: pd.DataFrame,
-    make_backups: bool,
-    backup_freq: int,
+    backup_freq: Optional[int],
     backup_dir: Path,
     backup_metadata_path: Path,
     extras: dict,
@@ -80,9 +79,10 @@ def build_job_list(
                 random_seed=int(random_seed),
                 results_path=str(output_root),
                 backup_configuration={
-                    "make_backups": make_backups,
                     "backup_dir": backup_dir,
-                    "backup_freq": backup_freq * 60,
+                    "backup_freq": backup_freq * 60
+                    if backup_freq is not None
+                    else backup_freq,
                     "backup_metadata_path": backup_metadata_path,
                 },
                 extras={},

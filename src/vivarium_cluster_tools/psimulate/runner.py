@@ -179,7 +179,6 @@ def main(
     max_workers: Optional[int],
     redis_processes: int,
     no_batch: bool,
-    make_backups: bool,
     backup_freq: int,
     extra_args: dict,
 ) -> None:
@@ -249,7 +248,6 @@ def main(
         output_root=output_paths.root,
         keyspace=keyspace,
         finished_sim_metadata=finished_sim_metadata,
-        make_backups=make_backups,
         backup_freq=backup_freq,
         backup_dir=output_paths.backup_dir,
         backup_metadata_path=output_paths.backup_metadata_path,
@@ -284,7 +282,7 @@ def main(
         jobs=job_parameters, workhorse_import_path=worker.WORK_HORSE_PATHS[command]
     )
 
-    if make_backups:
+    if backup_freq is not None:
         write_backup_metadata(
             backup_metadata_path=output_paths.backup_metadata_path,
             parameters_by_job=registry_manager.get_params_by_job(),

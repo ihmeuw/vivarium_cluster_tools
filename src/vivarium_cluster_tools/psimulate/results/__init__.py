@@ -6,7 +6,6 @@ Results Management
 """
 from vivarium_cluster_tools.psimulate.results.cli_options import (
     backup_freq,
-    with_make_backups,
     with_no_batch,
     with_no_cleanup,
 )

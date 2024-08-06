@@ -89,7 +89,11 @@ def work_horse(job_parameters: dict) -> Tuple[pd.DataFrame, Dict[str, pd.DataFra
         step_size = pd.Timedelta(days=sim.configuration.time.step_size)
         num_steps = int(math.ceil((end_time - start_time) / step_size))
         logger.info(f"Starting main simulation loop with {num_steps} time steps")
-        run(sim, job_parameters)
+        sim.run(
+            sim,
+            backup_freq=job_parameters.backup_configuration["backup_freq"],
+            backup_path=job_parameters.backup_configuration["backup_dir"],
+        )
         event["results_start"] = time()
         exec_time["main_loop_minutes"] = (
             event["results_start"] - event["simulation_start"]
@@ -219,46 +223,26 @@ def format_and_record_details(
     return finished_results_metadata
 
 
-def run(sim: SimulationContext, job_parameters: JobParameters):
-    backup_freq = job_parameters.backup_configuration["backup_freq"]
-    if backup_freq:
-        backup_dir = job_parameters.backup_configuration["backup_dir"]
-        backup_path = (backup_dir / str(get_current_job().id)).with_suffix(".pkl")
-        time_to_save = time() + backup_freq
-        while not sim.past_stop_time():
-            sim.step()
-            if time() >= time_to_save:
-                sim.write_backup(backup_path)
-                time_to_save = time() + backup_freq
-    else:
-        sim.run()
-
-
 def get_backup(job_parameters: JobParameters) -> Optional[SimulationContext]:
     backup_dir = job_parameters.backup_configuration["backup_dir"]
-    if not backup_dir.exists() or not os.listdir(backup_dir):
-        # No sim backups to load
-        return None
     metadata_path = job_parameters.backup_configuration["backup_metadata_path"]
     try:
         pickle_metadata = pd.read_csv(metadata_path)
-    except FileNotFoundError:
-        return None
-    query_conditions = f"input_draw == {job_parameters.input_draw} & random_seed == {job_parameters.random_seed}"
+        query_conditions = f"input_draw == {job_parameters.input_draw} & random_seed == {job_parameters.random_seed}"
 
-    # Add branch parameter conditions to the query
-    for k, v in collapse_nested_dict(job_parameters.branch_configuration):
-        query_conditions += f' & `{k}` == "{v}"'
+        # Add branch parameter conditions to the query
+        for k, v in collapse_nested_dict(job_parameters.branch_configuration):
+            query_conditions += f' & `{k}` == "{v}"'
 
-    # Use the query method to find rows that match the lookup parameters
-    run_ids = pickle_metadata.query(query_conditions)["job_id"].to_list()
-    if run_ids:
-        filename = Path(backup_dir / run_ids[0]).with_suffix(".pkl")
-        if filename.exists():
+        # Use the query method to find rows that match the lookup parameters
+        run_ids = pickle_metadata.query(query_conditions)["job_id"].to_list()
+        if run_ids:
+            filename = Path(backup_dir / run_ids[0]).with_suffix(".pkl")
             with open(filename, "rb") as f:
                 sim = dill.load(f)
             return sim
-    return None
+    except (OSError, FileNotFoundError):
+        return None
 
 
 def remove_backups(backup_dir: Path) -> None:
