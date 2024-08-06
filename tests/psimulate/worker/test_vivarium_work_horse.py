@@ -56,7 +56,11 @@ def test_setup_sim(mocker):
     "make_dir,has_metadata_file,has_backup",
     [(False, False, False), (True, False, False), (True, True, False), (True, True, True)],
 )
-def test_get_backup(tmp_path, make_dir, has_metadata_file, has_backup) -> None:
+def test_get_backup(mocker, tmp_path, make_dir, has_metadata_file, has_backup) -> None:
+    mocker.patch(
+        "vivarium_cluster_tools.psimulate.worker.vivarium_work_horse.get_current_job",
+        return_value=mocker.Mock(id="job_id_2"),
+    )
     input_draw = 1
     random_seed = 2
     branch_configuration = {"branch_key": "branch_value"}

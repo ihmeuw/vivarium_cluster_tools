@@ -7,6 +7,7 @@ The main process loop for `psimulate` runs.
 
 """
 
+import os
 from collections import defaultdict
 from pathlib import Path
 from time import sleep, time
@@ -169,7 +170,12 @@ def write_backup_metadata(
         lookup_table.append(job_dict)
 
     df = pd.DataFrame(lookup_table)
-    df.to_csv(backup_metadata_path, index=False, mode='a', header=not os.path.exists(output_path))
+    df.to_csv(
+        backup_metadata_path,
+        index=False,
+        mode="a",
+        header=not os.path.exists(backup_metadata_path),
+    )
 
 
 def main(

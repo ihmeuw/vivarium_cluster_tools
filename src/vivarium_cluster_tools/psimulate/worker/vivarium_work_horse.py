@@ -92,7 +92,8 @@ def work_horse(job_parameters: dict) -> Tuple[pd.DataFrame, Dict[str, pd.DataFra
         sim.run(
             sim,
             backup_freq=job_parameters.backup_configuration["backup_freq"],
-            backup_path=job_parameters.backup_configuration["backup_dir"] / str(get_current_job().id)).with_suffix(".pkl"),
+            backup_path=job_parameters.backup_configuration["backup_dir"]
+            / str(get_current_job().id).with_suffix(".pkl"),
         )
         event["results_start"] = time()
         exec_time["main_loop_minutes"] = (
@@ -236,20 +237,24 @@ def get_backup(job_parameters: JobParameters) -> Optional[SimulationContext]:
 
         # Use the query method to find rows that match the lookup parameters
         run_ids = pickle_metadata.query(query_conditions)["job_id"].to_list()
-        possible_pickles = [Path(backup_dir / run_id).with_suffix(".pkl") for run_id in run_ids]
+        possible_pickles = [
+            Path(backup_dir / run_id).with_suffix(".pkl") for run_id in run_ids
+        ]
         existing_pickles = [pickle for pickle in possible_pickles if pickle.exists()]
-        if exisiting_pickles:
+        if existing_pickles:
             last_pickle = max(existing_pickles, key=os.path.getctime)
-            if len(exisiting_pickles) > 1:
-                logger.warning(f"Multiple backups found for {job_parameters}. Using the most recent and deleting the rest.") 
-                for stale_file in exisiting_pickles - {last_pickle}:
+            if len(existing_pickles) > 1:
+                logger.warning(
+                    f"Multiple backups found for {job_parameters}. Using the most recent and deleting the rest."
+                )
+                for stale_file in existing_pickles - {last_pickle}:
                     os.remove(stale_file)
-                with open(last_pickle, "rb") as f:
-                    sim = dill.load(f)
-                current_job_id = get_current_job().id
-                logger.info(f"Renaming backup file {last_pickle} to {current_job_id}.pkl")
-                os.rename(last_pickle, backup_dir / str(current_job_id)).with_suffix(".pkl")
-                return sim
+            with open(last_pickle, "rb") as f:
+                sim = dill.load(f)
+            current_job_id = get_current_job().id
+            logger.info(f"Renaming backup file {last_pickle} to {current_job_id}.pkl")
+            os.rename(last_pickle, (backup_dir / str(current_job_id)).with_suffix(".pkl"))
+            return sim
     except (OSError, FileNotFoundError):
         return None
 
