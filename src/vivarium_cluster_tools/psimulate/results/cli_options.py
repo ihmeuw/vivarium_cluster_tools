@@ -20,7 +20,7 @@ with_no_cleanup = click.option(
 )
 backup_freq = click.option(
     "--backup-freq",
-    default=None,
+    default=30,
     show_default=True,
-    help="Interval in seconds between saving backups.",
+    help="Interval in minutes between saving backups.",
 )
