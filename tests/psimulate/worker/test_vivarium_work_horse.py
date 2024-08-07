@@ -53,7 +53,7 @@ def test_setup_sim(mocker):
 
 
 @pytest.mark.parametrize(
-    "make_dir,has_metadata_file,has_backup, multiple_backups",
+    "make_dir, has_metadata_file, has_backup, multiple_backups",
     [
         (False, False, False, False),
         (True, False, False, False),
