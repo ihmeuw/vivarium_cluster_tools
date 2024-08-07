@@ -5,7 +5,7 @@ Shared CLI tools
 
 """
 from pathlib import Path
-from typing import Callable, List
+from typing import Callable, List, Optional
 
 import click
 
@@ -47,15 +47,16 @@ class MinutesOrNone(click.ParamType):
 
     name = "minutesornone"
 
-    def convert(self, value, param, ctx):
+    def convert(self, value: str, param: str, ctx: click.Context) -> Optional[float]:
+        """Converts the value to float seconds from minutes. 
+        If conversion fails, calls the `fail` method from `click.ParamType`.
+        """
         try:
             if value.lower() == "none":
                 return None
             # Convert minutes to seconds
             return float(value * 60)
         except ValueError:
-            # Raise error if conversion to int fails and value is not 'none'
-            click.ParamType.fail(f"{value!r} is not a valid integer or 'none'", param, ctx)
-
+            click.ParamType.fail(f"{value!r} is not a valid float or 'none'", param, ctx)
 
 MINUTES_OR_NONE = MinutesOrNone()
