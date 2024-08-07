@@ -44,7 +44,7 @@ def pass_shared_options(shared_options: List[Decorator]) -> Decorator:
 
 class MinutesOrNone(click.ParamType):
     """Click param type to allow user to set time in minutes or None."""
-
+    name = "minutesornone"
     def convert(self, value, param, ctx):
         try:
             if value.lower() == "none":
@@ -54,3 +54,5 @@ class MinutesOrNone(click.ParamType):
         except ValueError:
             # Raise error if conversion to int fails and value is not 'none'
             self.fail(f"{value!r} is not a valid integer or 'none'", param, ctx)
+
+MINUTES_OR_NONE = MinutesOrNone()
