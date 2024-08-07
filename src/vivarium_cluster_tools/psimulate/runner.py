@@ -8,6 +8,7 @@ The main process loop for `psimulate` runs.
 """
 
 import os
+import shutil
 from collections import defaultdict
 from pathlib import Path
 from time import sleep, time
@@ -350,7 +351,7 @@ def main(
         )
     else:
         logger.info(f"Removing sim backup directory {output_paths.backup_dir}")
-        os.remove(output_paths.backup_dir)
+        shutil.rmtree(output_paths.backup_dir)
 
     logger.info(
         f"{status['successful'] - num_jobs_completed} of {status['total']} jobs "
