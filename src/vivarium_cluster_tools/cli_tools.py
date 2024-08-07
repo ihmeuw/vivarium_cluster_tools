@@ -40,3 +40,17 @@ def pass_shared_options(shared_options: List[Decorator]) -> Decorator:
         return func
 
     return _pass_shared_options
+
+
+class MinutesOrNone(click.ParamType):
+    name = "minutesornone"
+
+    def convert(self, value, param, ctx):
+        try:
+            if value.lower() == "none":
+                return None
+            # Convert minutes to seconds
+            return float(value * 60)
+        except ValueError:
+            # Raise error if conversion to int fails and value is not 'none'
+            self.fail(f"{value!r} is not a valid integer or 'none'", param, ctx)
