@@ -55,7 +55,7 @@ class MinutesOrNone(click.ParamType):
             return float(value * 60)
         except ValueError:
             # Raise error if conversion to int fails and value is not 'none'
-            self.fail(f"{value!r} is not a valid integer or 'none'", param, ctx)
+            click.ParamType.fail(f"{value!r} is not a valid integer or 'none'", param, ctx)
 
 
 MINUTES_OR_NONE = MinutesOrNone()
