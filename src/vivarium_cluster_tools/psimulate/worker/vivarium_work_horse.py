@@ -11,7 +11,7 @@ import json
 import math
 import os
 from pathlib import Path
-from time import time, sleep
+from time import sleep, time
 from traceback import format_exc
 from typing import Dict, Optional, Tuple, Union
 
@@ -89,11 +89,14 @@ def work_horse(job_parameters: dict) -> Tuple[pd.DataFrame, Dict[str, pd.DataFra
         step_size = pd.Timedelta(days=sim.configuration.time.step_size)
         num_steps = int(math.ceil((end_time - start_time) / step_size))
         logger.info(f"Starting main simulation loop with {num_steps} time steps")
-        backup_path = (job_parameters.backup_configuration["backup_dir"] / str(get_current_job().id)).with_suffix(".pkl")
-        logger.info(f"backup path: {backup_path}")
+        backup_path = (
+            job_parameters.backup_configuration["backup_dir"] / str(get_current_job().id)
+        ).with_suffix(".pkl")
         sim.run(
             backup_freq=job_parameters.backup_configuration["backup_freq"],
-            backup_path=(job_parameters.backup_configuration["backup_dir"] / str(get_current_job().id)).with_suffix(".pkl"),
+            backup_path=(
+                job_parameters.backup_configuration["backup_dir"] / str(get_current_job().id)
+            ).with_suffix(".pkl"),
         )
         event["results_start"] = time()
         exec_time["main_loop_minutes"] = (
