@@ -11,7 +11,7 @@ import json
 import math
 import os
 from pathlib import Path
-from time import time, sleep
+from time import time
 from traceback import format_exc
 from typing import Dict, Optional, Tuple, Union
 
@@ -89,11 +89,11 @@ def work_horse(job_parameters: dict) -> Tuple[pd.DataFrame, Dict[str, pd.DataFra
         step_size = pd.Timedelta(days=sim.configuration.time.step_size)
         num_steps = int(math.ceil((end_time - start_time) / step_size))
         logger.info(f"Starting main simulation loop with {num_steps} time steps")
-        backup_path = (job_parameters.backup_configuration["backup_dir"] / str(get_current_job().id)).with_suffix(".pkl")
-        logger.info(f"backup path: {backup_path}")
         sim.run(
+            sim,
             backup_freq=job_parameters.backup_configuration["backup_freq"],
-            backup_path=(job_parameters.backup_configuration["backup_dir"] / str(get_current_job().id)).with_suffix(".pkl"),
+            backup_path=job_parameters.backup_configuration["backup_dir"]
+            / str(get_current_job().id).with_suffix(".pkl"),
         )
         event["results_start"] = time()
         exec_time["main_loop_minutes"] = (
@@ -253,12 +253,9 @@ def get_backup(job_parameters: JobParameters) -> Optional[SimulationContext]:
                 sim = dill.load(f)
             current_job_id = get_current_job().id
             logger.info(f"Renaming backup file {last_pickle} to {current_job_id}.pkl")
-            if job_parameters.backup_configuration["backup_freq"] is not None:
-                # Sleep to prevent FS latency when loading the pickle
-                sleep(5)
-                os.rename(last_pickle, (backup_dir / str(current_job_id)).with_suffix(".pkl"))
+            os.rename(last_pickle, (backup_dir / str(current_job_id)).with_suffix(".pkl"))
             return sim
-    except (OSError, FileNotFoundError, EOFError):
+    except (OSError, FileNotFoundError):
         return None
 
 

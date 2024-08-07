@@ -80,7 +80,9 @@ def build_job_list(
                 results_path=str(output_root),
                 backup_configuration={
                     "backup_dir": backup_dir,
-                    "backup_freq": backup_freq,
+                    "backup_freq": backup_freq * 60
+                    if backup_freq is not None
+                    else backup_freq,
                     "backup_metadata_path": backup_metadata_path,
                 },
                 extras={},
