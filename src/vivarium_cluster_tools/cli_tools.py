@@ -55,7 +55,7 @@ class MinutesOrNone(click.ParamType):
             if value.lower() == "none":
                 return None
             # Convert minutes to seconds
-            return float(value * 60)
+            return float(value) * 60.0
         except ValueError:
             click.ParamType.fail(f"{value!r} is not a valid float or 'none'", param, ctx)
 
