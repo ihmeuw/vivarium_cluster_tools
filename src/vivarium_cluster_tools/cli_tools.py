@@ -43,7 +43,7 @@ def pass_shared_options(shared_options: List[Decorator]) -> Decorator:
 
 
 class MinutesOrNone(click.ParamType):
-    name = "minutesornone"
+    """Click param type to allow user to set time in minutes or None."""
 
     def convert(self, value, param, ctx):
         try:
