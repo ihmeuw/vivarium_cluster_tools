@@ -247,7 +247,7 @@ def get_backup(job_parameters: JobParameters) -> Optional[SimulationContext]:
                 logger.warning(
                     f"Multiple backups found for {job_parameters}. Using the most recent and deleting the rest."
                 )
-                for stale_file in existing_pickles - {last_pickle}:
+                for stale_file in set(existing_pickles) - {last_pickle}:
                     os.remove(stale_file)
             with open(last_pickle, "rb") as f:
                 sim = dill.load(f)

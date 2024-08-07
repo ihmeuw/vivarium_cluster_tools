@@ -32,3 +32,24 @@ def test_write_backup_metadata(tmp_path):
         {"input_draw": [1337], "random_seed": [42], "job_id": ["job"], "category.detail": [9]}
     )
     assert_frame_equal(metadata, expected_df)
+
+    # Check that we append to the existing metadata
+    # upon second execution
+    append_parameters_by_job = {
+        "job2": {
+            "input_draw": 1338,
+            "random_seed": 43,
+            "branch_configuration": {"category": {"detail": 10}},
+        }
+    }
+    write_backup_metadata(metadata_path, append_parameters_by_job)
+    metadata = pd.read_csv(metadata_path)
+    expected_df = pd.DataFrame(
+        {
+            "input_draw": [1337, 1338],
+            "random_seed": [42, 43],
+            "job_id": ["job", "job2"],
+            "category.detail": [9, 10],
+        }
+    )
+    assert_frame_equal(metadata, expected_df)

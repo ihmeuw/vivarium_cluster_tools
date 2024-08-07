@@ -53,10 +53,18 @@ def test_setup_sim(mocker):
 
 
 @pytest.mark.parametrize(
-    "make_dir,has_metadata_file,has_backup",
-    [(False, False, False), (True, False, False), (True, True, False), (True, True, True)],
+    "make_dir,has_metadata_file,has_backup, multiple_backups",
+    [
+        (False, False, False, False),
+        (True, False, False, False),
+        (True, True, False, False),
+        (True, True, True, False),
+        (True, True, True, True),
+    ],
 )
-def test_get_backup(mocker, tmp_path, make_dir, has_metadata_file, has_backup) -> None:
+def test_get_backup(
+    mocker, tmp_path, make_dir, has_metadata_file, has_backup, multiple_backups
+) -> None:
     mocker.patch(
         "vivarium_cluster_tools.psimulate.worker.vivarium_work_horse.get_current_job",
         return_value=mocker.Mock(id="job_id_2"),
@@ -89,15 +97,31 @@ def test_get_backup(mocker, tmp_path, make_dir, has_metadata_file, has_backup) -
                     "branch_key": ["branch_value"],
                 }
             )
+            if multiple_backups:
+                new_row = pd.DataFrame(
+                    {
+                        "input_draw": [input_draw],
+                        "random_seed": [random_seed],
+                        "job_id": "stale_job",
+                        "branch_key": ["branch_value"],
+                    }
+                )
+                metadata = pd.concat([metadata, new_row])
             metadata.to_csv(tmp_path / "backups" / "backup_metadata.csv", index=False)
 
     if make_dir and has_metadata_file and has_backup:
+        if multiple_backups:
+            stale_pickle_path = tmp_path / "backups" / "stale_job.pkl"
+            stale_pickle = [9, 8, 7, 6, 5]
+            with open(stale_pickle_path, "wb") as f:
+                dill.dump(stale_pickle, f)
         pickle_path = tmp_path / "backups" / f"{job_id}.pkl"
         pickle = [1, 2, 3, 4, 5]
         with open(pickle_path, "wb") as f:
             dill.dump(pickle, f)
         backup = get_backup(job_parameters)
         assert backup == pickle
+        assert not (tmp_path / "backups" / "stale_job.pkl").exists()
 
     else:
         backup = get_backup(job_parameters)
