@@ -62,17 +62,17 @@ def test_setup_sim(mocker):
         (True, True, True, True),
     ],
 )
-def test_get_backup(
+def test_get_backup_null_result(
     mocker, tmp_path, make_dir, has_metadata_file, has_backup, multiple_backups
 ) -> None:
     mocker.patch(
         "vivarium_cluster_tools.psimulate.worker.vivarium_work_horse.get_current_job",
-        return_value=mocker.Mock(id="job_id_2"),
+        return_value=mocker.Mock(id="current_job"),
     )
     input_draw = 1
     random_seed = 2
     branch_configuration = {"branch_key": "branch_value"}
-    job_id = "job_id"
+    job_id = "prev_job"
     job_parameters = JobParameters(
         model_specification=None,
         branch_configuration=branch_configuration,
@@ -122,6 +122,8 @@ def test_get_backup(
         backup = get_backup(job_parameters)
         assert backup == pickle
         assert not (tmp_path / "backups" / "stale_job.pkl").exists()
+        assert not (tmp_path / "backups" / "prev_job.pkl").exists()
+        assert (tmp_path / "backups" / "current_job.pkl").exists()
 
     else:
         backup = get_backup(job_parameters)
