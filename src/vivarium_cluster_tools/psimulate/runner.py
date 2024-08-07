@@ -348,6 +348,9 @@ def main(
             f"*** NOTE: There {'was' if status['failed'] == 1 else 'were'} "
             f"{status['failed']} failed job{'' if status['failed'] == 1 else 's'}. ***"
         )
+    else:
+        logger.info(f"Removing sim backup directory {output_paths.backup_dir}")
+        os.remove(output_paths.backup_dir)
 
     logger.info(
         f"{status['successful'] - num_jobs_completed} of {status['total']} jobs "
