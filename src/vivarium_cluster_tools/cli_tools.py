@@ -48,7 +48,7 @@ class MinutesOrNone(click.ParamType):
     name = "minutesornone"
 
     def convert(self, value: str, param: str, ctx: click.Context) -> Optional[float]:
-        """Converts the value to float seconds from minutes. 
+        """Converts the value to float seconds from minutes.
         If conversion fails, calls the `fail` method from `click.ParamType`.
         """
         try:
@@ -58,5 +58,6 @@ class MinutesOrNone(click.ParamType):
             return float(value * 60)
         except ValueError:
             click.ParamType.fail(f"{value!r} is not a valid float or 'none'", param, ctx)
+
 
 MINUTES_OR_NONE = MinutesOrNone()
