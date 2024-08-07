@@ -80,6 +80,7 @@ def test_get_backup_null_result(
         random_seed=random_seed,
         results_path="~/tmp",
         backup_configuration={
+            "backup_freq": 300,
             "backup_dir": tmp_path / "backups",
             "backup_metadata_path": tmp_path / "backups" / "backup_metadata.csv",
         },
