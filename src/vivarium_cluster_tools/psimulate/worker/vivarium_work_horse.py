@@ -94,9 +94,7 @@ def work_horse(job_parameters: dict) -> Tuple[pd.DataFrame, Dict[str, pd.DataFra
         ).with_suffix(".pkl")
         sim.run(
             backup_freq=job_parameters.backup_configuration["backup_freq"],
-            backup_path=(
-                job_parameters.backup_configuration["backup_dir"] / str(get_current_job().id)
-            ).with_suffix(".pkl"),
+            backup_path=backup_path,
         )
         event["results_start"] = time()
         exec_time["main_loop_minutes"] = (
@@ -117,7 +115,7 @@ def work_horse(job_parameters: dict) -> Tuple[pd.DataFrame, Dict[str, pd.DataFra
         do_sim_epilogue(start_snapshot, end_snapshot, event, exec_time, job_parameters)
         results = sim.get_results()  # Dict[measure, results dataframe]
         finished_results_metadata = format_and_record_details(job_parameters, results)
-        remove_backups(job_parameters.backup_configuration["backup_dir"])
+        remove_backups(backup_path)
 
         return finished_results_metadata, results
 
@@ -265,8 +263,7 @@ def get_backup(job_parameters: JobParameters) -> Optional[SimulationContext]:
         return None
 
 
-def remove_backups(backup_dir: Path) -> None:
-    backup_path = (backup_dir / str(get_current_job().id)).with_suffix(".pkl")
+def remove_backups(backup_path: Path) -> None:
     try:
         os.remove(backup_path)
     except FileNotFoundError:

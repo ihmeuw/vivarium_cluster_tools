@@ -131,14 +131,12 @@ def test_get_backup_null_result(
         assert not backup
 
 
-def test_remove_backups(mocker, tmp_path) -> None:
-    mocker.patch(
-        "vivarium_cluster_tools.psimulate.worker.vivarium_work_horse.get_current_job",
-        return_value=mocker.Mock(id="job_id"),
-    )
+def test_remove_backups(tmp_path) -> None:
+    # Ensure deleting non-existent file does not raise an error
+    remove_backups(tmp_path / "job_id.pkl")
     # touch a file
     (tmp_path / "job_id.pkl").touch()
     assert (tmp_path / "job_id.pkl").exists()
     # remove the file
-    remove_backups(tmp_path)
+    remove_backups(tmp_path / "job_id.pkl")
     assert not (tmp_path / "job_id.pkl").exists()
