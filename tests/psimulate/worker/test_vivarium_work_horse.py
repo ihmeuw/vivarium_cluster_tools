@@ -62,7 +62,7 @@ def test_setup_sim(mocker):
         (True, True, True, True),
     ],
 )
-def test_get_backup_null_result(
+def test_get_backup(
     mocker, tmp_path, make_dir, has_metadata_file, has_backup, multiple_backups
 ) -> None:
     mocker.patch(
