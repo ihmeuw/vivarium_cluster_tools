@@ -260,7 +260,9 @@ def get_backup(job_parameters: JobParameters) -> Optional[SimulationContext]:
                 os.rename(last_pickle, (backup_dir / str(current_job_id)).with_suffix(".pkl"))
             return sim
     except (OSError, FileNotFoundError):
-        logger.info("Missing backup or backup directory. Restarting simulation from beginning.")
+        logger.info(
+            "Missing backup or backup directory. Restarting simulation from beginning."
+        )
         return None
     except Exception as e:
         logger.warning(f"Load from backup failed with Exception: {e}")
