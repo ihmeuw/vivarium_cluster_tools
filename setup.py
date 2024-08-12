@@ -29,6 +29,7 @@ if __name__ == "__main__":
         "requests",
         "layered_config_tree>=1.0.1",
         "pyarrow",
+        
     ]
 
     setup_requires = ["setuptools_scm"]
