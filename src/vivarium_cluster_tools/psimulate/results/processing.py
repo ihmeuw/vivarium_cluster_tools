@@ -93,9 +93,11 @@ def _concat_results(
 
 
 def _concat_preserve_types(df_list: List[pd.DataFrame]) -> pd.DataFrame:
-    """Concatenate datasets and preserve all ``numpy`` dtypes (but not any
-    pandas-specific dtypes, e.g. categories become objects). We assume that all
-    dataframes in the list have identical columns and dtypes to the first.
+    """Concatenate datasets and preserve all ``numpy`` dtypes.
+
+    This does not preserve any pandas-specific dtypes, e.g. categories become
+    objects). We assume that all dataframes in the list have identical columns
+    and dtypes to the first.
     """
     dtype_mapping = {col: df_list[0][col].dtype for col in df_list[0].columns}
     for df in df_list:
@@ -106,8 +108,11 @@ def _concat_preserve_types(df_list: List[pd.DataFrame]) -> pd.DataFrame:
 
 @vct_utils.backoff_and_retry(backoff_seconds=30, num_retries=3, log_function=logger.warning)
 def _safe_write(df: pd.DataFrame, output_path: Path) -> None:
-    # Writing to some file types over and over balloons the file size so
-    # write to new file and move it over to avoid
+    """Write a dataframe to disk, retrying on failure.
+
+    Writing to some file types over and over balloons the file size so instead we
+    write to a new file and move it over.
+    """
     temp_output_path = output_path.with_name(
         output_path.stem + "_update" + output_path.suffix
     )
