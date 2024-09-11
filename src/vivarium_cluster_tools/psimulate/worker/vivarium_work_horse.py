@@ -198,7 +198,7 @@ def get_backup(job_parameters: JobParameters) -> Optional[SimulationContext]:
         format_val = lambda v: v if type(v) in [int, float] else f'"{v}"'
         query_conditions = " & ".join(
             [
-                f'`{k}` == {format_val(v)}'
+                f"`{k}` == {format_val(v)}"
                 for k, v in collapse_nested_dict(job_parameters.job_specific)
             ]
         )
