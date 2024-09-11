@@ -39,9 +39,14 @@ class JobParameters(NamedTuple):
     def job_specific(self) -> dict:
         """Parameters that vary by job in a psimulate run."""
         return {
-            "input_draw": self.input_draw,
-            "random_seed": self.random_seed,
             **self.branch_configuration,
+            "randomness": {
+                "random_seed": job_parameters.random_seed,
+                "additional_seed": job_parameters.input_draw,
+            },
+            "input_data": {
+                "input_draw_number": job_parameters.input_draw,
+            },
         }
 
     def to_dict(self) -> dict:

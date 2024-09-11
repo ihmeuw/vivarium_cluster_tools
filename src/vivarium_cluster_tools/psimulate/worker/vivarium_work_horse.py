@@ -42,21 +42,20 @@ class ParallelSimulationContext(SimulationContext):
         pass
 
 
-def work_horse(raw_job_parameters_dict: dict) -> Tuple[pd.DataFrame, Dict[str, pd.DataFrame]]:
+def work_horse(job_parameters: dict) -> Tuple[pd.DataFrame, Dict[str, pd.DataFrame]]:
     node = f"{ENV_VARIABLES.HOSTNAME.value}"
     job = f"{ENV_VARIABLES.JOB_ID.value}:{ENV_VARIABLES.TASK_ID.value}"
 
-    raw_job_parameters = JobParameters(**raw_job_parameters_dict)
+    job_parameters = JobParameters(**job_parameters)
 
     logger.info(f"Launching new job {job} on {node}")
-    logger.info(f"Starting job: {raw_job_parameters}")
+    logger.info(f"Starting job: {job_parameters}")
 
     try:
         start_snapshot = CounterSnapshot()
         event = {"start": time()}  # timestamps of application events
         logger.info("Beginning simulation setup.")
-        backup = get_backup(raw_job_parameters)
-        job_parameters = add_manager_configurations(raw_job_parameters)
+        backup = get_backup(job_parameters)
         if backup:
             logger.info(f"Restarting simulation from saved backup")
             sim = backup
@@ -71,7 +70,7 @@ def work_horse(raw_job_parameters_dict: dict) -> Tuple[pd.DataFrame, Dict[str, p
         else:
             sim = ParallelSimulationContext(
                 job_parameters.model_specification,
-                configuration=job_parameters.branch_configuration,
+                configuration=job_parameters.job_specific,
             )
             logger.info("Simulation configuration:")
             logger.info(str(sim.configuration))
@@ -138,37 +137,6 @@ def work_horse(raw_job_parameters_dict: dict) -> Tuple[pd.DataFrame, Dict[str, p
         logger.info(f"Exiting job: {job_parameters}")
 
 
-def add_manager_configurations(job_parameters: JobParameters) -> JobParameters:
-    """Set up a simulation context with the branch/job-specific configuration parameters."""
-    configuration = LayeredConfigTree(
-        job_parameters.branch_configuration, layers=["branch_base", "branch_expanded"]
-    )
-
-    configuration.update(
-        parameter_update_format(job_parameters),
-        layer="branch_expanded",
-        source="branch_config",
-    )
-    updated_job_parameters = deepcopy(job_parameters)
-    updated_job_parameters.branch_configuration.update(configuration.to_dict())
-
-    return updated_job_parameters
-
-
-def parameter_update_format(
-    job_parameters: JobParameters,
-) -> Dict[str, Dict[str, Union[str, int, dict]]]:
-    return {
-        "randomness": {
-            "random_seed": job_parameters.random_seed,
-            "additional_seed": job_parameters.input_draw,
-        },
-        "input_data": {
-            "input_draw_number": job_parameters.input_draw,
-        },
-    }
-
-
 def do_sim_epilogue(
     start: CounterSnapshot,
     end: CounterSnapshot,
@@ -210,7 +178,7 @@ def format_and_record_details(
 ) -> pd.DataFrame:
     """Add finished simulation details to results and metadata."""
     finished_results_metadata = pd.DataFrame(index=[0])
-    for key, val in collapse_nested_dict(job_parameters.branch_configuration):
+    for key, val in collapse_nested_dict(job_parameters.job_specific):
         # Exclude the run_configuration values from branch_configuration
         # since they are duplicates. Also do not include the additional_seed
         # value since it is identical to input_draw
