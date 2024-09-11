@@ -70,7 +70,7 @@ def work_horse(job_parameters: dict) -> Tuple[pd.DataFrame, Dict[str, pd.DataFra
         else:
             sim = ParallelSimulationContext(
                 job_parameters.model_specification,
-                configuration=job_parameters.job_specific,
+                configuration=job_parameters.sim_config,
             )
             logger.info("Simulation configuration:")
             logger.info(str(sim.configuration))
@@ -161,6 +161,7 @@ def do_sim_epilogue(
                 "host": ENV_VARIABLES.HOSTNAME.value,
                 "job_number": ENV_VARIABLES.JOB_ID.value,
                 "task_number": ENV_VARIABLES.TASK_ID.value,
+                "run_id": get_current_job().id,
                 "draw": parameters.input_draw,
                 "seed": parameters.random_seed,
                 "scenario": parameters.branch_configuration,
@@ -179,16 +180,12 @@ def format_and_record_details(
     """Add finished simulation details to results and metadata."""
     finished_results_metadata = pd.DataFrame(index=[0])
     for key, val in collapse_nested_dict(job_parameters.job_specific):
-        # Exclude the run_configuration values from branch_configuration
-        # since they are duplicates. Also do not include the additional_seed
-        # value since it is identical to input_draw
+        # Do not include the additional_seed value since it is identical to input_draw
         col_name = key.split(".")[-1]
-        col_name = "input_draw" if col_name == "input_draw_number" else col_name
-        if not (key.startswith("run_configuration") or "additional_seed" in key):
-            for df in results.values():
-                # insert the new columns second from the right and use the
-                # last part of the key as the column name
-                df.insert(df.shape[1] - 1, col_name, val)
+        for df in results.values():
+            # insert the new columns second from the right and use the
+            # last part of the key as the column name
+            df.insert(df.shape[1] - 1, col_name, val)
         finished_results_metadata[key] = val
     return finished_results_metadata
 
@@ -198,11 +195,12 @@ def get_backup(job_parameters: JobParameters) -> Optional[SimulationContext]:
     metadata_path = job_parameters.backup_configuration["backup_metadata_path"]
     try:
         pickle_metadata = pd.read_csv(metadata_path)
-        query_conditions = f"input_draw == {job_parameters.input_draw} & random_seed == {job_parameters.random_seed}"
-
-        # Add branch parameter conditions to the query
-        for k, v in collapse_nested_dict(job_parameters.branch_configuration):
-            query_conditions += f' & `{k}` == "{v}"'
+        query_conditions = " & ".join(
+            [
+                f'`{k}` == "{v}"'
+                for k, v in collapse_nested_dict(job_parameters.branch_configuration)
+            ]
+        )
 
         # Use the query method to find rows that match the lookup parameters
         run_ids = pickle_metadata.query(query_conditions)["job_id"].to_list()
