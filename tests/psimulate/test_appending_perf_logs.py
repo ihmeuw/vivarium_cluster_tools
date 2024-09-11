@@ -77,7 +77,10 @@ def get_output_paths_from_output_directory(output_directory):
         model_specification=output_directory / "model_specification.yaml",
         keyspace=output_directory / "keyspace.yaml",
         branches=output_directory / "branches.yaml",
-        results=output_directory / "output.hdf",
+        finished_sim_metadata=output_directory / "finished_sim_metadata.csv",
+        results_dir=output_directory / "results",
+        backup_dir=output_directory / "sim_backups",
+        backup_metadata_path=output_directory / "sim_backups" / "backup_metadata.csv",
     )
 
     return output_paths

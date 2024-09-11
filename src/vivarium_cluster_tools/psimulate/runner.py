@@ -6,13 +6,17 @@ psimulate Runner
 The main process loop for `psimulate` runs.
 
 """
+
+import os
+import shutil
 from collections import defaultdict
 from pathlib import Path
 from time import sleep, time
-from typing import Optional
+from typing import Dict, Optional, Union
 
 import pandas as pd
 from loguru import logger
+from vivarium.framework.utilities import collapse_nested_dict
 
 from vivarium_cluster_tools import logs
 from vivarium_cluster_tools.psimulate import (
@@ -24,9 +28,9 @@ from vivarium_cluster_tools.psimulate import (
     paths,
     pip_env,
     redis_dbs,
-    results,
-    worker,
 )
+from vivarium_cluster_tools.psimulate import results as psim_results
+from vivarium_cluster_tools.psimulate import worker
 from vivarium_cluster_tools.psimulate.paths import OutputPaths
 from vivarium_cluster_tools.psimulate.performance_logger import (
     append_perf_data_to_central_logs,
@@ -36,26 +40,36 @@ from vivarium_cluster_tools.vipin.perf_report import report_performance
 
 def process_job_results(
     registry_manager: redis_dbs.RegistryManager,
-    existing_outputs: pd.DataFrame,
-    output_directory: Path,
+    existing_metadata: pd.DataFrame,
+    existing_results: Dict[str, pd.DataFrame],
+    output_paths: OutputPaths,
     no_batch: bool,
-) -> defaultdict:
-    written_results = existing_outputs
+) -> Dict[str, Union[int, float]]:
+    unwritten_metadata = []
     unwritten_results = []
     batch_size = 0 if no_batch else 200
-    status = defaultdict(int)
+    status: Dict[str, Union[int, float]] = defaultdict(int)
 
     logger.info("Entering main processing loop.")
     start_time = time()
     try:
         while registry_manager.jobs_to_finish:
             sleep(5)
-            unwritten_results.extend(registry_manager.get_results())
+            for metadata, results in registry_manager.get_results():
+                unwritten_metadata.append(metadata)
+                unwritten_results.append(results)
 
             if len(unwritten_results) > batch_size:
-                written_results, unwritten_results = results.write_results_batch(
-                    output_directory,
-                    written_results,
+                (
+                    existing_metadata,
+                    unwritten_metadata,
+                    existing_results,
+                    unwritten_results,
+                ) = psim_results.write_results_batch(
+                    output_paths,
+                    existing_metadata,
+                    existing_results,
+                    unwritten_metadata,
                     unwritten_results,
                     batch_size,
                 )
@@ -66,42 +80,62 @@ def process_job_results(
     finally:
         batch_size = 500
         while unwritten_results:
-            written_results, unwritten_results = results.write_results_batch(
-                output_directory,
-                written_results,
+            (
+                existing_metadata,
+                unwritten_metadata,
+                existing_results,
+                unwritten_results,
+            ) = psim_results.write_results_batch(
+                output_paths,
+                existing_metadata,
+                existing_results,
+                unwritten_metadata,
                 unwritten_results,
                 batch_size=batch_size,
             )
             logger.info(f"Unwritten results: {len(unwritten_results)}")
             logger.info(f"Elapsed time: {(time() - start_time) / 60:.1f} minutes.")
-        return status
+
+    return status
 
 
-def load_existing_outputs(result_path: Path, restart: bool) -> pd.DataFrame:
+def load_existing_output_metadata(metadata_path: Path, restart: bool) -> pd.DataFrame:
     try:
-        existing_outputs = pd.read_hdf(result_path)
+        existing_output_metadata = pd.read_csv(metadata_path)
     except FileNotFoundError:
-        existing_outputs = pd.DataFrame()
+        existing_output_metadata = pd.DataFrame()
     assert (
-        existing_outputs.empty or restart
+        existing_output_metadata.empty or restart
     ), "How do you have existing outputs on an initial run?"
-    return existing_outputs
+    return existing_output_metadata
+
+
+def load_existing_results(result_path: Path, restart: bool) -> Dict[str, pd.DataFrame]:
+    filepaths = result_path.glob("*.parquet")
+    results = {filepath.stem: pd.read_parquet(filepath) for filepath in filepaths}
+    if results and not restart:
+        raise RuntimeError(
+            f"This is an initial run but results aready exist at {result_path}"
+        )
+    return results
 
 
 def report_initial_status(
-    num_jobs_completed: int, existing_outputs: pd.DataFrame, keyspace: branches.Keyspace
+    num_jobs_completed: int, finished_sim_metadata: pd.DataFrame, total_num_jobs: int
 ) -> None:
     if num_jobs_completed:
         logger.info(
-            f"{num_jobs_completed} of {len(keyspace)} jobs completed in previous run."
+            f"{num_jobs_completed} of {total_num_jobs} jobs completed in previous run."
         )
-    if num_jobs_completed != len(existing_outputs):
-        extra_jobs_completed = num_jobs_completed - len(existing_outputs)
-        logger.warning(
+    extra_jobs_completed = num_jobs_completed - len(finished_sim_metadata)
+    # NOTE: there can never be more rows in `finished_sim_metadata` than `num_jobs_completed`
+    # because `num_jobs_completed` was calculated by comparing the keyspace to `finished_sim_metadata`.
+    if extra_jobs_completed:
+        raise RuntimeError(
             f"There are {extra_jobs_completed} jobs from the previous run which would not have been created "
-            "with the configuration saved with the run. That either means that code "
+            "with the configuration saved with that run. That either means that code "
             "has changed between then and now or that the outputs or configuration data "
-            "have been modified. This may represent a serious error so give it some thought."
+            "have been modified."
         )
 
 
@@ -121,6 +155,30 @@ def try_run_vipin(output_paths: OutputPaths) -> None:
         logger.warning(f"Appending performance data to central logs failed with: {e}")
 
 
+def write_backup_metadata(
+    backup_metadata_path: Path, parameters_by_job: dict[str, dict]
+) -> None:
+    lookup_table = []
+    for job_id, params in parameters_by_job.items():
+        job_dict = {
+            "input_draw": params["input_draw"],
+            "random_seed": params["random_seed"],
+            "job_id": job_id,
+        }
+        branch_config = collapse_nested_dict(params["branch_configuration"])
+        for k, v in branch_config:
+            job_dict[k] = v
+        lookup_table.append(job_dict)
+
+    df = pd.DataFrame(lookup_table)
+    df.to_csv(
+        backup_metadata_path,
+        index=False,
+        mode="a",
+        header=not os.path.exists(backup_metadata_path),
+    )
+
+
 def main(
     command: str,
     input_paths: paths.InputPaths,
@@ -128,6 +186,7 @@ def main(
     max_workers: Optional[int],
     redis_processes: int,
     no_batch: bool,
+    backup_freq: int,
     extra_args: dict,
 ) -> None:
     logger.info("Validating cluster environment.")
@@ -182,8 +241,8 @@ def main(
 
     logger.info("Loading existing outputs if present.")
     # Load in any existing partial outputs if present.
-    existing_outputs = load_existing_outputs(
-        result_path=output_paths.results,
+    finished_sim_metadata = load_existing_output_metadata(
+        metadata_path=output_paths.finished_sim_metadata,
         restart=command in [COMMANDS.restart, COMMANDS.expand],
     )
 
@@ -195,11 +254,15 @@ def main(
         model_specification_path=output_paths.model_specification,
         output_root=output_paths.root,
         keyspace=keyspace,
-        existing_outputs=existing_outputs,
+        finished_sim_metadata=finished_sim_metadata,
+        backup_freq=backup_freq,
+        backup_dir=output_paths.backup_dir,
+        backup_metadata_path=output_paths.backup_metadata_path,
         extras=extra_args,
     )
     # Let the user know if something is fishy at this point.
-    report_initial_status(num_jobs_completed, existing_outputs, keyspace)
+    total_num_jobs = len(keyspace)
+    report_initial_status(num_jobs_completed, finished_sim_metadata, total_num_jobs)
     if len(job_parameters) == 0:
         logger.info("No jobs to run, exiting.")
         return
@@ -225,6 +288,12 @@ def main(
     registry_manager.enqueue(
         jobs=job_parameters, workhorse_import_path=worker.WORK_HORSE_PATHS[command]
     )
+
+    if backup_freq is not None:
+        write_backup_metadata(
+            backup_metadata_path=output_paths.backup_metadata_path,
+            parameters_by_job=registry_manager.get_params_by_job(),
+        )
     # Generate a worker template that chooses a redis DB at random to connect to.
     # This should (approximately) evenly distribute the workers over the work.
     redis_urls = [f"redis://{hostname}:{port}" for hostname, port in redis_ports]
@@ -259,10 +328,15 @@ def main(
     # Enter the main monitoring and processing loop, which will check on
     # all the queues periodically, report status updates, and gather
     # and write results when they are available.
+    existing_results = load_existing_results(
+        result_path=output_paths.results_dir,
+        restart=command in [COMMANDS.restart, COMMANDS.expand],
+    )
     status = process_job_results(
         registry_manager=registry_manager,
-        existing_outputs=existing_outputs,
-        output_directory=output_paths.root,
+        existing_metadata=finished_sim_metadata,
+        existing_results=existing_results,
+        output_paths=output_paths,
         no_batch=no_batch,
     )
 
@@ -275,8 +349,13 @@ def main(
             f"*** NOTE: There {'was' if status['failed'] == 1 else 'were'} "
             f"{status['failed']} failed job{'' if status['failed'] == 1 else 's'}. ***"
         )
+    else:
+        logger.info(f"Removing sim backup directory {output_paths.backup_dir}")
+        shutil.rmtree(output_paths.backup_dir)
 
     logger.info(
-        f"{status['finished']} of {status['total']} jobs completed successfully. "
-        f"Results written to: {str(output_paths.root)}"
+        f"{status['successful'] - num_jobs_completed} of {status['total']} jobs "
+        f"completed successfully from this {command}.\n"
+        f"({status['successful']} of {total_num_jobs} total jobs completed successfully overall)\n"
+        f"Results written to: {str(output_paths.results_dir)}"
     )

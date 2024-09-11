@@ -6,10 +6,11 @@ Redis Queue and Registry Management
 Unified interface to multiple Redis Databases.
 
 """
-import math
+
 import random
 import time
 from collections import defaultdict
+from itertools import chain
 from typing import Any, Dict, Iterator, List, Tuple, Union
 
 import redis
@@ -74,7 +75,7 @@ class QueueManager:
             #    system is short lived anyway
             self._queue.enqueue(
                 workhorse_import_path,
-                job_parameters=job,
+                raw_job_parameters_dict=job,
                 ttl=60 * 60 * 24 * 2,
                 result_ttl=60 * 60,
                 job_timeout="7d",
@@ -94,7 +95,7 @@ class QueueManager:
         )
         return results
 
-    def update_and_report(self) -> Dict[str, int]:
+    def update_and_report(self) -> Dict[str, Union[int, float]]:
         self._update_status()
         template = (
             f"Queue {self.name} - Total jobs: {{total}}, % Done: {{done:.2f}}% "
@@ -282,7 +283,7 @@ class RegistryManager:
         return results
 
     def update_and_report(self) -> Dict[str, Union[int, float]]:
-        status = defaultdict(int)
+        status: Dict[str, Union[int, float]] = defaultdict(int)
         for queue in self._queues:
             queue_status = queue.update_and_report()
             for k, v in queue_status.items():
@@ -299,6 +300,10 @@ class RegistryManager:
 
         self._logger.info(template.format(**status))
         return status
+
+    def get_params_by_job(self) -> dict[str, dict]:
+        jobs = list(chain.from_iterable([q._queue.jobs for q in self._queues]))
+        return {job.id: job.kwargs["raw_job_parameters_dict"] for job in jobs}
 
     def __len__(self) -> int:
         return len(self._queues)

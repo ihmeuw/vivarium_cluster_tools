@@ -20,25 +20,32 @@ if __name__ == "__main__":
         "loguru",
         "pyyaml>=5.1",
         "drmaa",
+        "dill",
         "redis",
         "rq",
-        "vivarium>=1.2.1",
+        "vivarium>=3.0.0",
         "click",
         "psutil",
         "requests",
+        "layered_config_tree>=1.0.1",
+        "pyarrow",
     ]
 
     setup_requires = ["setuptools_scm"]
 
+    lint_requirements = ["black==22.3.0", "isort"]
+
     test_requirements = [
         "pytest",
+        "pytest-cov",
         "pytest-mock",
     ]
 
     doc_requirements = [
-        "sphinx>=4.0",
+        "sphinx>=4.0,<8.0.0",
         "sphinx-rtd-theme",
         "sphinx-click",
+        "sphinx-autodoc-typehints",
         "IPython",
         "matplotlib",
     ]
@@ -62,7 +69,7 @@ if __name__ == "__main__":
         extras_require={
             "docs": doc_requirements,
             "test": test_requirements,
-            "dev": doc_requirements + test_requirements,
+            "dev": doc_requirements + test_requirements + lint_requirements,
         },
         zip_safe=False,
         use_scm_version={

@@ -10,6 +10,7 @@ Command line interface for `psimulate`.
    :show-nested:
 
 """
+
 from pathlib import Path
 from typing import Optional
 
@@ -37,7 +38,6 @@ def psimulate():
 
     You may initiate a new run with the ``run`` sub-command or restart a run
     from where it was stopped by using the ``restart`` sub-command.
-
     """
     pass
 
@@ -50,6 +50,7 @@ shared_options = [
     redis_dbs.with_max_workers,
     redis_dbs.with_redis,
     results.with_no_batch,
+    results.backup_freq,
     cli_tools.with_verbose_and_pdb,
 ]
 
@@ -87,7 +88,7 @@ def run(
     model_specification: Path,
     branch_configuration: Path,
     artifact_path: Optional[Path],
-    result_directory: Optional[Path],
+    result_directory: Path,
     **options,
 ) -> None:
     """Run a parallel simulation.
@@ -107,7 +108,6 @@ def run(
     created with the same name as the MODEL_SPECIFICATION if one does not exist.
     Results will be written to a further subdirectory named after the start time
     of the simulation run.
-
     """
     logs.configure_main_process_logging_to_terminal(options["verbose"])
     main = handle_exceptions(runner.main, logger, options["with_debugger"])
@@ -131,6 +131,7 @@ def run(
         max_workers=options["max_workers"],
         redis_processes=options["redis"],
         no_batch=options["no_batch"],
+        backup_freq=options["backup_freq"],
         extra_args={},
     )
 
@@ -143,12 +144,12 @@ def run(
 )
 @cli_tools.pass_shared_options(shared_options)
 def restart(results_root, **options):
-    """Restart a parallel simulation from a previous run at RESULTS_ROOT.
+    """Restart a parallel simulation.
 
+    This restarts a parallel simulation from a previous run at RESULTS_ROOT.
     Restarting will not erase existing results, but will start workers to
     perform the remaining simulations.  RESULTS_ROOT is expected to be an
     output directory from a previous ``psimulate run`` invocation.
-
     """
     logs.configure_main_process_logging_to_terminal(options["verbose"])
     main = handle_exceptions(runner.main, logger, options["with_debugger"])
@@ -169,6 +170,7 @@ def restart(results_root, **options):
         max_workers=options["max_workers"],
         redis_processes=options["redis"],
         no_batch=options["no_batch"],
+        backup_freq=options["backup_freq"],
         extra_args={},
     )
 
@@ -195,14 +197,13 @@ def restart(results_root, **options):
 )
 @cli_tools.pass_shared_options(shared_options)
 def expand(results_root, **options):
-    """Expand a previous run at RESULTS_ROOT by adding input draws and/or
-    random seeds.
+    """Expand a previous run.
 
-    Expanding will not erase existing results, but will start workers to perform
-    the additional simulations determined by the added draws/seeds.
-    RESULTS_ROOT is expected to be an output directory from a previous
-    ``psimulate run`` invocation.
-
+    This expands a previous run at RESULTS_ROOT by adding input draws and/or
+    random seeds. Expanding will not erase existing results, but will start
+    workers to perform the additional simulations determined by the added
+    draws/seeds. RESULTS_ROOT is expected to be an output directory from a
+    previous ``psimulate run`` invocation.
     """
     logs.configure_main_process_logging_to_terminal(options["verbose"])
     main = handle_exceptions(runner.main, logger, options["with_debugger"])
@@ -223,6 +224,7 @@ def expand(results_root, **options):
         max_workers=options["max_workers"],
         redis_processes=options["redis"],
         no_batch=options["no_batch"],
+        backup_freq=options["backup_freq"],
         extra_args={
             "num_draws": options["add_draws"],
             "num_seeds": options["add_seeds"],
@@ -262,15 +264,19 @@ def test(test_type, num_workers, result_directory, **options):
     peak_memory_msg = (
         f"Manually overriding the peak memory request '{test_type}' test to {peak_memory}GB."
     )
-    logger.warning(peak_memory_msg) if options[
-        "peak_memory"
-    ] != cluster.PEAK_MEMORY_DEFAULT else logger.info(peak_memory_msg)
+    (
+        logger.warning(peak_memory_msg)
+        if options["peak_memory"] != cluster.PEAK_MEMORY_DEFAULT
+        else logger.info(peak_memory_msg)
+    )
     max_runtime_msg = (
         f"Manually overriding the max runtime request '{test_type}' test to {max_runtime}."
     )
-    logger.warning(max_runtime_msg) if options[
-        "max_runtime"
-    ] != cluster.MAX_RUNTIME_DEFAULT else logger.info(max_runtime_msg)
+    (
+        logger.warning(max_runtime_msg)
+        if options["max_runtime"] != cluster.MAX_RUNTIME_DEFAULT
+        else logger.info(max_runtime_msg)
+    )
     options["peak_memory"] = peak_memory
     options["max_runtime"] = max_runtime
 
@@ -290,6 +296,7 @@ def test(test_type, num_workers, result_directory, **options):
         max_workers=options["max_workers"],
         redis_processes=options["redis"],
         no_batch=options["no_batch"],
+        backup_freq=options["backup_freq"],
         extra_args={
             "test_type": test_type,
             "num_workers": num_workers,

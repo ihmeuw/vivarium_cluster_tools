@@ -1,3 +1,30 @@
+**2.0.3 - 09/10/24**
+
+ - Bugfix for job_parameters with simulation backups
+
+**2.0.2 - 08/30/24**
+
+ - Strengthen the API documentation
+ - Update existing documentation to include new psimulate options
+
+**2.0.1 - 08/21/24**
+
+ - Use script to install dependencies in CI
+
+**2.0.0 - 08/13/24**
+
+Breaking changes:
+ - Implement Vivarium's new results processing
+
+Major changes:
+ - Add ability to back up simulations periodically during runs, and to restart from these backups
+
+Other changes:
+ - Use external layered-config-tree package instead of Vivarium ConfigTree class
+ - Raise instead of log when there are more jobs than expected from a previous run
+ - Stop installing vivarium inside the package directory during github actions
+ - Automatically run Jenkins builds on push or pull request
+
 **1.6.1 - 06/17/24**
 
  - Hotfix pin numpy below 2.0
