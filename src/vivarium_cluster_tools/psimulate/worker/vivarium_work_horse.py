@@ -180,7 +180,6 @@ def format_and_record_details(
     """Add finished simulation details to results and metadata."""
     finished_results_metadata = pd.DataFrame(index=[0])
     for key, val in collapse_nested_dict(job_parameters.job_specific):
-        # Do not include the additional_seed value since it is identical to input_draw
         col_name = key.split(".")[-1]
         for df in results.values():
             # insert the new columns second from the right and use the
