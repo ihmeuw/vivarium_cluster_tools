@@ -93,9 +93,20 @@ def work_horse(job_parameters: dict) -> Tuple[pd.DataFrame, Dict[str, pd.DataFra
                 f'Simulant initialization completed in {exec_time["simulant_initialization_minutes"]:.3f} minutes.'
             )
             start_time = pd.Timestamp(**sim.configuration.time.start.to_dict())
-        end_time = pd.Timestamp(**sim.configuration.time.end.to_dict())
-        step_size = pd.Timedelta(days=sim.configuration.time.step_size)
-        num_steps = int(math.ceil((end_time - start_time) / step_size))
+        end_time = (
+            pd.Timestamp(**sim.configuration.time.end.to_dict())
+            if sim.configuration.time.end
+            else None
+        )
+        step_size = (
+            pd.Timedelta(days=sim.configuration.time.step_size)
+            if sim.configuration.time.step_size
+            else None
+        )
+        if end_time:
+            num_steps = int(math.ceil((end_time - start_time) / step_size))
+        else:
+            num_steps = len(sim.configuration.time.simulation_events)
         logger.info(f"Starting main simulation loop with {num_steps} time steps")
         backup_path = (
             job_parameters.backup_configuration["backup_dir"] / str(get_current_job().id)
