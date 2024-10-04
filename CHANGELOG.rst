@@ -1,3 +1,7 @@
+**2.0.4 - TBD**
+
+  - Update how vivarium work horse gets number of simulation steps
+
 **2.0.3 - 09/10/24**
 
  - Bugfix for job_parameters with simulation backups
