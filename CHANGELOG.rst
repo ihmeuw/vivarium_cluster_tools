@@ -1,4 +1,4 @@
-**2.0.4 - TBD**
+**2.0.4 - 10/07/24**
 
   - Update how vivarium work horse gets number of simulation steps
 
