@@ -63,7 +63,7 @@ class Keyspace:
         input_branch_configuration_path: Path | None,
         keyspace_path: Path,
         branches_path: Path,
-        extras: Dict,
+        extras: dict,
     ) -> "Keyspace":
         if input_branch_configuration_path is not None:
             keyspace = cls.from_branch_configuration(

@@ -12,6 +12,7 @@ import os
 import socket
 import time
 import warnings
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
