@@ -8,7 +8,7 @@ File Path Management
 from datetime import datetime
 from fnmatch import fnmatch
 from pathlib import Path
-from typing import NamedTuple, Optional, Union
+from typing import NamedTuple
 
 from vivarium.interface.utilities import get_output_model_name_string
 
@@ -42,10 +42,10 @@ class InputPaths(NamedTuple):
     def from_entry_point_args(
         cls,
         *,  # No positional args allowed.
-        result_directory: Union[str, Path],
-        input_model_specification_path: Optional[Union[str, Path]] = None,
-        input_branch_configuration_path: Optional[Union[str, Path]] = None,
-        input_artifact_path: Optional[Union[str, Path]] = None,
+        result_directory: str | Path,
+        input_model_specification_path: str | Path | None = None,
+        input_branch_configuration_path: str | Path | None = None,
+        input_artifact_path: str | Path | None = None,
     ) -> "InputPaths":
         """Create an instance of InputPaths from the arguments passed to the entry point.
 
