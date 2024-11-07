@@ -10,8 +10,9 @@ Unified interface to multiple Redis Databases.
 import random
 import time
 from collections import defaultdict
+from collections.abc import Iterator
 from itertools import chain
-from typing import Any, Iterator
+from typing import Any
 
 import redis
 import rq
