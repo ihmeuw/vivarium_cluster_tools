@@ -1,4 +1,4 @@
-**2.1.1 - TBD/TBD/TBD**
+**2.1.1 - 12/16/24**
 
   - Defer defining randomness additional seed to RandomnessManager
 
