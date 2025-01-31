@@ -1,6 +1,6 @@
 **2.1.2 - 01/30/24**
 
-  - Defer defining randomness additional seed to RandomnessManager
+  - Get python versions from python_versions.json
 
 **2.1.1 - 12/16/24**
 
