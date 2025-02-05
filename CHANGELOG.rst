@@ -1,6 +1,14 @@
-**2.1.2 - 01/30/24**
+**2.1.4 - 02/05/24**
 
   - Get python versions from python_versions.json
+  
+**2.1.3 - 02/03/25**
+
+  - Revert change caused by isort version
+
+**2.1.2 - 01/31/25**
+
+  - Linting  
 
 **2.1.1 - 12/16/24**
 
