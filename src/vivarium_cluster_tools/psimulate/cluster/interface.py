@@ -30,6 +30,8 @@ class NativeSpecification(NamedTuple):
     queue: str
     peak_memory: str
     max_runtime: str
+    # TODO: MIC-5234 - add worker log verbosity here with default
+    logging_verbosity: int
     hardware: list[str | None]
 
     # Class constant
@@ -53,6 +55,7 @@ def submit_worker_jobs(
     cluster_logging_root: Path,
     native_specification: NativeSpecification,
 ) -> None:
+    # TODO: MIC-5234 - add log verbosity level to each job somewhere in here
     drmaa = get_drmaa()
     s = drmaa.Session()
     s.initialize()
