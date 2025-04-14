@@ -53,7 +53,6 @@ def submit_worker_jobs(
     cluster_logging_root: Path,
     native_specification: NativeSpecification,
 ) -> None:
-    # TODO: MIC-5234 - add log verbosity level to each job somewhere in here
     drmaa = get_drmaa()
     s = drmaa.Session()
     s.initialize()

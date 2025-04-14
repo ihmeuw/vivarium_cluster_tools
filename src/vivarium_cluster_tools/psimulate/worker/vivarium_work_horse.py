@@ -69,7 +69,6 @@ def work_horse(job_parameters: dict) -> tuple[pd.DataFrame, dict[str, pd.DataFra
             sim = ParallelSimulationContext(
                 job_parameters.model_specification,
                 configuration=job_parameters.sim_config,
-                # TODO: MIC-5234 - use this where other cli cluster options are being used
                 logging_verbosity=job_parameters.extras["logging_verbosity"],
             )
             logger.info("Simulation configuration:")
