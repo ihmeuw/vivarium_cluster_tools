@@ -88,13 +88,13 @@ shared_options = [
     "-l",
     type=click.Choice(
         [
-            0,
-            1,
-            2,
+            "0",
+            "1",
+            "2",
         ],
     ),
     required=False,
-    default=0,
+    default="0",
     show_default=True,
     help="Logging verbosity level of each individual simulation.",
 )
@@ -104,7 +104,7 @@ def run(
     branch_configuration: Path,
     artifact_path: Path | None,
     result_directory: Path,
-    logging_verbosity: int,
+    logging_verbosity: str,
     **options,
 ) -> None:
     """Run a parallel simulation.
@@ -150,7 +150,7 @@ def run(
         no_batch=options["no_batch"],
         backup_freq=options["backup_freq"],
         extra_args={
-            "logging_verbosity": logging_verbosity,
+            "logging_verbosity": int(logging_verbosity),
         },
     )
 

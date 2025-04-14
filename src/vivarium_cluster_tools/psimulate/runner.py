@@ -191,8 +191,6 @@ def main(
     logger.info("Validating cluster environment.")
     cluster.validate_cluster_environment()
 
-    # TODO: MIC-5234 - add log verbosity level to each job somewhere in here
-
     # Generate programmatic representation of the output directory structure
     output_paths = paths.OutputPaths.from_entry_point_args(
         command=command,
