@@ -135,7 +135,6 @@ def run(
             input_branch_configuration_path=branch_configuration,
             input_artifact_path=artifact_path,
             result_directory=result_directory,
-            logging_verbosity=logging_verbosity,
         ),
         native_specification=cluster.NativeSpecification(
             job_name=model_specification.stem,
