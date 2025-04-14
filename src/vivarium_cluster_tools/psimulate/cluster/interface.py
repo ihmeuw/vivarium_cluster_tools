@@ -30,8 +30,6 @@ class NativeSpecification(NamedTuple):
     queue: str
     peak_memory: str
     max_runtime: str
-    # TODO: MIC-5234 - add worker log verbosity here with default
-    logging_verbosity: int
     hardware: list[str | None]
 
     # Class constant

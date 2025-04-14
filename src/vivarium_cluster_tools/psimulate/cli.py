@@ -46,7 +46,6 @@ shared_options = [
     cluster.with_queue_and_max_runtime,
     cluster.with_peak_memory,
     cluster.with_hardware,
-    cluster.with_logging_verbosity,
     redis_dbs.with_max_workers,
     redis_dbs.with_redis,
     results.with_no_batch,
@@ -83,12 +82,29 @@ shared_options = [
     "configuration file.",
     callback=cli_tools.coerce_to_full_path,
 )
+# TODO: MIC-5234 - use this where other cli cluster options are being used
+@click.option(
+    "--logging-verbosity",
+    "-l",
+    type=click.Choice(
+        [
+            0,
+            1,
+            2,
+        ],
+    ),
+    required=False,
+    default=0,
+    show_default=True,
+    help="Logging verbosity level of each individual simulation.",
+)
 @cli_tools.pass_shared_options(shared_options)
 def run(
     model_specification: Path,
     branch_configuration: Path,
     artifact_path: Path | None,
     result_directory: Path,
+    logging_verbosity: int,
     **options,
 ) -> None:
     """Run a parallel simulation.
@@ -119,6 +135,7 @@ def run(
             input_branch_configuration_path=branch_configuration,
             input_artifact_path=artifact_path,
             result_directory=result_directory,
+            logging_verbosity=logging_verbosity,
         ),
         native_specification=cluster.NativeSpecification(
             job_name=model_specification.stem,
@@ -126,14 +143,15 @@ def run(
             queue=options["queue"],
             peak_memory=options["peak_memory"],
             max_runtime=options["max_runtime"],
-            logging_verbosity=options["logging_verbosity"],
             hardware=options["hardware"],
         ),
         max_workers=options["max_workers"],
         redis_processes=options["redis"],
         no_batch=options["no_batch"],
         backup_freq=options["backup_freq"],
-        extra_args={},
+        extra_args={
+            "logging_verbosity": logging_verbosity,
+        },
     )
 
 

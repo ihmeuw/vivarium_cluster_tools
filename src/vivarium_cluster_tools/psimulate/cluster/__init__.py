@@ -12,7 +12,6 @@ from vivarium_cluster_tools.psimulate.cluster.cli_options import (
     with_hardware,
     with_peak_memory,
     with_project,
-    with_logging_verbosity,
     with_queue_and_max_runtime,
 )
 from vivarium_cluster_tools.psimulate.cluster.interface import (

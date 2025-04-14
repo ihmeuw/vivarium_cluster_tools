@@ -169,21 +169,3 @@ _with_max_runtime = click.option(
     ),
     callback=_queue_and_runtime_callback,
 )
-
-
-# TODO: MIC-5234 - use this where other cli cluster options are being used
-with_logging_verbosity = click.option(
-    "--logging-verbosity",
-    "-l",
-    type=click.Choice(
-        [
-            0,
-            1,
-            2,
-        ],
-    ),
-    required=False,
-    default=0,
-    show_default=True,
-    help="Logging verbosity level of each individual simulation.",
-)
