@@ -82,10 +82,9 @@ shared_options = [
     "configuration file.",
     callback=cli_tools.coerce_to_full_path,
 )
-# TODO: MIC-5234 - use this where other cli cluster options are being used
 @click.option(
-    "--logging-verbosity",
-    "-l",
+    "--sim-verbosity",
+    "-s",
     type=click.Choice(
         [
             "0",
@@ -104,7 +103,7 @@ def run(
     branch_configuration: Path,
     artifact_path: Path | None,
     result_directory: Path,
-    logging_verbosity: str,
+    sim_verbosity: str,
     **options,
 ) -> None:
     """Run a parallel simulation.
@@ -149,7 +148,7 @@ def run(
         no_batch=options["no_batch"],
         backup_freq=options["backup_freq"],
         extra_args={
-            "logging_verbosity": int(logging_verbosity),
+            "sim_verbosity": int(sim_verbosity),
         },
     )
 

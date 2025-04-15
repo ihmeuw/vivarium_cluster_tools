@@ -29,7 +29,7 @@ def test_logging_level(tmp_path, log_level) -> None:
             "backup_metadata_path": tmp_path / "backups" / "backup_metadata.csv",
         },
         extras={
-            "logging_verbosity": log_level,
+            "sim_verbosity": log_level,
         },
     )
 
@@ -51,6 +51,6 @@ def test_logging_level(tmp_path, log_level) -> None:
     sim = ParallelSimulationContext(
         job_parameters.model_specification,
         configuration=job_parameters.sim_config,
-        logging_verbosity=job_parameters.extras["logging_verbosity"],
+        logging_verbosity=job_parameters.extras["sim_verbosity"],
     )
     assert sim._logging_level == log_level
