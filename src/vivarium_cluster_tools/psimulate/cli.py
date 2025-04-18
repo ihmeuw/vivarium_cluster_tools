@@ -159,8 +159,23 @@ def run(
     type=click.Path(exists=True, file_okay=False, writable=True),
     callback=cli_tools.coerce_to_full_path,
 )
+@click.option(
+    "--sim-verbosity",
+    "-s",
+    type=click.Choice(
+        [
+            "0",
+            "1",
+            "2",
+        ],
+    ),
+    required=False,
+    default="0",
+    show_default=True,
+    help="Logging verbosity level of each individual simulation.",
+)
 @cli_tools.pass_shared_options(shared_options)
-def restart(results_root, **options):
+def restart(results_root, sim_verbosity, **options):
     """Restart a parallel simulation.
 
     This restarts a parallel simulation from a previous run at RESULTS_ROOT.
@@ -188,7 +203,9 @@ def restart(results_root, **options):
         redis_processes=options["redis"],
         no_batch=options["no_batch"],
         backup_freq=options["backup_freq"],
-        extra_args={},
+        extra_args={
+            "sim_verbosity": int(sim_verbosity),
+        },
     )
 
 
@@ -212,8 +229,23 @@ def restart(results_root, **options):
     show_default=True,
     help="The number of random seeds to add to a previous run.",
 )
+@click.option(
+    "--sim-verbosity",
+    "-s",
+    type=click.Choice(
+        [
+            "0",
+            "1",
+            "2",
+        ],
+    ),
+    required=False,
+    default="0",
+    show_default=True,
+    help="Logging verbosity level of each individual simulation.",
+)
 @cli_tools.pass_shared_options(shared_options)
-def expand(results_root, **options):
+def expand(results_root, sim_verbosity, **options):
     """Expand a previous run.
 
     This expands a previous run at RESULTS_ROOT by adding input draws and/or
@@ -245,6 +277,7 @@ def expand(results_root, **options):
         extra_args={
             "num_draws": options["add_draws"],
             "num_seeds": options["add_seeds"],
+            "sim_verbosity": int(sim_verbosity),
         },
     )
 

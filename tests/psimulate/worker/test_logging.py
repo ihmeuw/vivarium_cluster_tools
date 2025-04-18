@@ -8,6 +8,7 @@ from vivarium import Component
 from vivarium_cluster_tools.psimulate.jobs import JobParameters
 from vivarium_cluster_tools.psimulate.worker.vivarium_work_horse import (
     ParallelSimulationContext as ParallelSimulationContext_,
+    work_horse
 )
 
 
