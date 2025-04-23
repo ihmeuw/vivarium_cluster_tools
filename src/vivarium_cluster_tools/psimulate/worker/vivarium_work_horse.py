@@ -157,7 +157,7 @@ def work_horse(job_parameters: dict) -> tuple[pd.DataFrame, dict[str, pd.DataFra
             )
             exec_time = initialize_new_sim(event, sim)
         backup_path = run_simulation(job_parameters, event, sim, exec_time)
-        results = get_sim_results(job_parameters, start_snapshot, event, exec_time)
+        results = get_sim_results(sim, job_parameters, start_snapshot, event, exec_time)
         finished_results_metadata = format_and_record_details(job_parameters, results)
         remove_backups(backup_path)
 
