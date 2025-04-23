@@ -150,7 +150,6 @@ def work_horse(job_parameters: dict) -> tuple[pd.DataFrame, dict[str, pd.DataFra
         if backup:
             get_sim_from_backup(event, backup)
         else:
-            breakpoint()
             sim = ParallelSimulationContext(
                 job_parameters.model_specification,
                 configuration=job_parameters.sim_config,
