@@ -56,7 +56,7 @@ def test_logging_level(mocker, tmp_path, log_level) -> None:
     ) as mock_parallel_sim:
         work_horse(job_parameters.to_dict())
         mock_parallel_sim.assert_called_once_with(
-            job_parameters=job_parameters.model_specification,
-            backup_configuration=job_parameters.sim_config,
+            job_parameters.model_specification,
+            configuration=job_parameters.sim_config,
             logging_verbosity=log_level,
         )
