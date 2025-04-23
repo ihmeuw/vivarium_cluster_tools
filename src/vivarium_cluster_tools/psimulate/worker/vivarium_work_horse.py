@@ -41,6 +41,98 @@ class ParallelSimulationContext(SimulationContext):
         pass
 
 
+# def work_horse(job_parameters: dict) -> tuple[pd.DataFrame, dict[str, pd.DataFrame]]:
+#     node = f"{ENV_VARIABLES.HOSTNAME.value}"
+#     job = f"{ENV_VARIABLES.JOB_ID.value}:{ENV_VARIABLES.TASK_ID.value}"
+
+#     job_parameters = JobParameters(**job_parameters)
+
+#     logger.info(f"Launching new job {job} on {node}")
+#     logger.info(f"Starting job: {job_parameters}")
+
+#     try:
+#         start_snapshot = CounterSnapshot()
+#         event = {"start": time()}  # timestamps of application events
+#         logger.info("Beginning simulation setup.")
+#         backup = get_backup(job_parameters)
+#         if backup:
+#             logger.info(f"Restarting simulation from saved backup")
+#             sim = backup
+#             event["simulation_start"] = time()
+#             exec_time = {
+#                 "setup_minutes": (event["simulation_start"] - event["start"]) / 60
+#             }  # execution event
+#             logger.info(
+#                 f'Simulation setup completed in {exec_time["setup_minutes"]:.3f} minutes.'
+#             )
+#         else:
+#             sim = ParallelSimulationContext(
+#                 job_parameters.model_specification,
+#                 configuration=job_parameters.sim_config,
+#                 logging_verbosity=job_parameters.extras["sim_verbosity"],
+#             )
+#             logger.info("Simulation configuration:")
+#             logger.info(str(sim.configuration))
+#             sim.setup()
+#             event["simulant_initialization_start"] = time()
+#             exec_time = {
+#                 "setup_minutes": (event["simulant_initialization_start"] - event["start"])
+#                 / 60
+#             }  # execution event
+#             logger.info(
+#                 f'Simulation setup completed in {exec_time["setup_minutes"]:.3f} minutes.'
+#             )
+
+#             sim.initialize_simulants()
+#             event["simulation_start"] = time()
+#             exec_time["simulant_initialization_minutes"] = (
+#                 event["simulation_start"] - event["simulant_initialization_start"]
+#             ) / 60
+#             logger.info(
+#                 f'Simulant initialization completed in {exec_time["simulant_initialization_minutes"]:.3f} minutes.'
+#             )
+#         num_steps = sim.get_number_of_steps_remaining()
+#         logger.info(f"Starting main simulation loop with {num_steps} time steps")
+#         backup_path = (
+#             job_parameters.backup_configuration["backup_dir"] / str(get_current_job().id)
+#         ).with_suffix(".pkl")
+#         sim.run(
+#             backup_freq=job_parameters.backup_configuration["backup_freq"],
+#             backup_path=backup_path,
+#         )
+#         event["results_start"] = time()
+#         exec_time["main_loop_minutes"] = (
+#             event["results_start"] - event["simulation_start"]
+#         ) / 60
+#         exec_time["step_mean_seconds"] = (
+#             event["results_start"] - event["simulation_start"]
+#         ) / num_steps
+#         logger.info(
+#             f'Simulation main loop completed in {exec_time["main_loop_minutes"]:.3f} minutes.'
+#         )
+#         logger.info(f'Average step length was {exec_time["step_mean_seconds"]:.3f} seconds.')
+
+#         sim.finalize()
+#         sim.report(print_results=False)
+#         event["end"] = time()
+#         end_snapshot = CounterSnapshot()
+#         do_sim_epilogue(start_snapshot, end_snapshot, event, exec_time, job_parameters)
+#         results = sim.get_results()  # Dict[measure, results dataframe]
+#         finished_results_metadata = format_and_record_details(job_parameters, results)
+#         remove_backups(backup_path)
+
+#         return finished_results_metadata, results
+
+#     except Exception:
+#         logger.exception("Unhandled exception in worker")
+#         job = get_current_job()
+#         job.meta["root_exception"] = format_exc()
+#         job.save_meta()
+#         raise
+#     finally:
+#         logger.info(f"Exiting job: {job_parameters}")
+
+
 def work_horse(job_parameters: dict) -> tuple[pd.DataFrame, dict[str, pd.DataFrame]]:
     node = f"{ENV_VARIABLES.HOSTNAME.value}"
     job = f"{ENV_VARIABLES.JOB_ID.value}:{ENV_VARIABLES.TASK_ID.value}"
@@ -56,68 +148,17 @@ def work_horse(job_parameters: dict) -> tuple[pd.DataFrame, dict[str, pd.DataFra
         logger.info("Beginning simulation setup.")
         backup = get_backup(job_parameters)
         if backup:
-            logger.info(f"Restarting simulation from saved backup")
-            sim = backup
-            event["simulation_start"] = time()
-            exec_time = {
-                "setup_minutes": (event["simulation_start"] - event["start"]) / 60
-            }  # execution event
-            logger.info(
-                f'Simulation setup completed in {exec_time["setup_minutes"]:.3f} minutes.'
-            )
+            get_sim_from_backup(event, backup)
         else:
+            breakpoint()
             sim = ParallelSimulationContext(
                 job_parameters.model_specification,
                 configuration=job_parameters.sim_config,
                 logging_verbosity=job_parameters.extras["sim_verbosity"],
             )
-            logger.info("Simulation configuration:")
-            logger.info(str(sim.configuration))
-            sim.setup()
-            event["simulant_initialization_start"] = time()
-            exec_time = {
-                "setup_minutes": (event["simulant_initialization_start"] - event["start"])
-                / 60
-            }  # execution event
-            logger.info(
-                f'Simulation setup completed in {exec_time["setup_minutes"]:.3f} minutes.'
-            )
-
-            sim.initialize_simulants()
-            event["simulation_start"] = time()
-            exec_time["simulant_initialization_minutes"] = (
-                event["simulation_start"] - event["simulant_initialization_start"]
-            ) / 60
-            logger.info(
-                f'Simulant initialization completed in {exec_time["simulant_initialization_minutes"]:.3f} minutes.'
-            )
-        num_steps = sim.get_number_of_steps_remaining()
-        logger.info(f"Starting main simulation loop with {num_steps} time steps")
-        backup_path = (
-            job_parameters.backup_configuration["backup_dir"] / str(get_current_job().id)
-        ).with_suffix(".pkl")
-        sim.run(
-            backup_freq=job_parameters.backup_configuration["backup_freq"],
-            backup_path=backup_path,
-        )
-        event["results_start"] = time()
-        exec_time["main_loop_minutes"] = (
-            event["results_start"] - event["simulation_start"]
-        ) / 60
-        exec_time["step_mean_seconds"] = (
-            event["results_start"] - event["simulation_start"]
-        ) / num_steps
-        logger.info(
-            f'Simulation main loop completed in {exec_time["main_loop_minutes"]:.3f} minutes.'
-        )
-        logger.info(f'Average step length was {exec_time["step_mean_seconds"]:.3f} seconds.')
-
-        sim.finalize()
-        sim.report(print_results=False)
-        event["end"] = time()
-        end_snapshot = CounterSnapshot()
-        do_sim_epilogue(start_snapshot, end_snapshot, event, exec_time, job_parameters)
-        results = sim.get_results()  # Dict[measure, results dataframe]
+            exec_time = initialize_new_sim(event, sim)
+        backup_path = run_simulation(job_parameters, event, sim, exec_time)
+        results = get_sim_results(job_parameters, start_snapshot, event, exec_time)
         finished_results_metadata = format_and_record_details(job_parameters, results)
         remove_backups(backup_path)
 
@@ -131,6 +172,69 @@ def work_horse(job_parameters: dict) -> tuple[pd.DataFrame, dict[str, pd.DataFra
         raise
     finally:
         logger.info(f"Exiting job: {job_parameters}")
+
+
+def get_sim_results(sim, job_parameters, start_snapshot, event, exec_time):
+    event["end"] = time()
+    do_sim_epilogue(start_snapshot, CounterSnapshot(), event, exec_time, job_parameters)
+    return sim.get_results()  # Dict[measure, results dataframe]
+
+
+def run_simulation(job_parameters, event, sim, exec_time):
+    num_steps = sim.get_number_of_steps_remaining()
+    logger.info(f"Starting main simulation loop with {num_steps} time steps")
+    backup_path = (
+        job_parameters.backup_configuration["backup_dir"] / str(get_current_job().id)
+    ).with_suffix(".pkl")
+    sim.run(
+        backup_freq=job_parameters.backup_configuration["backup_freq"],
+        backup_path=backup_path,
+    )
+    event["results_start"] = time()
+    exec_time["main_loop_minutes"] = (event["results_start"] - event["simulation_start"]) / 60
+    exec_time["step_mean_seconds"] = (
+        event["results_start"] - event["simulation_start"]
+    ) / num_steps
+    logger.info(
+        f'Simulation main loop completed in {exec_time["main_loop_minutes"]:.3f} minutes.'
+    )
+    logger.info(f'Average step length was {exec_time["step_mean_seconds"]:.3f} seconds.')
+
+    sim.finalize()
+    sim.report(print_results=False)
+    return backup_path
+
+
+def initialize_new_sim(event, sim):
+    logger.info("Simulation configuration:")
+    logger.info(str(sim.configuration))
+    sim.setup()
+    event["simulant_initialization_start"] = time()
+    exec_time = {
+        "setup_minutes": (event["simulant_initialization_start"] - event["start"]) / 60
+    }  # execution event
+    logger.info(f'Simulation setup completed in {exec_time["setup_minutes"]:.3f} minutes.')
+
+    sim.initialize_simulants()
+    event["simulation_start"] = time()
+    exec_time["simulant_initialization_minutes"] = (
+        event["simulation_start"] - event["simulant_initialization_start"]
+    ) / 60
+    logger.info(
+        f'Simulant initialization completed in {exec_time["simulant_initialization_minutes"]:.3f} minutes.'
+    )
+
+    return exec_time
+
+
+def get_sim_from_backup(event, backup):
+    logger.info(f"Restarting simulation from saved backup")
+    sim = backup
+    event["simulation_start"] = time()
+    exec_time = {
+        "setup_minutes": (event["simulation_start"] - event["start"]) / 60
+    }  # execution event
+    logger.info(f'Simulation setup completed in {exec_time["setup_minutes"]:.3f} minutes.')
 
 
 def do_sim_epilogue(
