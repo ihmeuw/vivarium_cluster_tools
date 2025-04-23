@@ -40,9 +40,6 @@ def test_logging_level(mocker, tmp_path, log_level) -> None:
     mocker.patch(
         "vivarium_cluster_tools.psimulate.worker.vivarium_work_horse.get_current_job",
     )
-    # mocker.patch(
-    #     "vivarium_cluster_tools.psimulate.worker.vivarium_work_horse.initialize_new_sim"
-    # )
     mocker.patch("vivarium_cluster_tools.psimulate.worker.vivarium_work_horse.run_simulation")
     mocker.patch("vivarium_cluster_tools.psimulate.worker.vivarium_work_horse.remove_backups")
     mocker.patch(
