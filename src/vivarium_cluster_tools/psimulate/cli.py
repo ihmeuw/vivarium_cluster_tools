@@ -51,7 +51,7 @@ shared_options = [
     results.with_no_batch,
     results.backup_freq,
     cli_tools.with_verbose_and_pdb,
-    results.with_sim_verbosity,
+    cli_tools.with_sim_verbosity,
 ]
 
 
