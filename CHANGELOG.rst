@@ -1,4 +1,4 @@
-**2.1.6 - 04/24/25**
+**2.1.6 - 04/29/25**
 
   - Bugfix: Add sim verbosity click option to restart and expand commands
   - Refactor: Refactor vivarium_work_horse into smaller units
