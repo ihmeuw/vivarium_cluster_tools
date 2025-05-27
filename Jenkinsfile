@@ -2,5 +2,5 @@
 reusable_pipeline(
     scheduled_branches: ["main"], 
     upstream_repos: ["vivarium", "layered_config_tree"],
-    run_mypy: false,
+    run_mypy: true,
 )
