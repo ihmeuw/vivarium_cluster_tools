@@ -2,6 +2,7 @@ import pytest
 from _pytest.config import Config, argparsing
 from _pytest.python import Function
 
+
 def pytest_addoption(parser: argparsing.Parser) -> None:
     parser.addoption("--runslow", action="store_true", default=False, help="run slow tests")
 
