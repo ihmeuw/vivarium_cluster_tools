@@ -1,3 +1,7 @@
+**2.1.9 - 05/29/25**
+
+  - Type-hinting: Fix mypy errors in conftest.py
+
 **2.1.8 - 05/28/25**
 
   - CI: Enable running mypy
