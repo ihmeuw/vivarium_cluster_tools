@@ -7,13 +7,15 @@ Shared CLI tools
 
 from collections.abc import Callable
 from pathlib import Path
+from typing import TypeVar
 
 import click
 
-Decorator = Callable[[Callable[..., object]], Callable[..., object]]
+R = TypeVar("R")
+Decorator = Callable[[Callable[..., R]], Callable[..., R]]
 
 
-def with_verbose_and_pdb(func: Callable[..., object]) -> Callable[..., object]:
+def with_verbose_and_pdb(func: Callable[..., R]) -> Callable[..., R]:
     func = click.option(
         "-v",
         "verbose",
@@ -29,7 +31,7 @@ def with_verbose_and_pdb(func: Callable[..., object]) -> Callable[..., object]:
     return func
 
 
-def with_sim_verbosity(func: Callable[..., object]) -> Callable[..., object]:
+def with_sim_verbosity(func: Callable[..., R]) -> Callable[..., R]:
     func = click.option(
         "--sim-verbosity",
         "-s",
@@ -56,10 +58,10 @@ def coerce_to_full_path(
     return None
 
 
-def pass_shared_options(shared_options: list[Decorator]) -> Decorator:
+def pass_shared_options(shared_options: list[Decorator[R]]) -> Decorator[R]:
     """Allows the user to supply a list of click options to apply to a command."""
 
-    def _pass_shared_options(func: Callable[..., object]) -> Callable[..., object]:
+    def _pass_shared_options(func: Callable[..., R]) -> Callable[..., R]:
         # add all the shared options to the command
         for option in shared_options:
             func = option(func)
