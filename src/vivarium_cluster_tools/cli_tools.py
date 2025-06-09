@@ -11,11 +11,14 @@ from typing import TypeVar
 
 import click
 
-R = TypeVar("R")
-Decorator = Callable[[Callable[..., R]], Callable[..., R]]
+# NOTE: The argument type hints for the cli wrappers are not precise; they should
+# be type-hinted using Protocols. However, the functions being wrapped are never
+# expected to be called in a type-hinted context (because they are used via CLI).
+CLIFunction = Callable[..., None]
+Decorator = Callable[[CLIFunction], CLIFunction]
 
 
-def with_verbose_and_pdb(func: Callable[..., R]) -> Callable[..., R]:
+def with_verbose_and_pdb(func: CLIFunction) -> CLIFunction:
     func = click.option(
         "-v",
         "verbose",
@@ -31,7 +34,7 @@ def with_verbose_and_pdb(func: Callable[..., R]) -> Callable[..., R]:
     return func
 
 
-def with_sim_verbosity(func: Callable[..., R]) -> Callable[..., R]:
+def with_sim_verbosity(func: CLIFunction) -> CLIFunction:
     func = click.option(
         "--sim-verbosity",
         "-s",
@@ -58,10 +61,10 @@ def coerce_to_full_path(
     return None
 
 
-def pass_shared_options(shared_options: list[Decorator[R]]) -> Decorator[R]:
+def pass_shared_options(shared_options: list[Decorator]) -> Decorator:
     """Allows the user to supply a list of click options to apply to a command."""
 
-    def _pass_shared_options(func: Callable[..., R]) -> Callable[..., R]:
+    def _pass_shared_options(func: CLIFunction) -> CLIFunction:
         # add all the shared options to the command
         for option in shared_options:
             func = option(func)
