@@ -1,3 +1,7 @@
+**2.1.10 - 06/09/25**
+
+  - Type-hinting: Fix mypy errors in logs.py
+  
 **2.1.9 - 05/30/25**
 
   - Type-hinting: Fix mypy errors in conftest.py
