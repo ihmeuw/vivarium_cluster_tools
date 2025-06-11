@@ -3,14 +3,12 @@ import shutil
 import time
 from pathlib import Path
 from subprocess import PIPE, Popen
+from typing import Any, TypedDict
 
 import pytest
 from pytest import FixtureRequest
 
 from vivarium_cluster_tools.utilities import backoff_and_retry, mkdir
-
-
-from typing import Any, TypedDict
 
 
 class MkdirParams(TypedDict, total=False):
@@ -90,7 +88,6 @@ def test_mkdir_set_permissions(permissions_params: tuple[MkdirParams, str | None
 
 def test_backoff_and_retry() -> None:
     class WarningCatcher:
-
         def __init__(self) -> None:
             self.caught_warnings: list[str] = []
 
