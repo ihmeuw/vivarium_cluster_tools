@@ -1,3 +1,7 @@
+**2.1.14 - 06/13/25**
+
+  - Type-hinting: Fix mypy errors in psimulate/cluster/cli_options.py
+
 **2.1.13 - 06/11/25**
 
   - Type-hinting: Fix mypy errors in utilities.py
