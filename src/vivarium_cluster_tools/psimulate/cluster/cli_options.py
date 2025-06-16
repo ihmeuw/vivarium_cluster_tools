@@ -8,7 +8,7 @@ Command line options for configuring the cluster environment in psimulate runs.
 """
 from __future__ import annotations
 
-from typing import Callable
+from collections.abc import Callable
 
 import click
 
