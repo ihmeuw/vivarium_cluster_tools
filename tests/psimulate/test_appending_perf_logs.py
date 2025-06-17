@@ -2,6 +2,7 @@ import os
 from datetime import datetime
 from math import ceil
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 import pytest
@@ -9,8 +10,8 @@ from _pytest.logging import LogCaptureFixture
 from loguru import logger
 from pandas.testing import assert_frame_equal
 
-from vivarium_cluster_tools.psimulate.paths import OutputPaths
-from vivarium_cluster_tools.psimulate.performance_logger import (
+from vivarium_cluster_tools.psimulate.paths import OutputPaths  # type: ignore[import-untyped]
+from vivarium_cluster_tools.psimulate.performance_logger import (  # type: ignore[import-untyped]
     append_child_job_data,
     append_perf_data_to_central_logs,
     generate_runner_job_data,
@@ -19,7 +20,7 @@ from vivarium_cluster_tools.psimulate.performance_logger import (
 
 
 @pytest.fixture
-def artifact_perf_df():
+def artifact_perf_df() -> pd.DataFrame:
     filepath = Path(__file__).parent / "data/artifact_perf_df.csv"
     df = pd.read_csv(filepath)
     index_cols = ["host", "job_number", "task_number", "draw", "seed"]
