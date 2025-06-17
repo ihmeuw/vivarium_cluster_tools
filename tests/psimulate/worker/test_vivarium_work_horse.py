@@ -1,7 +1,7 @@
 from time import time
 from typing import Any
 
-import dill  # type: ignore[import-untyped]
+import dill
 import pandas as pd
 import pytest
 from vivarium.framework.engine import SimulationContext

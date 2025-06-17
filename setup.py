@@ -3,7 +3,7 @@ import os
 import sys
 
 from packaging.version import parse
-from setuptools import find_packages, setup  # type: ignore[import-untyped]
+from setuptools import find_packages, setup
 
 with open("python_versions.json", "r") as f:
     supported_python_versions = json.load(f)
@@ -66,6 +66,8 @@ if __name__ == "__main__":
         "isort==5.13.2",
         "mypy",
         "types-requests",
+        "types-psutil",
+        "types-setuptools",
     ]
 
     test_requirements = [

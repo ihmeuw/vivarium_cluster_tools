@@ -16,7 +16,7 @@ from time import sleep, time
 from traceback import format_exc
 from typing import Any
 
-import dill  # type: ignore[import-untyped]
+import dill
 import pandas as pd
 from layered_config_tree import LayeredConfigTree
 from loguru import logger
