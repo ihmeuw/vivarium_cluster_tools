@@ -117,4 +117,4 @@ src/vivarium_cluster_tools/_version.py
 
 # Copilot prompts
 .github/prompts/
-.github/copilot-instructions.md
+.github/copilot_instructions.md
