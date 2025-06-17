@@ -52,7 +52,7 @@ def work_horse(job_parameters: dict[str, Any]) -> tuple[pd.DataFrame, dict[str, 
     logger.info(f"Starting job: {job_params}")
 
     try:
-        start_snapshot = CounterSnapshot()  # type: ignore[no-untyped-call]
+        start_snapshot = CounterSnapshot()
         event = {"start": time()}  # timestamps of application events
         logger.info("Beginning simulation setup.")
         backup = get_backup(job_params)
@@ -215,7 +215,7 @@ def get_sim_results(
     exec_time: dict[str, dict[str, Any]],
 ) -> dict[str, pd.DataFrame]:
     event["end"] = time()
-    do_sim_epilogue(start_snapshot, CounterSnapshot(), event, exec_time, job_parameters)  # type: ignore[no-untyped-call]
+    do_sim_epilogue(start_snapshot, CounterSnapshot(), event, exec_time, job_parameters)
     return sim.get_results()  # Dict[measure, results dataframe]
 
 
