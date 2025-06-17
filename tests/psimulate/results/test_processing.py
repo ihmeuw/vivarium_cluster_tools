@@ -1,10 +1,11 @@
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 import pytest
 
-from vivarium_cluster_tools.psimulate.paths import OutputPaths
-from vivarium_cluster_tools.psimulate.results.processing import (
+from vivarium_cluster_tools.psimulate.paths import OutputPaths  # type: ignore[import-untyped]
+from vivarium_cluster_tools.psimulate.results.processing import (  # type: ignore[import-untyped]
     _concat_metadata,
     _concat_preserve_types,
     write_results_batch,
@@ -28,7 +29,7 @@ from vivarium_cluster_tools.psimulate.results.processing import (
         "just strings",
     ],
 )
-def test_concat_preserve_types(data_types):
+def test_concat_preserve_types(data_types: list[Any]) -> None:
     df = pd.DataFrame([data_types])
     df2 = pd.DataFrame([[d * 2 for d in data_types]])
 
@@ -62,7 +63,7 @@ def test_concat_preserve_types(data_types):
         "just strings",
     ],
 )
-def test_concat_results(data_types):
+def test_concat_results(data_types: list[Any]) -> None:
     columns = [chr(i) for i in range(ord("a"), ord("a") + len(data_types))]
     old = pd.DataFrame([data_types], columns=columns)
     new = pd.DataFrame([[d * 2 for d in data_types]], columns=columns)
@@ -88,7 +89,7 @@ def test_concat_results(data_types):
     assert no_old_combined.equals(combined)
 
 
-def test_write_results_batch(tmp_path):
+def test_write_results_batch(tmp_path: Path) -> None:
     output_paths = OutputPaths.from_entry_point_args(
         command="foo",
         input_artifact_path=Path("some/artifact/path"),
