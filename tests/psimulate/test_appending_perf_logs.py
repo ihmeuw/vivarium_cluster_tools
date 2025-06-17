@@ -30,7 +30,7 @@ def artifact_perf_df() -> pd.DataFrame:
 
 
 @pytest.fixture
-def artifactless_perf_df():
+def artifactless_perf_df() -> pd.DataFrame:
     filepath = Path(__file__).parent / "data/artifactless_perf_df.csv"
     df = pd.read_csv(filepath)
     index_cols = ["host", "job_number", "task_number", "draw", "seed"]
@@ -40,12 +40,12 @@ def artifactless_perf_df():
 
 
 @pytest.fixture
-def result_directory():
+def result_directory() -> Path:
     return Path("/mnt/team/simulation_science/pub/models/project_name/results/model_version/")
 
 
 @pytest.fixture
-def caplog(caplog: LogCaptureFixture):
+def caplog(caplog: LogCaptureFixture) -> Any:
     handler_id = logger.add(
         caplog.handler,
         format="{message}",
@@ -57,7 +57,7 @@ def caplog(caplog: LogCaptureFixture):
     logger.remove(handler_id)
 
 
-def get_output_paths_from_output_directory(output_directory):
+def get_output_paths_from_output_directory(output_directory: Path) -> OutputPaths:
     model_name = "artifact"
     original_launch_time = "YYYY_MM_DD_HH_MM_SS"
     launch_time = "yyyy_mm_dd_hh_mm_ss"
@@ -88,7 +88,7 @@ def get_output_paths_from_output_directory(output_directory):
 
 
 @pytest.mark.parametrize("df_name", ["artifact_perf_df", "artifactless_perf_df"])
-def test_expected_columns(df_name, result_directory, tmp_path, request):
+def test_expected_columns(df_name: str, result_directory: Path, tmp_path: Path, request: Any) -> None:
     perf_df = request.getfixturevalue(df_name)
     # transform df
     output_paths = get_output_paths_from_output_directory(result_directory)
@@ -102,7 +102,7 @@ def test_expected_columns(df_name, result_directory, tmp_path, request):
 
 
 @pytest.mark.parametrize("df_name", ["artifact_perf_df", "artifactless_perf_df"])
-def test_data_parsing(df_name, result_directory, tmp_path, request):
+def test_data_parsing(df_name: str, result_directory: Path, tmp_path: Path, request: Any) -> None:
     perf_df = request.getfixturevalue(df_name)
     output_paths = get_output_paths_from_output_directory(result_directory)
     central_perf_df = transform_perf_df_for_appending(perf_df, output_paths)
@@ -137,7 +137,7 @@ def test_data_parsing(df_name, result_directory, tmp_path, request):
     )
 
 
-def test_valid_log_path(result_directory, artifact_perf_df, caplog, tmp_path, monkeypatch):
+def test_valid_log_path(result_directory: Path, artifact_perf_df: pd.DataFrame, caplog: Any, tmp_path: Path, monkeypatch: Any) -> None:
     monkeypatch.setattr(
         "vivarium_cluster_tools.psimulate.performance_logger.CENTRAL_PERFORMANCE_LOGS_DIRECTORY",
         tmp_path,
@@ -162,7 +162,7 @@ def test_valid_log_path(result_directory, artifact_perf_df, caplog, tmp_path, mo
         Path("/ihme/homes/user/model_version/"),
     ],
 )
-def test_invalid_log_path(invalid_log_path, artifact_perf_df, caplog):
+def test_invalid_log_path(invalid_log_path: Path, artifact_perf_df: pd.DataFrame, caplog: Any) -> None:
     # test we raise specific warning
     output_paths = get_output_paths_from_output_directory(invalid_log_path)
     append_perf_data_to_central_logs(artifact_perf_df, output_paths)
@@ -183,15 +183,15 @@ def test_invalid_log_path(invalid_log_path, artifact_perf_df, caplog):
     ],
 )
 def test_appending(
-    available_rows,
-    rows_to_append,
-    expected_output_files,
-    multiple_log_files_exist,
-    artifact_perf_df,
-    result_directory,
-    tmp_path,
-    monkeypatch,
-):
+    available_rows: int,
+    rows_to_append: int,
+    expected_output_files: int,
+    multiple_log_files_exist: bool,
+    artifact_perf_df: pd.DataFrame,
+    result_directory: Path,
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
     max_num_rows = 4
     monkeypatch.setattr(
         "vivarium_cluster_tools.psimulate.performance_logger.NUM_ROWS_PER_CENTRAL_LOG_FILE",
