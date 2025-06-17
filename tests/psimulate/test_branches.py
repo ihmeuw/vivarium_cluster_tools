@@ -1,4 +1,5 @@
 from typing import Any
+
 import pytest
 from vivarium.framework.utilities import collapse_nested_dict
 
@@ -33,10 +34,7 @@ def test_expand_branch_template() -> None:
         {"a": {"b": 1, "c": 3, "d": 5, "e": False}},
         {"a": {"b": 2, "c": 3, "d": 6, "e": False}},
     ]
-    expected = [
-        collapse_nested_dict(r)
-        for r in expected_dicts
-    ]
+    expected = [collapse_nested_dict(r) for r in expected_dicts]
     # Convert to string representation for comparison since dicts aren't sortable
     assert sorted(str(r) for r in result_collapsed) == sorted(str(e) for e in expected)
 

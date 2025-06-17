@@ -47,28 +47,28 @@ class CounterSnapshot:
             )
         else:
             cpu = None
-            
+
         if other.disk is not None and self.disk is not None:
             disk = type(other.disk)(
                 *tuple(self.disk[i] - other.disk[i] for i in range(len(other.disk)))
             )
         else:
             disk = None
-            
+
         if other.freq is not None and self.freq is not None:
             freq = type(other.freq)(
                 *tuple((self.freq[i] + other.freq[i]) / 2 for i in range(len(other.freq)))
             )
         else:
             freq = None
-            
+
         if other.net is not None and self.net is not None:
             net = type(other.net)(
                 *tuple(self.net[i] - other.net[i] for i in range(len(other.net)))
             )
         else:
             net = None
-            
+
         timestamp = self.timestamp - other.timestamp
         return CounterSnapshot(cpu, disk, freq, net, timestamp)
 

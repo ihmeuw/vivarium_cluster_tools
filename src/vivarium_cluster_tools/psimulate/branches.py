@@ -10,7 +10,6 @@ Tools for managing the parameter space of a parallel run.
 from collections.abc import Iterator
 from itertools import product
 from pathlib import Path
-
 from typing import Any
 
 import numpy as np

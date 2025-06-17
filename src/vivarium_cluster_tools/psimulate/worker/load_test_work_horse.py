@@ -8,7 +8,6 @@ RQ worker executable for doing load testing.
 """
 import time
 from traceback import format_exc
-
 from typing import Any, Callable
 
 import numpy as np
@@ -65,7 +64,9 @@ def work_horse(job_parameters: dict[str, Any]) -> pd.DataFrame:
     job_params = JobParameters(**job_parameters)
 
     test_type = job_params.extras["test_type"]
-    test_runner: Callable[[JobParameters], pd.DataFrame] = get_psimulate_test_dict()[test_type]["function"]
+    test_runner: Callable[[JobParameters], pd.DataFrame] = get_psimulate_test_dict()[
+        test_type
+    ]["function"]
 
     logger.info(f"Launching new job {job_info} on {node}")
     logger.info(f"Starting job: {job_params}")

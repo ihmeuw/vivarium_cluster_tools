@@ -8,8 +8,8 @@ from vivarium_cluster_tools.psimulate.environment import ENV_VARIABLES
 from vivarium_cluster_tools.psimulate.jobs import JobParameters
 from vivarium_cluster_tools.psimulate.worker.vivarium_work_horse import (
     ParallelSimulationContext as ParallelSimulationContext_,
-    work_horse,
 )
+from vivarium_cluster_tools.psimulate.worker.vivarium_work_horse import work_horse
 
 
 @pytest.mark.parametrize("log_level", [0, 1, 2])

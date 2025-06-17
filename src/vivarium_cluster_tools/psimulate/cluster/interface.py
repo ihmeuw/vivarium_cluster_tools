@@ -36,7 +36,9 @@ class NativeSpecification(NamedTuple):
     NUM_THREADS: int = 1
 
     def to_cli_args(self) -> str:
-        hardware_str = '|'.join(h for h in self.hardware if h is not None) if self.hardware else ''
+        hardware_str = (
+            "|".join(h for h in self.hardware if h is not None) if self.hardware else ""
+        )
         return (
             f"-J {self.job_name} "
             f"-A {self.project} "

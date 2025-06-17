@@ -88,7 +88,9 @@ def get_output_paths_from_output_directory(output_directory: Path) -> OutputPath
 
 
 @pytest.mark.parametrize("df_name", ["artifact_perf_df", "artifactless_perf_df"])
-def test_expected_columns(df_name: str, result_directory: Path, tmp_path: Path, request: Any) -> None:
+def test_expected_columns(
+    df_name: str, result_directory: Path, tmp_path: Path, request: Any
+) -> None:
     perf_df = request.getfixturevalue(df_name)
     # transform df
     output_paths = get_output_paths_from_output_directory(result_directory)
@@ -102,7 +104,9 @@ def test_expected_columns(df_name: str, result_directory: Path, tmp_path: Path, 
 
 
 @pytest.mark.parametrize("df_name", ["artifact_perf_df", "artifactless_perf_df"])
-def test_data_parsing(df_name: str, result_directory: Path, tmp_path: Path, request: Any) -> None:
+def test_data_parsing(
+    df_name: str, result_directory: Path, tmp_path: Path, request: Any
+) -> None:
     perf_df = request.getfixturevalue(df_name)
     output_paths = get_output_paths_from_output_directory(result_directory)
     central_perf_df = transform_perf_df_for_appending(perf_df, output_paths)
@@ -137,7 +141,13 @@ def test_data_parsing(df_name: str, result_directory: Path, tmp_path: Path, requ
     )
 
 
-def test_valid_log_path(result_directory: Path, artifact_perf_df: pd.DataFrame, caplog: Any, tmp_path: Path, monkeypatch: Any) -> None:
+def test_valid_log_path(
+    result_directory: Path,
+    artifact_perf_df: pd.DataFrame,
+    caplog: Any,
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
     monkeypatch.setattr(
         "vivarium_cluster_tools.psimulate.performance_logger.CENTRAL_PERFORMANCE_LOGS_DIRECTORY",
         tmp_path,
@@ -162,7 +172,9 @@ def test_valid_log_path(result_directory: Path, artifact_perf_df: pd.DataFrame, 
         Path("/ihme/homes/user/model_version/"),
     ],
 )
-def test_invalid_log_path(invalid_log_path: Path, artifact_perf_df: pd.DataFrame, caplog: Any) -> None:
+def test_invalid_log_path(
+    invalid_log_path: Path, artifact_perf_df: pd.DataFrame, caplog: Any
+) -> None:
     # test we raise specific warning
     output_paths = get_output_paths_from_output_directory(invalid_log_path)
     append_perf_data_to_central_logs(artifact_perf_df, output_paths)
