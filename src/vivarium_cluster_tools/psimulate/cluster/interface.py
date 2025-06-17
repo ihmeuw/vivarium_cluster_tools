@@ -1,4 +1,3 @@
-# mypy: ignore-errors
 """
 =================
 Cluster Interface
@@ -36,7 +35,8 @@ class NativeSpecification(NamedTuple):
     # Class constant
     NUM_THREADS: int = 1
 
-    def to_cli_args(self):
+    def to_cli_args(self) -> str:
+        hardware_str = '|'.join(h for h in self.hardware if h is not None) if self.hardware else ''
         return (
             f"-J {self.job_name} "
             f"-A {self.project} "
@@ -44,7 +44,7 @@ class NativeSpecification(NamedTuple):
             f"--mem={self.peak_memory*1024} "
             f"-t {self.max_runtime} "
             f"-c {self.NUM_THREADS} "
-            f"{'-C ' + '|'.join(self.hardware) if self.hardware else ''}"
+            f"{'-C ' + hardware_str if hardware_str else ''}"
         ).strip()
 
 
