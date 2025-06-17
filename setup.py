@@ -3,7 +3,7 @@ import os
 import sys
 
 from packaging.version import parse
-from setuptools import find_packages, setup
+from setuptools import find_packages, setup  # type: ignore[import-untyped]
 
 with open("python_versions.json", "r") as f:
     supported_python_versions = json.load(f)
@@ -34,7 +34,7 @@ if __name__ == "__main__":
     base_dir = os.path.dirname(__file__)
     src_dir = os.path.join(base_dir, "src")
 
-    about = {}
+    about: dict[str, str] = {}
     with open(os.path.join(src_dir, "vivarium_cluster_tools", "__about__.py")) as f:
         exec(f.read(), about)
 
