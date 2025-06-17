@@ -163,9 +163,9 @@ class OutputPaths(NamedTuple):
             return self.root.parents[1].stem
 
     @property
-    def root_path(self) -> str:
+    def root_path(self) -> Path:
         """Path to the root directory."""
-        return str(self.root.parent)
+        return self.root.parent
 
     @property
     def logging_to_central_results_directory(self) -> bool:
