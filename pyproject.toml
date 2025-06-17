@@ -29,7 +29,6 @@ exclude = [
     "build",
     # Files below here should have their errors fixed and then be removed from this list
     # You will need to remove the mypy: ignore-errors comment from the file heading as well
-    "src/vivarium_cluster_tools/psimulate/performance_logger.py",
     "src/vivarium_cluster_tools/psimulate/pip_env.py",
     "src/vivarium_cluster_tools/psimulate/runner.py",
     "src/vivarium_cluster_tools/vipin/cli.py",
