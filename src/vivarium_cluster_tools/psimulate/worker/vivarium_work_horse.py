@@ -1,4 +1,3 @@
-# mypy: ignore-errors
 """
 ===============
 Vivarium Worker
@@ -17,7 +16,7 @@ from time import sleep, time
 from traceback import format_exc
 from typing import Any
 
-import dill
+import dill  # type: ignore[import-untyped]
 import pandas as pd
 from layered_config_tree import LayeredConfigTree
 from loguru import logger
@@ -43,27 +42,27 @@ class ParallelSimulationContext(SimulationContext):
         pass
 
 
-def work_horse(job_parameters: dict) -> tuple[pd.DataFrame, dict[str, pd.DataFrame]]:
+def work_horse(job_parameters: dict[str, Any]) -> tuple[pd.DataFrame, dict[str, pd.DataFrame]]:
     node = f"{ENV_VARIABLES.HOSTNAME.value}"
-    job = f"{ENV_VARIABLES.JOB_ID.value}:{ENV_VARIABLES.TASK_ID.value}"
+    job_info = f"{ENV_VARIABLES.JOB_ID.value}:{ENV_VARIABLES.TASK_ID.value}"
 
-    job_parameters = JobParameters(**job_parameters)
+    job_params = JobParameters(**job_parameters)
 
-    logger.info(f"Launching new job {job} on {node}")
-    logger.info(f"Starting job: {job_parameters}")
+    logger.info(f"Launching new job {job_info} on {node}")
+    logger.info(f"Starting job: {job_params}")
 
     try:
-        start_snapshot = CounterSnapshot()
+        start_snapshot = CounterSnapshot()  # type: ignore[no-untyped-call]
         event = {"start": time()}  # timestamps of application events
         logger.info("Beginning simulation setup.")
-        backup = get_backup(job_parameters)
+        backup = get_backup(job_params)
         if backup:
             sim, exec_time = get_sim_from_backup(event, backup)
         else:
-            sim, exec_time = initialize_new_sim(event, job_parameters)
-        backup_path = run_simulation(job_parameters, event, sim, exec_time)
-        results = get_sim_results(sim, job_parameters, start_snapshot, event, exec_time)
-        finished_results_metadata = format_and_record_details(job_parameters, results)
+            sim, exec_time = initialize_new_sim(event, job_params)
+        backup_path = run_simulation(job_params, event, sim, exec_time)  # type: ignore[arg-type]
+        results = get_sim_results(sim, job_params, start_snapshot, event, exec_time)  # type: ignore[arg-type]
+        finished_results_metadata = format_and_record_details(job_params, results)
         remove_backups(backup_path)
 
         return finished_results_metadata, results
@@ -71,11 +70,12 @@ def work_horse(job_parameters: dict) -> tuple[pd.DataFrame, dict[str, pd.DataFra
     except Exception:
         logger.exception("Unhandled exception in worker")
         job = get_current_job()
-        job.meta["root_exception"] = format_exc()
-        job.save_meta()
+        if job is not None:
+            job.meta["root_exception"] = format_exc()
+            job.save_meta()  # type: ignore[no-untyped-call]
         raise
     finally:
-        logger.info(f"Exiting job: {job_parameters}")
+        logger.info(f"Exiting job: {job_params}")
 
 
 def get_backup(job_parameters: JobParameters) -> ParallelSimulationContext | None:
@@ -83,7 +83,10 @@ def get_backup(job_parameters: JobParameters) -> ParallelSimulationContext | Non
     metadata_path = job_parameters.backup_configuration["backup_metadata_path"]
     try:
         pickle_metadata = pd.read_csv(metadata_path)
-        format_val = lambda v: v if isinstance(v, (int, float)) else f'"{v}"'
+        
+        def format_val(v: Any) -> str:
+            return str(v) if isinstance(v, (int, float)) else f'"{v}"'
+        
         query_conditions = " & ".join(
             [
                 f"`{k}` == {format_val(v)}"
@@ -106,14 +109,19 @@ def get_backup(job_parameters: JobParameters) -> ParallelSimulationContext | Non
                 for stale_file in set(existing_pickles) - {last_pickle}:
                     os.remove(stale_file)
             with open(last_pickle, "rb") as f:
-                sim = dill.load(f)
-            current_job_id = get_current_job().id
-            logger.info(f"Renaming backup file {last_pickle} to {current_job_id}.pkl")
-            if job_parameters.backup_configuration["backup_freq"] is not None:
-                # Sleep to prevent FS latency when loading the pickle
-                sleep(5)
-                os.rename(last_pickle, (backup_dir / str(current_job_id)).with_suffix(".pkl"))
+                sim: ParallelSimulationContext = dill.load(f)
+            current_job_id_obj = get_current_job()
+            if current_job_id_obj is not None:
+                current_job_id = current_job_id_obj.id
+                logger.info(f"Renaming backup file {last_pickle} to {current_job_id}.pkl")
+                if job_parameters.backup_configuration["backup_freq"] is not None:
+                    # Sleep to prevent FS latency when loading the pickle
+                    sleep(5)
+                    os.rename(last_pickle, (backup_dir / str(current_job_id)).with_suffix(".pkl"))
             return sim
+        else:
+            # No existing pickles found
+            return None
     except (OSError, FileNotFoundError):
         logger.info(
             "Missing backup or backup directory. Restarting simulation from beginning."
@@ -127,7 +135,7 @@ def get_backup(job_parameters: JobParameters) -> ParallelSimulationContext | Non
 
 def get_sim_from_backup(
     event: dict[str, Any], backup: SimulationContext
-) -> tuple[ParallelSimulationContext, dict[str, dict[str, Any]]]:
+) -> tuple[SimulationContext, dict[str, Any]]:
     logger.info(f"Restarting simulation from saved backup")
     sim = backup
     event["simulation_start"] = time()
@@ -175,8 +183,10 @@ def run_simulation(
 ) -> Path:
     num_steps = sim.get_number_of_steps_remaining()
     logger.info(f"Starting main simulation loop with {num_steps} time steps")
-    backup_path = (
-        job_parameters.backup_configuration["backup_dir"] / str(get_current_job().id)
+    current_job = get_current_job()
+    job_id = current_job.id if current_job is not None else "unknown"
+    backup_path: Path = (
+        job_parameters.backup_configuration["backup_dir"] / str(job_id)
     ).with_suffix(".pkl")
     sim.run(
         backup_freq=job_parameters.backup_configuration["backup_freq"],
@@ -205,15 +215,15 @@ def get_sim_results(
     exec_time: dict[str, dict[str, Any]],
 ) -> dict[str, pd.DataFrame]:
     event["end"] = time()
-    do_sim_epilogue(start_snapshot, CounterSnapshot(), event, exec_time, job_parameters)
+    do_sim_epilogue(start_snapshot, CounterSnapshot(), event, exec_time, job_parameters)  # type: ignore[no-untyped-call]
     return sim.get_results()  # Dict[measure, results dataframe]
 
 
 def do_sim_epilogue(
     start: CounterSnapshot,
     end: CounterSnapshot,
-    event: dict,
-    exec_time: dict,
+    event: dict[str, Any],
+    exec_time: dict[str, Any],
     parameters: JobParameters,
 ) -> None:
     exec_time["results_minutes"] = (event["end"] - event["results_start"]) / 60
@@ -227,13 +237,15 @@ def do_sim_epilogue(
         level="DEBUG",
         serialize=True,
     )
+    current_job = get_current_job()
+    run_id = current_job.id if current_job is not None else "unknown"
     logger.debug(
         json.dumps(
             {
                 "host": ENV_VARIABLES.HOSTNAME.value,
                 "job_number": ENV_VARIABLES.JOB_ID.value,
                 "task_number": ENV_VARIABLES.TASK_ID.value,
-                "run_id": get_current_job().id,
+                "run_id": run_id,
                 "draw": parameters.input_draw,
                 "seed": parameters.random_seed,
                 "scenario": parameters.branch_configuration,
