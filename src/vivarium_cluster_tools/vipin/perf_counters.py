@@ -1,4 +1,3 @@
-# mypy: ignore-errors
 """
 ==========================
 vipin Performance Counters
@@ -9,12 +8,20 @@ Structs for counting performance metrics.
 """
 import json
 from time import time
+from typing import Any
 
-import psutil
+import psutil  # type: ignore[import-untyped]
 
 
 class CounterSnapshot:
-    def __init__(self, cpu=None, disk=None, freq=None, net=None, timestamp=None):
+    def __init__(
+        self,
+        cpu: Any = None,
+        disk: Any = None,
+        freq: Any = None,
+        net: Any = None,
+        timestamp: float | None = None,
+    ) -> None:
         self.cpu = psutil.cpu_stats() if cpu is None else cpu
         self.disk = (
             psutil.disk_io_counters(perdisk=False, nowrap=True) if disk is None else disk
@@ -23,8 +30,8 @@ class CounterSnapshot:
         self.net = psutil.net_io_counters(pernic=False, nowrap=True) if net is None else net
         self.timestamp = time() if timestamp is None else timestamp
 
-    def to_dict(self):
-        c_dict = dict()
+    def to_dict(self) -> dict[str, Any]:
+        c_dict: dict[str, Any] = dict()
         c_dict["cpu"] = dict(self.cpu._asdict())
         c_dict["freq"] = dict(self.freq._asdict())
         c_dict["disk"] = dict(self.disk._asdict())
@@ -32,7 +39,7 @@ class CounterSnapshot:
         c_dict["time"] = self.timestamp
         return c_dict
 
-    def __sub__(self, other):
+    def __sub__(self, other: "CounterSnapshot") -> "CounterSnapshot":
         cpu = type(other.cpu)(
             *tuple(self.cpu[i] - other.cpu[i] for i in range(len(other.cpu)))
         )
