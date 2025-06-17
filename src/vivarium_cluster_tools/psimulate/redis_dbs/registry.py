@@ -68,7 +68,7 @@ class QueueManager:
     def jobs_to_finish(self) -> bool:
         return not (self.failed or self.completed)
 
-    def enqueue(self, jobs: list[dict[str, str]], workhorse_import_path: str) -> None:
+    def enqueue(self, jobs: list[dict[str, int]], workhorse_import_path: str) -> None:
         self._logger.info(f"Enqueuing jobs in queue {self.name}")
         for job in jobs:
             # TODO: might be nice to have tighter ttls but it's hard to predict
@@ -261,11 +261,11 @@ class RegistryManager:
     def jobs_to_finish(self) -> bool:
         return any([q.jobs_to_finish for q in self._queues])
 
-    def enqueue(self, jobs: list[dict[str, str]], workhorse_import_path: str) -> None:
+    def enqueue(self, jobs: list[dict[str, int]], workhorse_import_path: str) -> None:
         for queue, jobs_chunk in zip(self._queues, self.allocate_jobs(jobs)):
             queue.enqueue(jobs_chunk, workhorse_import_path)
 
-    def allocate_jobs(self, jobs: list[dict[str, str]]) -> Iterator[list[dict[str, str]]]:
+    def allocate_jobs(self, jobs: list[dict[str, int]]) -> Iterator[list[dict[str, int]]]:
         """Allocate jobs to queues in a round robin fashion."""
         num_queues = len(self._queues)
         for mod in range(num_queues):

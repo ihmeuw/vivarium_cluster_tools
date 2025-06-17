@@ -14,7 +14,7 @@ def test_allocate_jobs(mocker: Any, num_queues: int, num_jobs: int) -> None:
     queues = [(f"queue_{i}", i) for i in range(num_queues)]
     manager = RegistryManager(queues, num_jobs, 0)
     # create a list of dummy jobs based on a list of integers
-    jobs = [{"job": str(i)} for i in range(num_jobs)]
+    jobs = [{"job": i} for i in range(num_jobs)]
     # make an array of all the jobs in every queue
     jobs_by_queue = list(manager.allocate_jobs(jobs))
     # Check that each "layer" of jobs has strictly smaller-priority jobs than the next
