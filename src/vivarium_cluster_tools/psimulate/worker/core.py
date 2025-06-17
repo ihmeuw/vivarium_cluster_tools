@@ -6,6 +6,8 @@ Distributed Worker
 RQ worker with custom retry handling.
 
 """
+from __future__ import annotations
+
 import atexit
 import os
 import random
