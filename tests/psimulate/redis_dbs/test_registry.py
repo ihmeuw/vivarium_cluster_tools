@@ -3,7 +3,7 @@ from typing import Any
 
 import pytest
 
-from vivarium_cluster_tools.psimulate.redis_dbs.registry import RegistryManager  # type: ignore[import-untyped]
+from vivarium_cluster_tools.psimulate.redis_dbs.registry import RegistryManager
 
 
 @pytest.mark.parametrize("num_queues", [1, 7, 10, 19, 37])
@@ -14,7 +14,7 @@ def test_allocate_jobs(mocker: Any, num_queues: int, num_jobs: int) -> None:
     queues = [(f"queue_{i}", i) for i in range(num_queues)]
     manager = RegistryManager(queues, num_jobs, 0)
     # create a list of dummy jobs based on a list of integers
-    jobs = [{"job": i} for i in range(num_jobs)]
+    jobs = [{"job": str(i)} for i in range(num_jobs)]
     # make an array of all the jobs in every queue
     jobs_by_queue = list(manager.allocate_jobs(jobs))
     # Check that each "layer" of jobs has strictly smaller-priority jobs than the next
@@ -69,7 +69,7 @@ def mock_registry_manager() -> RegistryManager:
 
 def test_registry_manager_get_params_by_job(mock_registry_manager: RegistryManager) -> None:
     params_by_job = mock_registry_manager.get_params_by_job()
-    assert params_by_job[1] == "parameters1"
-    assert params_by_job[2] == "parameters2"
-    assert params_by_job[3] == "parameters3"
-    assert params_by_job[4] == "parameters4"
+    assert params_by_job[1] == "parameters1"  # type: ignore[comparison-overlap,index]
+    assert params_by_job[2] == "parameters2"  # type: ignore[comparison-overlap,index]
+    assert params_by_job[3] == "parameters3"  # type: ignore[comparison-overlap,index]
+    assert params_by_job[4] == "parameters4"  # type: ignore[comparison-overlap,index]

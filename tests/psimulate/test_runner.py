@@ -3,7 +3,7 @@ import pytest
 from pandas.testing import assert_frame_equal
 from pathlib import Path
 
-from vivarium_cluster_tools.psimulate.runner import (  # type: ignore[import-untyped]
+from vivarium_cluster_tools.psimulate.runner import (
     report_initial_status,
     write_backup_metadata,
 )

@@ -4,9 +4,9 @@ from unittest.mock import patch
 
 import pytest
 
-from vivarium_cluster_tools.psimulate.environment import ENV_VARIABLES  # type: ignore[import-untyped]
-from vivarium_cluster_tools.psimulate.jobs import JobParameters  # type: ignore[import-untyped]
-from vivarium_cluster_tools.psimulate.worker.vivarium_work_horse import (  # type: ignore[import-untyped]
+from vivarium_cluster_tools.psimulate.environment import ENV_VARIABLES
+from vivarium_cluster_tools.psimulate.jobs import JobParameters
+from vivarium_cluster_tools.psimulate.worker.vivarium_work_horse import (
     ParallelSimulationContext as ParallelSimulationContext_,
     work_horse,
 )
@@ -19,7 +19,7 @@ def test_logging_level(mocker: Any, tmp_path: Path, log_level: int) -> None:
     random_seed = 2
     branch_configuration = {"branch_key": "branch_value"}
     job_parameters = JobParameters(
-        model_specification=None,
+        model_specification="test_spec",  # Changed from None to avoid type error
         branch_configuration=branch_configuration,
         input_draw=input_draw,
         random_seed=random_seed,

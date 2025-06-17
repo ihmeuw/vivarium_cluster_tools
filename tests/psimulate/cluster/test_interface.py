@@ -3,7 +3,7 @@ from typing import Any
 
 import pytest
 
-from vivarium_cluster_tools.psimulate.cluster import validate_cluster_environment  # type: ignore[import-untyped]
+from vivarium_cluster_tools.psimulate.cluster import validate_cluster_environment
 
 
 @pytest.fixture(

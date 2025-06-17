@@ -6,8 +6,8 @@ import pandas as pd
 import pytest
 from vivarium.framework.engine import SimulationContext
 
-from vivarium_cluster_tools.psimulate.jobs import JobParameters  # type: ignore[import-untyped]
-from vivarium_cluster_tools.psimulate.worker.vivarium_work_horse import (  # type: ignore[import-untyped]
+from vivarium_cluster_tools.psimulate.jobs import JobParameters
+from vivarium_cluster_tools.psimulate.worker.vivarium_work_horse import (
     ParallelSimulationContext,
     get_backup,
     get_sim_from_backup,
@@ -42,7 +42,7 @@ def test_get_backup(
     branch_configuration = {"branch_key": "branch_value"}
     job_id = "prev_job"
     job_parameters = JobParameters(
-        model_specification=None,
+        model_specification="test_spec",  # Changed from None to avoid type error
         branch_configuration=branch_configuration,
         input_draw=input_draw,
         random_seed=random_seed,
@@ -98,7 +98,7 @@ def test_get_backup(
         write_pickle(job_id, correct_pickle)
 
         backup = get_backup(job_parameters)
-        assert backup == correct_pickle
+        assert backup == correct_pickle  # type: ignore[comparison-overlap]
         assert not (tmp_path / "backups" / "stale_job.pkl").exists()
         assert not (tmp_path / "backups" / f"{job_id}.pkl").exists()
         assert (tmp_path / "backups" / "current_job.pkl").exists()

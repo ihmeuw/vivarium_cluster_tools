@@ -10,8 +10,8 @@ from _pytest.logging import LogCaptureFixture
 from loguru import logger
 from pandas.testing import assert_frame_equal
 
-from vivarium_cluster_tools.psimulate.paths import OutputPaths  # type: ignore[import-untyped]
-from vivarium_cluster_tools.psimulate.performance_logger import (  # type: ignore[import-untyped]
+from vivarium_cluster_tools.psimulate.paths import OutputPaths
+from vivarium_cluster_tools.psimulate.performance_logger import (
     append_child_job_data,
     append_perf_data_to_central_logs,
     generate_runner_job_data,
@@ -148,7 +148,7 @@ def test_valid_log_path(result_directory: Path, artifact_perf_df: pd.DataFrame, 
     # add some data to central logs directory to allow appending
     output_paths = get_output_paths_from_output_directory(result_directory)
     central_perf_df = transform_perf_df_for_appending(artifact_perf_df, output_paths)
-    pd.DataFrame(columns=central_perf_df).to_csv(tmp_path / "log_summary_0000.csv")
+    pd.DataFrame(columns=central_perf_df.columns).to_csv(tmp_path / "log_summary_0000.csv")
     # test no warnings were raised
     append_perf_data_to_central_logs(artifact_perf_df, output_paths)
     assert not caplog.records

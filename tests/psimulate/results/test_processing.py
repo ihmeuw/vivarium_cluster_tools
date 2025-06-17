@@ -4,8 +4,8 @@ from typing import Any
 import pandas as pd
 import pytest
 
-from vivarium_cluster_tools.psimulate.paths import OutputPaths  # type: ignore[import-untyped]
-from vivarium_cluster_tools.psimulate.results.processing import (  # type: ignore[import-untyped]
+from vivarium_cluster_tools.psimulate.paths import OutputPaths
+from vivarium_cluster_tools.psimulate.results.processing import (
     _concat_metadata,
     _concat_preserve_types,
     write_results_batch,
