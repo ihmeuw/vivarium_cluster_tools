@@ -1,12 +1,13 @@
 from time import time
+from typing import Any
 
-import dill
+import dill  # type: ignore[import-untyped]
 import pandas as pd
 import pytest
 from vivarium.framework.engine import SimulationContext
 
-from vivarium_cluster_tools.psimulate.jobs import JobParameters
-from vivarium_cluster_tools.psimulate.worker.vivarium_work_horse import (
+from vivarium_cluster_tools.psimulate.jobs import JobParameters  # type: ignore[import-untyped]
+from vivarium_cluster_tools.psimulate.worker.vivarium_work_horse import (  # type: ignore[import-untyped]
     ParallelSimulationContext,
     get_backup,
     get_sim_from_backup,
@@ -25,7 +26,12 @@ from vivarium_cluster_tools.psimulate.worker.vivarium_work_horse import (
     ],
 )
 def test_get_backup(
-    mocker, tmp_path, make_dir, has_metadata_file, has_backup, multiple_backups
+    mocker: Any, 
+    tmp_path: Any, 
+    make_dir: bool, 
+    has_metadata_file: bool, 
+    has_backup: bool, 
+    multiple_backups: bool
 ) -> None:
     mocker.patch(
         "vivarium_cluster_tools.psimulate.worker.vivarium_work_horse.get_current_job",
@@ -80,7 +86,7 @@ def test_get_backup(
 
     if make_dir and has_metadata_file and has_backup:
 
-        def write_pickle(filename, pickle):
+        def write_pickle(filename: str, pickle: Any) -> None:
             pickle_path = tmp_path / "backups" / f"{filename}.pkl"
             with open(pickle_path, "wb") as f:
                 dill.dump(pickle, f)
@@ -103,7 +109,7 @@ def test_get_backup(
         assert not backup
 
 
-def test_remove_backups(tmp_path) -> None:
+def test_remove_backups(tmp_path: Any) -> None:
     # Ensure deleting non-existent file does not raise an error
     remove_backups(tmp_path / "job_id.pkl")
     # touch a file
@@ -114,7 +120,7 @@ def test_remove_backups(tmp_path) -> None:
     assert not (tmp_path / "job_id.pkl").exists()
 
 
-def test_get_sim_from_backup():
+def test_get_sim_from_backup() -> None:
     backup = ParallelSimulationContext()  # returned by get_backup
     event = {"start": time()}
     sim, exec_time = get_sim_from_backup(event, backup)
