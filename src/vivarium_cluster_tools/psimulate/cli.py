@@ -1,4 +1,3 @@
-# mypy: ignore-errors
 """
 =============
 psimulate CLI
@@ -13,6 +12,7 @@ Command line interface for `psimulate`.
 """
 
 from pathlib import Path
+from typing import Any
 
 import click
 from loguru import logger
@@ -33,7 +33,7 @@ from vivarium_cluster_tools.psimulate.worker.load_test_work_horse import (
 
 
 @click.group()
-def psimulate():
+def psimulate() -> None:
     """A command line utility for running many simulations in parallel.
 
     You may initiate a new run with the ``run`` sub-command or restart a run
@@ -42,7 +42,9 @@ def psimulate():
     pass
 
 
-shared_options = [
+# NOTE: Mixed decorator types (some return CLIFunction, others return different types)
+# Using Any to handle the type variance
+shared_options: list[Any] = [
     cluster.with_project,
     cluster.with_queue_and_max_runtime,
     cluster.with_peak_memory,
@@ -90,7 +92,7 @@ def run(
     branch_configuration: str | Path,
     artifact_path: str | Path | None,
     result_directory: str | Path,
-    **options,
+    **options: Any,
 ) -> None:
     """Run a parallel simulation.
 
@@ -122,7 +124,7 @@ def run(
             result_directory=result_directory,
         ),
         native_specification=cluster.NativeSpecification(
-            job_name=model_specification.stem,
+            job_name=Path(model_specification).stem,
             project=options["project"],
             queue=options["queue"],
             peak_memory=options["peak_memory"],
@@ -146,7 +148,7 @@ def run(
     callback=cli_tools.coerce_to_full_path,
 )
 @cli_tools.pass_shared_options(shared_options)
-def restart(results_root: str | Path, **options):
+def restart(results_root: str | Path, **options: Any) -> None:
     """Restart a parallel simulation.
 
     This restarts a parallel simulation from a previous run at RESULTS_ROOT.
@@ -163,7 +165,7 @@ def restart(results_root: str | Path, **options):
             result_directory=results_root,
         ),
         native_specification=cluster.NativeSpecification(
-            job_name=results_root.parent.name,
+            job_name=Path(results_root).parent.name,
             project=options["project"],
             queue=options["queue"],
             peak_memory=options["peak_memory"],
@@ -201,7 +203,7 @@ def restart(results_root: str | Path, **options):
     help="The number of random seeds to add to a previous run.",
 )
 @cli_tools.pass_shared_options(shared_options)
-def expand(results_root: str | Path, **options):
+def expand(results_root: str | Path, **options: Any) -> None:
     """Expand a previous run.
 
     This expands a previous run at RESULTS_ROOT by adding input draws and/or
@@ -219,7 +221,7 @@ def expand(results_root: str | Path, **options):
             result_directory=results_root,
         ),
         native_specification=cluster.NativeSpecification(
-            job_name=results_root.parent.name,
+            job_name=Path(results_root).parent.name,
             project=options["project"],
             queue=options["queue"],
             peak_memory=options["peak_memory"],
@@ -259,7 +261,7 @@ def expand(results_root: str | Path, **options):
     callback=cli_tools.coerce_to_full_path,
 )
 @cli_tools.pass_shared_options(shared_options)
-def test(test_type, num_workers, result_directory: str | Path, **options):
+def test(test_type: str, num_workers: int, result_directory: str | Path, **options: Any) -> None:
     logs.configure_main_process_logging_to_terminal(options["verbose"])
     main = handle_exceptions(runner.main, logger, options["with_debugger"])
 
