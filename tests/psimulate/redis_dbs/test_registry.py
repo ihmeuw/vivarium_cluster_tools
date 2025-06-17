@@ -1,13 +1,14 @@
 from unittest.mock import MagicMock, patch
+from typing import Any
 
 import pytest
 
-from vivarium_cluster_tools.psimulate.redis_dbs.registry import RegistryManager
+from vivarium_cluster_tools.psimulate.redis_dbs.registry import RegistryManager  # type: ignore[import-untyped]
 
 
 @pytest.mark.parametrize("num_queues", [1, 7, 10, 19, 37])
 @pytest.mark.parametrize("num_jobs", [1, 10, 42, 1337, 2023])
-def test_allocate_jobs(mocker, num_queues, num_jobs):
+def test_allocate_jobs(mocker: Any, num_queues: int, num_jobs: int) -> None:
     # mock the QueueManager class
     mocker.patch("vivarium_cluster_tools.psimulate.redis_dbs.registry.QueueManager")
     queues = [(f"queue_{i}", i) for i in range(num_queues)]
@@ -24,7 +25,7 @@ def test_allocate_jobs(mocker, num_queues, num_jobs):
         assert max(this_layer) < min(next_layer)
 
 
-def create_mock_job(job_id, job_parameters):
+def create_mock_job(job_id: int, job_parameters: str) -> MagicMock:
     mock_job = MagicMock()
     mock_job.id = job_id
     mock_job.kwargs = {"job_parameters": job_parameters}
@@ -32,7 +33,7 @@ def create_mock_job(job_id, job_parameters):
 
 
 @pytest.fixture
-def mock_registry_manager():
+def mock_registry_manager() -> RegistryManager:
     # Mock the QueueManager used within RegistryManager
     with patch(
         "vivarium_cluster_tools.psimulate.redis_dbs.registry.QueueManager"
@@ -66,7 +67,7 @@ def mock_registry_manager():
         return manager
 
 
-def test_registry_manager_get_params_by_job(mock_registry_manager):
+def test_registry_manager_get_params_by_job(mock_registry_manager: RegistryManager) -> None:
     params_by_job = mock_registry_manager.get_params_by_job()
     assert params_by_job[1] == "parameters1"
     assert params_by_job[2] == "parameters2"
