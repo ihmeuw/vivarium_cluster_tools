@@ -1,4 +1,3 @@
-# mypy: ignore-errors
 """
 ===================================
 Redis Queue and Registry Management
@@ -69,7 +68,7 @@ class QueueManager:
     def jobs_to_finish(self) -> bool:
         return not (self.failed or self.completed)
 
-    def enqueue(self, jobs: list[dict], workhorse_import_path: str) -> None:
+    def enqueue(self, jobs: list[dict[str, str]], workhorse_import_path: str) -> None:
         self._logger.info(f"Enqueuing jobs in queue {self.name}")
         for job in jobs:
             # TODO: might be nice to have tighter ttls but it's hard to predict
@@ -83,7 +82,7 @@ class QueueManager:
                 job_timeout="7d",
             )
 
-    def get_results(self) -> list:
+    def get_results(self) -> list[str]:
         self._logger.debug(f"Checking queue {self.name}")
         finished_jobs = self._get_finished_jobs()
         start = time.time()
@@ -162,7 +161,8 @@ class QueueManager:
     def _get_finished_jobs(self) -> list[str]:
         if self._retries:
             try:
-                return self._finished.get_job_ids()
+                job_ids: list[str] = self._finished.get_job_ids()
+                return job_ids
             except redis.exceptions.ConnectionError:
                 self._sleep_on_it()
                 return self._get_finished_jobs()
@@ -244,7 +244,7 @@ class QueueManager:
 class RegistryManager:
     def __init__(
         self,
-        redis_processes: tuple[str, int],
+        redis_processes: list[tuple[str, int]],
         submitted_workers: int,
         num_already_completed: int,
     ):
@@ -261,17 +261,17 @@ class RegistryManager:
     def jobs_to_finish(self) -> bool:
         return any([q.jobs_to_finish for q in self._queues])
 
-    def enqueue(self, jobs: list[dict], workhorse_import_path: str) -> None:
+    def enqueue(self, jobs: list[dict[str, str]], workhorse_import_path: str) -> None:
         for queue, jobs_chunk in zip(self._queues, self.allocate_jobs(jobs)):
             queue.enqueue(jobs_chunk, workhorse_import_path)
 
-    def allocate_jobs(self, jobs: list[dict]) -> Iterator[list[dict]]:
+    def allocate_jobs(self, jobs: list[dict[str, str]]) -> Iterator[list[dict[str, str]]]:
         """Allocate jobs to queues in a round robin fashion."""
         num_queues = len(self._queues)
         for mod in range(num_queues):
             yield [job for i, job in enumerate(jobs) if i % num_queues == mod]
 
-    def get_results(self) -> list:
+    def get_results(self) -> list[str]:
         to_check = [q for q in self._queues if q.jobs_to_finish]
         results = []
         for queue in to_check:
@@ -297,7 +297,7 @@ class RegistryManager:
         self._logger.info(template.format(**status))
         return status
 
-    def get_params_by_job(self) -> dict[str, dict]:
+    def get_params_by_job(self) -> dict[str, dict[str, str]]:
         jobs = list(chain.from_iterable([q._queue.jobs for q in self._queues]))
         return {job.id: job.kwargs["job_parameters"] for job in jobs}
 
