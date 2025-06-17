@@ -9,8 +9,12 @@ py:class pandas._libs.interval.Interval
 py:class pandas.core.frame.DataFrame
 py:class pandas.core.series.Series
 py:class pandas.core.generic.PandasObject
+# pathlib
+py:class pathlib.Path
 # redis
 py:class redis.client.Redis
+# tempfile
+py:class tempfile._TemporaryFileWrapper
 # layered-config-tree
 py:class layered_config_tree.main.LayeredConfigTree
 # typing
