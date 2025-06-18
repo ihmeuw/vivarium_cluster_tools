@@ -1,4 +1,3 @@
-# mypy: ignore-errors
 """
 ================
 psimulate Runner
@@ -13,6 +12,7 @@ import shutil
 from collections import defaultdict
 from pathlib import Path
 from time import sleep, time
+from typing import Any
 
 import pandas as pd
 from loguru import logger
@@ -45,8 +45,8 @@ def process_job_results(
     output_paths: OutputPaths,
     no_batch: bool,
 ) -> dict[str, int | float]:
-    unwritten_metadata = []
-    unwritten_results = []
+    unwritten_metadata: list[Any] = []
+    unwritten_results: list[Any] = []
     batch_size = 0 if no_batch else 200
     status: dict[str, int | float] = defaultdict(int)
 
@@ -55,9 +55,11 @@ def process_job_results(
     try:
         while registry_manager.jobs_to_finish:
             sleep(5)
-            for metadata, results in registry_manager.get_results():
-                unwritten_metadata.append(metadata)
-                unwritten_results.append(results)
+            # TODO: get_results() returns list[str] but code expects tuples of (metadata, results)
+            # This suggests missing deserialization step or incorrect return type annotation
+            for metadata, results in registry_manager.get_results():  # type: ignore[misc]
+                unwritten_metadata.append(metadata)  # type: ignore[has-type]
+                unwritten_results.append(results)  # type: ignore[has-type]
 
             if len(unwritten_results) > batch_size:
                 (
@@ -150,13 +152,14 @@ def try_run_vipin(output_paths: OutputPaths) -> None:
         return
 
     try:
-        append_perf_data_to_central_logs(perf_df, output_paths)
+        if perf_df is not None:
+            append_perf_data_to_central_logs(perf_df, output_paths)
     except Exception as e:
         logger.warning(f"Appending performance data to central logs failed with: {e}")
 
 
 def write_backup_metadata(
-    backup_metadata_path: Path, parameters_by_job: dict[str, dict]
+    backup_metadata_path: Path, parameters_by_job: dict[str, dict[str, Any]]
 ) -> None:
     lookup_table = []
     for job_id, params in parameters_by_job.items():
@@ -187,17 +190,20 @@ def main(
     redis_processes: int,
     no_batch: bool,
     backup_freq: int,
-    extra_args: dict,
+    extra_args: dict[str, Any],
 ) -> None:
     logger.info("Validating cluster environment.")
     cluster.validate_cluster_environment()
 
     # Generate programmatic representation of the output directory structure
+    model_spec_path = input_paths.model_specification
+    if model_spec_path is None:
+        raise ValueError("Model specification path is required")
     output_paths = paths.OutputPaths.from_entry_point_args(
         command=command,
         input_artifact_path=input_paths.artifact,
         result_directory=input_paths.result_directory,
-        input_model_spec_path=input_paths.model_specification,
+        input_model_spec_path=model_spec_path,
     )
     logger.info("Setting up output directory and all subdirectories.")
     output_paths.touch()
@@ -316,7 +322,7 @@ def main(
 
     cluster.submit_worker_jobs(
         num_workers=num_workers,
-        worker_launch_script=worker_launch_script,
+        worker_launch_script=worker_launch_script,  # type: ignore[arg-type]
         cluster_logging_root=output_paths.cluster_logging_root,
         native_specification=native_specification,
     )

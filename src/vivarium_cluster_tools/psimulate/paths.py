@@ -1,4 +1,3 @@
-# mypy: ignore-errors
 """
 ====================
 File Path Management
@@ -68,17 +67,21 @@ class InputPaths(NamedTuple):
         """
         if result_directory is None:
             raise ValueError("Result directory must be provided.")
+        result_dir_path = cls._coerce_path(result_directory)
+        if result_dir_path is None:
+            raise ValueError("Result directory must be provided.")
         return InputPaths(
             model_specification=cls._coerce_path(input_model_specification_path),
             branch_configuration=cls._coerce_path(input_branch_configuration_path),
             artifact=cls._coerce_path(input_artifact_path),
-            result_directory=cls._coerce_path(result_directory),
+            result_directory=result_dir_path,
         )
 
     @staticmethod
-    def _coerce_path(path: str | None) -> Path | None:
+    def _coerce_path(path: str | Path | None) -> Path | None:
         if path is not None:
             return Path(path)
+        return None
 
 
 class OutputPaths(NamedTuple):
@@ -160,7 +163,7 @@ class OutputPaths(NamedTuple):
             return self.root.parents[1].stem
 
     @property
-    def root_path(self) -> str:
+    def root_path(self) -> Path:
         """Path to the root directory."""
         return self.root.parent
 
@@ -200,6 +203,8 @@ class OutputPaths(NamedTuple):
 
         output_directory = result_directory
         if command == COMMANDS.run:
+            if input_artifact_path is None:
+                raise ValueError("Input artifact path is required for run command")
             model_name = get_output_model_name_string(
                 input_artifact_path, input_model_spec_path
             )

@@ -1,4 +1,5 @@
 from time import time
+from typing import Any
 
 import dill
 import pandas as pd
@@ -25,7 +26,12 @@ from vivarium_cluster_tools.psimulate.worker.vivarium_work_horse import (
     ],
 )
 def test_get_backup(
-    mocker, tmp_path, make_dir, has_metadata_file, has_backup, multiple_backups
+    mocker: Any,
+    tmp_path: Any,
+    make_dir: bool,
+    has_metadata_file: bool,
+    has_backup: bool,
+    multiple_backups: bool,
 ) -> None:
     mocker.patch(
         "vivarium_cluster_tools.psimulate.worker.vivarium_work_horse.get_current_job",
@@ -36,7 +42,7 @@ def test_get_backup(
     branch_configuration = {"branch_key": "branch_value"}
     job_id = "prev_job"
     job_parameters = JobParameters(
-        model_specification=None,
+        model_specification="test_spec",  # Changed from None to avoid type error
         branch_configuration=branch_configuration,
         input_draw=input_draw,
         random_seed=random_seed,
@@ -80,7 +86,7 @@ def test_get_backup(
 
     if make_dir and has_metadata_file and has_backup:
 
-        def write_pickle(filename, pickle):
+        def write_pickle(filename: str, pickle: Any) -> None:
             pickle_path = tmp_path / "backups" / f"{filename}.pkl"
             with open(pickle_path, "wb") as f:
                 dill.dump(pickle, f)
@@ -92,7 +98,7 @@ def test_get_backup(
         write_pickle(job_id, correct_pickle)
 
         backup = get_backup(job_parameters)
-        assert backup == correct_pickle
+        assert backup == correct_pickle  # type: ignore[comparison-overlap]
         assert not (tmp_path / "backups" / "stale_job.pkl").exists()
         assert not (tmp_path / "backups" / f"{job_id}.pkl").exists()
         assert (tmp_path / "backups" / "current_job.pkl").exists()
@@ -103,7 +109,7 @@ def test_get_backup(
         assert not backup
 
 
-def test_remove_backups(tmp_path) -> None:
+def test_remove_backups(tmp_path: Any) -> None:
     # Ensure deleting non-existent file does not raise an error
     remove_backups(tmp_path / "job_id.pkl")
     # touch a file
@@ -114,7 +120,7 @@ def test_remove_backups(tmp_path) -> None:
     assert not (tmp_path / "job_id.pkl").exists()
 
 
-def test_get_sim_from_backup():
+def test_get_sim_from_backup() -> None:
     backup = ParallelSimulationContext()  # returned by get_backup
     event = {"start": time()}
     sim, exec_time = get_sim_from_backup(event, backup)
