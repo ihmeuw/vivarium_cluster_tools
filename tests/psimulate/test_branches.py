@@ -1,4 +1,5 @@
 import pytest
+from typing import Any
 from vivarium.framework.utilities import collapse_nested_dict
 
 from vivarium_cluster_tools.psimulate.branches import (
@@ -8,17 +9,17 @@ from vivarium_cluster_tools.psimulate.branches import (
 )
 
 
-def test_expand_branch_template():
-    source = [
+def test_expand_branch_template() -> None:
+    source: list[dict[str, Any]] = [
         {"a": {"b": [1, 2], "c": 3, "d": [4, 5, 6], "e": [True, False]}},
         {"a": {"b": 10, "c": 30, "d": 40, "e": True}},
     ]
     result = expand_branch_templates(source)
 
-    result = [collapse_nested_dict(r) for r in result]
+    result_collapsed = [list(collapse_nested_dict(r)) for r in result]
 
     expected = [
-        collapse_nested_dict(r)
+        list(collapse_nested_dict(r))
         for r in [
             {"a": {"b": 1, "c": 3, "d": 4, "e": True}},
             {"a": {"b": 2, "c": 3, "d": 5, "e": True}},
@@ -35,18 +36,18 @@ def test_expand_branch_template():
             {"a": {"b": 2, "c": 3, "d": 6, "e": False}},
         ]
     ]
-    assert sorted(result) == sorted(expected)
+    assert sorted(result_collapsed) == sorted(expected)
 
 
 @pytest.mark.parametrize("seed_count", [0, 10, 100, 1000])
-def test_calculate_random_seeds(seed_count):
+def test_calculate_random_seeds(seed_count: int) -> None:
     seeds = calculate_random_seeds(seed_count)
     assert len(seeds) == len(set(seeds))
     assert len(seeds) == seed_count
 
 
 @pytest.mark.parametrize("seed_count", [0, 10, 100, 1000])
-def test_calculate_random_seeds_existing(seed_count):
+def test_calculate_random_seeds_existing(seed_count: int) -> None:
     existing = list(range(20))
 
     seeds = calculate_random_seeds(seed_count, existing)
@@ -55,7 +56,7 @@ def test_calculate_random_seeds_existing(seed_count):
     assert len(seeds) == seed_count
 
 
-def test_keyspace_order():
+def test_keyspace_order() -> None:
     ## divide an integer range of 15 into five bins
     input_draws, random_seeds, foos = [list(range(i, i + 3)) for i in range(0, 9, 3)]
     branches = [{"foo": foo} for foo in foos]
