@@ -1,4 +1,3 @@
-# mypy: ignore-errors
 """
 ====================
 File Path Management
@@ -68,17 +67,22 @@ class InputPaths(NamedTuple):
         """
         if result_directory is None:
             raise ValueError("Result directory must be provided.")
+        
+        # Handle the result_directory conversion separately since it has different type requirements
+        result_dir_path = result_directory if isinstance(result_directory, Path) else Path(result_directory)
+        
         return InputPaths(
             model_specification=cls._coerce_path(input_model_specification_path),
             branch_configuration=cls._coerce_path(input_branch_configuration_path),
             artifact=cls._coerce_path(input_artifact_path),
-            result_directory=cls._coerce_path(result_directory),
+            result_directory=result_dir_path,
         )
 
     @staticmethod
-    def _coerce_path(path: str | None) -> Path | None:
+    def _coerce_path(path: str | Path | None) -> Path | None:
         if path is not None:
-            return Path(path)
+            return Path(path) if not isinstance(path, Path) else path
+        return None
 
 
 class OutputPaths(NamedTuple):
@@ -162,7 +166,7 @@ class OutputPaths(NamedTuple):
     @property
     def root_path(self) -> str:
         """Path to the root directory."""
-        return self.root.parent
+        return str(self.root.parent)
 
     @property
     def logging_to_central_results_directory(self) -> bool:
@@ -200,6 +204,9 @@ class OutputPaths(NamedTuple):
 
         output_directory = result_directory
         if command == COMMANDS.run:
+            # Handle potential None value for input_artifact_path
+            if input_artifact_path is None:
+                raise ValueError("Input artifact path is required for run command")
             model_name = get_output_model_name_string(
                 input_artifact_path, input_model_spec_path
             )
