@@ -1,4 +1,5 @@
 import socket
+from typing import Any
 
 import pytest
 
@@ -11,8 +12,8 @@ from vivarium_cluster_tools.psimulate.cluster import validate_cluster_environmen
         "long-slurm-sarchive-p0022",
     ]
 )
-def good_host(request):
-    return request.param
+def good_host(request: Any) -> str:
+    return request.param  # type: ignore[no-any-return] # pytest fixture param is Any
 
 
 @pytest.fixture(
@@ -21,16 +22,16 @@ def good_host(request):
         "-slogin-",
     ]
 )
-def bad_host(request):
-    return request.param
+def bad_host(request: Any) -> str:
+    return request.param  # type: ignore[no-any-return] # pytest fixture param is Any
 
 
-def test_validate_cluster_environment_pass(monkeypatch, good_host):
+def test_validate_cluster_environment_pass(monkeypatch: Any, good_host: str) -> None:
     monkeypatch.setattr(socket, "gethostname", lambda: good_host)
     validate_cluster_environment()
 
 
-def test_validate_cluster_environment_fail(monkeypatch, bad_host):
+def test_validate_cluster_environment_fail(monkeypatch: Any, bad_host: str) -> None:
     monkeypatch.setattr(socket, "gethostname", lambda: bad_host)
     with pytest.raises(RuntimeError):
         validate_cluster_environment()
