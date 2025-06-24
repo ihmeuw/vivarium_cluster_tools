@@ -116,17 +116,16 @@ def test_data_parsing(df_name: str, result_directory: Path, tmp_path: Path, requ
     else:
         expected_scenario_parameters = [
             '{"scenario_parameter_one": "value_one"}',
-            '{"scenario_parameter_one": "value_two"}',
-        ] * 6
+            '{"scenario_parameter_one": "value_two"}',        ] * 6
     assert (central_perf_df["scenario_parameters"] == expected_scenario_parameters).all()
 
     job_number = int(central_perf_df["job_number"].unique().squeeze())
     runner_data = generate_runner_job_data(job_number, output_paths, "first_file_with_data")
-
+    
     assert runner_data["project_name"].squeeze() == "project_name"
-    assert runner_data["root_path"].squeeze() == Path(
+    assert runner_data["root_path"].squeeze() == str(Path(
         "/mnt/team/simulation_science/pub/models/project_name/results/model_version/artifact"
-    )
+    ))
     assert runner_data["original_run_date"].squeeze() == "YYYY_MM_DD_HH_MM_SS"
     assert runner_data["run_date"].squeeze() == "yyyy_mm_dd_hh_mm_ss"
     assert runner_data["run_type"].squeeze() == "runtype"
