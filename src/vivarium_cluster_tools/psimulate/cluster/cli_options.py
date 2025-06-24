@@ -1,4 +1,3 @@
-# mypy: ignore-errors
 """
 ===================
 Cluster CLI options
@@ -7,6 +6,8 @@ Cluster CLI options
 Command line options for configuring the cluster environment in psimulate runs.
 
 """
+from typing import Any
+
 import click
 
 _RUNTIME_FORMAT = "hh:mm:ss"
@@ -27,8 +28,8 @@ _AVAILABLE_HARDWARE = [
 
 def _validate_and_split_hardware(
     ctx: click.Context, param: click.core.Option, value: str | None
-) -> list[str | None]:
-    hardware = value.split(",") if value else []
+) -> list[str]:
+    hardware: list[str] = value.split(",") if value else []
     bad_requests = set(hardware) - set(_AVAILABLE_HARDWARE)
     if bad_requests:
         raise click.BadParameter(
@@ -54,7 +55,7 @@ with_project = click.option(
 )
 
 
-def with_queue_and_max_runtime(func):
+def with_queue_and_max_runtime(func: Any) -> Any:
     """Provide a single decorator for both queue and max runtime
     since they are tightly coupled.
 
@@ -91,7 +92,7 @@ with_hardware = click.option(
 )
 
 
-def _queue_and_runtime_callback(ctx: click.Context, param: str, value: str) -> str:
+def _queue_and_runtime_callback(ctx: click.Context, param: click.core.Parameter, value: str) -> str:
     if param.name == "queue" and "max_runtime" in ctx.params:
         runtime_string, queue = _validate_runtime_and_queue(ctx.params["max_runtime"], value)
         ctx.params["max_runtime"], value = runtime_string, queue
@@ -103,7 +104,7 @@ def _queue_and_runtime_callback(ctx: click.Context, param: str, value: str) -> s
     return value
 
 
-def _validate_runtime_and_queue(runtime_string: str, queue: str):
+def _validate_runtime_and_queue(runtime_string: str, queue: str) -> tuple[str, str]:
     try:
         hours, minutes, seconds = runtime_string.split(":")
     except ValueError:
