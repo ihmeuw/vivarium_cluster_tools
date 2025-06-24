@@ -1,4 +1,3 @@
-# mypy: ignore-errors
 """
 ================================
 vivarium_cluster_tools Utilities
@@ -67,7 +66,7 @@ def backoff_and_retry(
     backoff_seconds: int | float = 30,
     num_retries: int = 3,
     log_function: Callable[[str], None] = warnings.warn,
-) -> Callable:
+) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Adds a retry handler to the decorated function.
 
     Parameters
@@ -85,9 +84,9 @@ def backoff_and_retry(
         A function that retries the decorated function a specified number of times.
     """
 
-    def _wrap(func):
+    def _wrap(func: Callable[..., Any]) -> Callable[..., Any]:
         @functools.wraps(func)
-        def _wrapped(*args, **kwargs):
+        def _wrapped(*args: Any, **kwargs: Any) -> Any:
             retries = num_retries
             while retries:
                 try:
