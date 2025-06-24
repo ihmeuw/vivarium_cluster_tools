@@ -1,4 +1,3 @@
-# mypy: ignore-errors
 """
 ================
 psimulate Runner
@@ -13,6 +12,7 @@ import shutil
 from collections import defaultdict
 from pathlib import Path
 from time import sleep, time
+from typing import Any
 
 import pandas as pd
 from loguru import logger
@@ -35,7 +35,7 @@ from vivarium_cluster_tools.psimulate.paths import OutputPaths
 from vivarium_cluster_tools.psimulate.performance_logger import (
     append_perf_data_to_central_logs,
 )
-from vivarium_cluster_tools.vipin.perf_report import report_performance
+from vivarium_cluster_tools.vipin.perf_report import PerformanceSummary, report_performance
 
 
 def process_job_results(
@@ -142,21 +142,21 @@ def report_initial_status(
 def try_run_vipin(output_paths: OutputPaths) -> None:
     log_path = output_paths.worker_logging_root
     try:
-        perf_df = report_performance(
+        report_performance(
             input_directory=log_path, output_directory=log_path, output_hdf=False, verbose=1
         )
+        # Get performance data for central logging
+        perf_summary = PerformanceSummary(log_path)
+        perf_df = perf_summary.to_df()
+        if len(perf_df) > 0:
+            append_perf_data_to_central_logs(perf_df, output_paths)
     except Exception as e:
         logger.warning(f"Performance reporting failed with: {e}")
         return
 
-    try:
-        append_perf_data_to_central_logs(perf_df, output_paths)
-    except Exception as e:
-        logger.warning(f"Appending performance data to central logs failed with: {e}")
-
 
 def write_backup_metadata(
-    backup_metadata_path: Path, parameters_by_job: dict[str, dict]
+    backup_metadata_path: Path, parameters_by_job: dict[str, dict[str, Any]]
 ) -> None:
     lookup_table = []
     for job_id, params in parameters_by_job.items():
@@ -187,12 +187,16 @@ def main(
     redis_processes: int,
     no_batch: bool,
     backup_freq: int,
-    extra_args: dict,
+    extra_args: dict[str, Any],
 ) -> None:
     logger.info("Validating cluster environment.")
     cluster.validate_cluster_environment()
 
     # Generate programmatic representation of the output directory structure
+    # The model specification should always be provided via CLI argument
+    assert input_paths.model_specification is not None, (
+        "Model specification path is required but was None"
+    )
     output_paths = paths.OutputPaths.from_entry_point_args(
         command=command,
         input_artifact_path=input_paths.artifact,
@@ -316,7 +320,7 @@ def main(
 
     cluster.submit_worker_jobs(
         num_workers=num_workers,
-        worker_launch_script=worker_launch_script,
+        worker_launch_script=worker_launch_script,  # type: ignore[arg-type]  # _TemporaryFileWrapper[str] is compatible with TextIO
         cluster_logging_root=output_paths.cluster_logging_root,
         native_specification=native_specification,
     )
