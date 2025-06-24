@@ -1,4 +1,3 @@
-# mypy: ignore-errors
 """
 =========
 vipin CLI
@@ -30,7 +29,7 @@ from vivarium_cluster_tools.vipin import perf_report
     "--hdf/--csv", default=False, help="Choose hdf or csv for output data. Defaults to csv."
 )
 @click.option("-v", "verbose", count=True, help="Configure logging verbosity.")
-def vipin(logs_directory, result_directory, hdf, verbose):
+def vipin(logs_directory: str, result_directory: str | None, hdf: bool, verbose: int) -> None:
     """Get performance information from worker_logs from a ``psimulate`` command.
 
     Given a worker logs directory from a previous run, a summary csv will be
