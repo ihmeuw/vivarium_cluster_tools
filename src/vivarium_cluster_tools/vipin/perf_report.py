@@ -10,7 +10,7 @@ Tools for summarizing and reporting performance information.
 import json
 import re
 from pathlib import Path
-from typing import Any, Generator
+from typing import Generator
 
 import numpy as np
 import pandas as pd
@@ -145,7 +145,7 @@ def print_stat_report(perf_df: pd.DataFrame, scenario_cols: list[str]) -> None:
         )
         perf_df["compound_scenario"] = (
             perf_df[scenario_cols]
-            .to_csv(None, header=False, index=False, sep="/")
+            .to_csv(header=False, index=False, sep="/")
             .strip("\n")
             .split("\n")
         )
@@ -201,7 +201,7 @@ def report_performance(
 
     if len(perf_df) < 1:
         logger.warning(f"No performance data found in {input_directory}.")
-        return  # nothing left to do
+        return None  # nothing left to do
 
     # Add jobapi data about the job to dataframe
     perf_df = add_squid_api_data(perf_df)

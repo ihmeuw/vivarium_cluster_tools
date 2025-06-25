@@ -1,3 +1,20 @@
+**2.1.14 - 06/16/25**
+
+  - Type-hinting: Fix mypy errors in psimulate/cluster/cli_options.py
+
+**2.1.13 - 06/11/25**
+
+  - Type-hinting: Fix mypy errors in utilities.py
+
+**2.1.12 - 06/11/25**
+
+  - Move deprecated rtd for redis
+
+
+**2.1.11 - 06/11/25**
+
+  - Type-hinting: Fix mypy errors in perf_report.py
+
 **2.1.10 - 06/09/25**
 
   - Type-hinting: Fix mypy errors in logs.py

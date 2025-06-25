@@ -3,11 +3,20 @@ import shutil
 import time
 from pathlib import Path
 from subprocess import PIPE, Popen
-from typing import Any
+from typing import Any, TypedDict
 
 import pytest
+from pytest import FixtureRequest
 
 from vivarium_cluster_tools.utilities import backoff_and_retry, mkdir
+
+
+class MkdirParams(TypedDict, total=False):
+    """Parameters for the mkdir function."""
+
+    parents: bool
+    exists_ok: bool
+    umask: int
 
 
 @pytest.fixture(
@@ -21,11 +30,11 @@ from vivarium_cluster_tools.utilities import backoff_and_retry, mkdir
         ({"exists_ok": True, "parents": True}, None),
     ]
 )
-def permissions_params(request: Any) -> Any:
-    return request.param
+def permissions_params(request: FixtureRequest) -> tuple[MkdirParams, str | None]:
+    return request.param  # type: ignore[no-any-return]
 
 
-def test_mkdir_set_permissions(permissions_params: list[Any]) -> None:
+def test_mkdir_set_permissions(permissions_params: tuple[MkdirParams, str | None]) -> None:
     # Get prior umask value
     prior_umask = os.umask(0)
     os.umask(prior_umask)
@@ -37,7 +46,7 @@ def test_mkdir_set_permissions(permissions_params: list[Any]) -> None:
     parent_path = cwd / parent_dir_name
     path = parent_path / child_dir_name
 
-    mkdir_params: dict[str, Any] = permissions_params[0]
+    mkdir_params: MkdirParams = permissions_params[0]
     permissions: str | None = permissions_params[1] if permissions_params[1] else "drwxrwxr-x"
 
     def test_mkdir_permissions() -> None:
