@@ -66,6 +66,8 @@ if __name__ == "__main__":
         "isort==5.13.2",
         "mypy",
         "types-requests",
+        "types-setuptools",
+        "types-psutil",
     ]
 
     test_requirements = [
