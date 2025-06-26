@@ -88,7 +88,9 @@ def get_output_paths_from_output_directory(output_directory: Path) -> OutputPath
 
 
 @pytest.mark.parametrize("df_name", ["artifact_perf_df", "artifactless_perf_df"])
-def test_expected_columns(df_name: str, result_directory: Path, tmp_path: Path, request: Any) -> None:
+def test_expected_columns(
+    df_name: str, result_directory: Path, tmp_path: Path, request: Any
+) -> None:
     perf_df = request.getfixturevalue(df_name)
     # transform df
     output_paths = get_output_paths_from_output_directory(result_directory)
@@ -102,7 +104,9 @@ def test_expected_columns(df_name: str, result_directory: Path, tmp_path: Path, 
 
 
 @pytest.mark.parametrize("df_name", ["artifact_perf_df", "artifactless_perf_df"])
-def test_data_parsing(df_name: str, result_directory: Path, tmp_path: Path, request: Any) -> None:
+def test_data_parsing(
+    df_name: str, result_directory: Path, tmp_path: Path, request: Any
+) -> None:
     perf_df = request.getfixturevalue(df_name)
     output_paths = get_output_paths_from_output_directory(result_directory)
     central_perf_df = transform_perf_df_for_appending(perf_df, output_paths)
@@ -116,16 +120,19 @@ def test_data_parsing(df_name: str, result_directory: Path, tmp_path: Path, requ
     else:
         expected_scenario_parameters = [
             '{"scenario_parameter_one": "value_one"}',
-            '{"scenario_parameter_one": "value_two"}',        ] * 6
+            '{"scenario_parameter_one": "value_two"}',
+        ] * 6
     assert (central_perf_df["scenario_parameters"] == expected_scenario_parameters).all()
 
     job_number = int(central_perf_df["job_number"].unique().squeeze())
     runner_data = generate_runner_job_data(job_number, output_paths, "first_file_with_data")
-    
+
     assert runner_data["project_name"].squeeze() == "project_name"
-    assert runner_data["root_path"].squeeze() == str(Path(
-        "/mnt/team/simulation_science/pub/models/project_name/results/model_version/artifact"
-    ))
+    assert runner_data["root_path"].squeeze() == str(
+        Path(
+            "/mnt/team/simulation_science/pub/models/project_name/results/model_version/artifact"
+        )
+    )
     assert runner_data["original_run_date"].squeeze() == "YYYY_MM_DD_HH_MM_SS"
     assert runner_data["run_date"].squeeze() == "yyyy_mm_dd_hh_mm_ss"
     assert runner_data["run_type"].squeeze() == "runtype"
@@ -136,13 +143,20 @@ def test_data_parsing(df_name: str, result_directory: Path, tmp_path: Path, requ
     )
 
 
-def test_valid_log_path(result_directory: Path, artifact_perf_df: pd.DataFrame, caplog: LogCaptureFixture, tmp_path: Path, monkeypatch: Any) -> None:
+def test_valid_log_path(
+    result_directory: Path,
+    artifact_perf_df: pd.DataFrame,
+    caplog: LogCaptureFixture,
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
     monkeypatch.setattr(
         "vivarium_cluster_tools.psimulate.performance_logger.CENTRAL_PERFORMANCE_LOGS_DIRECTORY",
         tmp_path,
     )
     monkeypatch.setattr(
-        "vivarium_cluster_tools.psimulate.performance_logger.NUM_ROWS_PER_CENTRAL_LOG_FILE", 4    )
+        "vivarium_cluster_tools.psimulate.performance_logger.NUM_ROWS_PER_CENTRAL_LOG_FILE", 4
+    )
     # add some data to central logs directory to allow appending
     output_paths = get_output_paths_from_output_directory(result_directory)
     central_perf_df = transform_perf_df_for_appending(artifact_perf_df, output_paths)
@@ -160,7 +174,9 @@ def test_valid_log_path(result_directory: Path, artifact_perf_df: pd.DataFrame, 
         Path("/ihme/homes/user/model_version/"),
     ],
 )
-def test_invalid_log_path(invalid_log_path: Path, artifact_perf_df: pd.DataFrame, caplog: LogCaptureFixture) -> None:
+def test_invalid_log_path(
+    invalid_log_path: Path, artifact_perf_df: pd.DataFrame, caplog: LogCaptureFixture
+) -> None:
     # test we raise specific warning
     output_paths = get_output_paths_from_output_directory(invalid_log_path)
     append_perf_data_to_central_logs(artifact_perf_df, output_paths)

@@ -194,9 +194,9 @@ def main(
 
     # Generate programmatic representation of the output directory structure
     # The model specification should always be provided via CLI argument
-    assert input_paths.model_specification is not None, (
-        "Model specification path is required but was None"
-    )
+    assert (
+        input_paths.model_specification is not None
+    ), "Model specification path is required but was None"
     output_paths = paths.OutputPaths.from_entry_point_args(
         command=command,
         input_artifact_path=input_paths.artifact,

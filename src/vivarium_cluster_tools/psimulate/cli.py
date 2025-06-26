@@ -147,7 +147,9 @@ def run(
     callback=cli_tools.coerce_to_full_path,
 )
 @cli_tools.pass_shared_options(shared_options)
-def restart(results_root: Path, **options: Any) -> None:  # Converted by coerce_to_full_path callback
+def restart(
+    results_root: Path, **options: Any
+) -> None:  # Converted by coerce_to_full_path callback
     """Restart a parallel simulation.
 
     This restarts a parallel simulation from a previous run at RESULTS_ROOT.
@@ -202,7 +204,9 @@ def restart(results_root: Path, **options: Any) -> None:  # Converted by coerce_
     help="The number of random seeds to add to a previous run.",
 )
 @cli_tools.pass_shared_options(shared_options)
-def expand(results_root: Path, **options: Any) -> None:  # Converted by coerce_to_full_path callback
+def expand(
+    results_root: Path, **options: Any
+) -> None:  # Converted by coerce_to_full_path callback
     """Expand a previous run.
 
     This expands a previous run at RESULTS_ROOT by adding input draws and/or
@@ -261,10 +265,10 @@ def expand(results_root: Path, **options: Any) -> None:  # Converted by coerce_t
 )
 @cli_tools.pass_shared_options(shared_options)
 def test(
-    test_type: str, 
-    num_workers: int, 
+    test_type: str,
+    num_workers: int,
     result_directory: Path,  # Converted by coerce_to_full_path callback
-    **options: Any
+    **options: Any,
 ) -> None:
     logs.configure_main_process_logging_to_terminal(options["verbose"])
     main = handle_exceptions(runner.main, logger, options["with_debugger"])

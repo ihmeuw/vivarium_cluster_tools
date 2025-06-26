@@ -94,7 +94,8 @@ def append_child_job_data(child_job_performance_data: pd.DataFrame) -> str:
 
         if rows_to_append == available_rows:
             new_file_index = (
-                int(Path(most_recent_file_path).stem.replace("log_summary_", "")) + 1            )
+                int(Path(most_recent_file_path).stem.replace("log_summary_", "")) + 1
+            )
             formatted_new_file_index = str(new_file_index).zfill(4)
             most_recent_file_path = str(
                 CENTRAL_PERFORMANCE_LOGS_DIRECTORY

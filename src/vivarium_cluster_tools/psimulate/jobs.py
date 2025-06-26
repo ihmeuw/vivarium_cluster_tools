@@ -5,9 +5,9 @@ psimulate Jobs
 
 """
 
+import random
 from pathlib import Path
 from typing import Any, NamedTuple
-import random
 
 import numpy as np
 import pandas as pd

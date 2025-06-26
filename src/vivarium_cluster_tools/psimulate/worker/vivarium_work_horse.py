@@ -43,7 +43,9 @@ class ParallelSimulationContext(SimulationContext):
         pass
 
 
-def work_horse(job_parameters: dict[str, Any]) -> tuple[pd.DataFrame, dict[str, pd.DataFrame]]:
+def work_horse(
+    job_parameters: dict[str, Any]
+) -> tuple[pd.DataFrame, dict[str, pd.DataFrame]]:
     node = f"{ENV_VARIABLES.HOSTNAME.value}"
     job = f"{ENV_VARIABLES.JOB_ID.value}:{ENV_VARIABLES.TASK_ID.value}"
 
@@ -84,8 +86,10 @@ def get_backup(job_parameters: JobParameters) -> ParallelSimulationContext | Non
     metadata_path = Path(job_parameters.backup_configuration["backup_metadata_path"])
     try:
         pickle_metadata = pd.read_csv(metadata_path)
+
         def format_val(v: Any) -> str:
             return str(v) if isinstance(v, (int, float)) else f'"{v}"'
+
         query_conditions = " & ".join(
             [
                 f"`{k}` == {format_val(v)}"

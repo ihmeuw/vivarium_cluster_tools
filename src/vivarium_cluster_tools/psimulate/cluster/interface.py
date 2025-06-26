@@ -42,7 +42,7 @@ class NativeSpecification(NamedTuple):
             valid_hardware = [h for h in self.hardware if h is not None]
             if valid_hardware:
                 hardware_str = f"-C {'|'.join(valid_hardware)}"
-        
+
         return (
             f"-J {self.job_name} "
             f"-A {self.project} "

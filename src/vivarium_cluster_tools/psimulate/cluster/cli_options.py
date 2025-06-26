@@ -8,8 +8,10 @@ Command line options for configuring the cluster environment in psimulate runs.
 """
 
 from __future__ import annotations
-from vivarium_cluster_tools.cli_tools import CLIFunction
+
 import click
+
+from vivarium_cluster_tools.cli_tools import CLIFunction
 
 _RUNTIME_FORMAT = "hh:mm:ss"
 MAX_RUNTIME_DEFAULT = "24:00:00"

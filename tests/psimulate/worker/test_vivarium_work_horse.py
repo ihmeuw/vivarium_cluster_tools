@@ -27,7 +27,12 @@ from vivarium_cluster_tools.psimulate.worker.vivarium_work_horse import (
     ],
 )
 def test_get_backup(
-    mocker: Any, tmp_path: Path, make_dir: bool, has_metadata_file: bool, has_backup: bool, multiple_backups: bool
+    mocker: Any,
+    tmp_path: Path,
+    make_dir: bool,
+    has_metadata_file: bool,
+    has_backup: bool,
+    multiple_backups: bool,
 ) -> None:
     mocker.patch(
         "vivarium_cluster_tools.psimulate.worker.vivarium_work_horse.get_current_job",
