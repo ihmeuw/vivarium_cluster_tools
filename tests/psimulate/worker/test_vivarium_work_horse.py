@@ -2,7 +2,7 @@ from pathlib import Path
 from time import time
 from typing import Any
 
-import dill  # type: ignore[import-untyped] # dill has no type stubs
+import dill
 import pandas as pd
 import pytest
 from vivarium.framework.engine import SimulationContext
