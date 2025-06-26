@@ -93,7 +93,7 @@ class _ResilientWorker(Worker):
     def work(
         self,
         burst: bool = True,
-        logging_level: str = "INFO",
+        logging_level: str | None = "INFO",
         date_format: str = "%H:%M:%S",
         log_format: str = "%(asctime)s %(message)s",
         max_jobs: int | None = None,
