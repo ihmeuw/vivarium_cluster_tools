@@ -16,7 +16,6 @@ import numpy as np
 import pandas as pd
 import requests
 from loguru import logger
-from pandas import json_normalize
 
 BASE_PERF_INDEX_COLS = ["host", "job_number", "task_number", "draw", "seed"]
 
@@ -64,7 +63,7 @@ class PerformanceSummary:
                         continue
                     m = self.TELEMETRY_PATTERN.fullmatch(str(message))
                     if m:
-                        yield json_normalize(json.loads(message), sep="_")
+                        yield pd.json_normalize(json.loads(message), sep="_")
 
     def to_df(self) -> pd.DataFrame:
         perf_data: list[pd.DataFrame] = []
@@ -208,8 +207,6 @@ def report_performance(
 
     # Set index to include branch configuration/scenario columns
     perf_df, scenario_cols = set_index_scenario_cols(perf_df)
-    # preserve copy before updating for stat report
-    original_perf_df = perf_df.copy()
 
     # Write to file
     out_file = output_directory / "log_summary"
