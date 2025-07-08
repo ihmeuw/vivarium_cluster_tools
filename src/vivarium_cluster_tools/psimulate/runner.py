@@ -186,7 +186,7 @@ def main(
     max_workers: int | None,
     redis_processes: int,
     no_batch: bool,
-    backup_freq: int,
+    backup_freq: int | None,
     extra_args: dict[str, Any],
 ) -> None:
     logger.info("Validating cluster environment.")
