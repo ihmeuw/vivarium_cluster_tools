@@ -67,7 +67,7 @@ class PerformanceSummary:
                         yield json_normalize(json.loads(message), sep="_")
 
     def to_df(self) -> pd.DataFrame:
-        perf_data = []
+        perf_data: list[pd.DataFrame] = []
         for item in self.get_summaries():
             perf_data.append(item)
         if len(perf_data) < 1:
@@ -189,7 +189,7 @@ def report_performance(
     output_directory: Path | str,
     output_hdf: bool,
     verbose: int,
-) -> pd.DataFrame | None:
+) -> None:
     """Main method for vipin reporting.
 
     Gets job performance data, outputs to a file, and logs a report.
@@ -234,4 +234,3 @@ def report_performance(
         f'Performance summary {"hdf" if output_hdf else "csv"} can be found at {out_file}, with '
         f'{perf_df.shape[0]} row{"s" if perf_df.shape[0] > 1 else ""}.'
     )
-    return original_perf_df

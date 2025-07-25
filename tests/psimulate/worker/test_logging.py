@@ -13,13 +13,13 @@ from vivarium_cluster_tools.psimulate.worker.vivarium_work_horse import work_hor
 
 
 @pytest.mark.parametrize("log_level", [0, 1, 2])
-def test_logging_level(mocker, tmp_path, log_level) -> None:
+def test_logging_level(mocker: Any, tmp_path: Path, log_level: int) -> None:
 
     input_draw = 1
     random_seed = 2
     branch_configuration = {"branch_key": "branch_value"}
     job_parameters = JobParameters(
-        model_specification=None,
+        model_specification="test_model_spec.yaml",
         branch_configuration=branch_configuration,
         input_draw=input_draw,
         random_seed=random_seed,
