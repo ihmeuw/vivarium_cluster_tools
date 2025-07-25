@@ -1,4 +1,4 @@
-**2.1.16 - TBD**
+**2.1.16 - 07/25/25**
 
   - Feature: Support new environment creation via 'make build-env'
 
