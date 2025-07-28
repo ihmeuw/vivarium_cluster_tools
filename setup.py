@@ -64,7 +64,11 @@ if __name__ == "__main__":
     ]
 
     doc_requirements = [
-        "vivarium_dependencies[sphinx,sphinx-rtd-theme,sphinx-click,sphinx-autodoc-typehints,plotting]",
+        "vivarium_dependencies[sphinx,sphinx-rtd-theme,sphinx-click,sphinx-autodoc-typehints,interactive]",
+    ]
+
+    interactive_requirements = [
+        "vivarium_dependencies[interactive]",
     ]
 
     setup(
@@ -85,8 +89,12 @@ if __name__ == "__main__":
         install_requires=install_requires,
         extras_require={
             "docs": doc_requirements,
+            "interactive": interactive_requirements,
             "test": test_requirements,
-            "dev": doc_requirements + test_requirements + lint_requirements,
+            "dev": doc_requirements
+            + interactive_requirements
+            + test_requirements
+            + lint_requirements,
         },
         zip_safe=False,
         use_scm_version={
