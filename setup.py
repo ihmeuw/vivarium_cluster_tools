@@ -42,7 +42,7 @@ if __name__ == "__main__":
         long_description = f.read()
 
     install_requires = [
-        "vivarium_dependencies[numpy,pandas,pyyaml,click,tables,loguru,pyarrow]",
+        "vivarium_dependencies[numpy,pandas,pyyaml,click,tables,loguru,pyarrow,requests]",
         "vivarium_build_utils>=2.0.1,<3.0.0",
         "drmaa",
         "dill",
@@ -50,7 +50,6 @@ if __name__ == "__main__":
         "rq",
         "vivarium>=3.0.0",
         "psutil",
-        "requests",
         "layered_config_tree>=1.0.1",
     ]
 
@@ -58,7 +57,6 @@ if __name__ == "__main__":
 
     lint_requirements = [
         "vivarium_dependencies[linting,mypy]",
-        "types-requests",
     ]
 
     test_requirements = [
