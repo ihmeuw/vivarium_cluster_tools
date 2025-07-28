@@ -50,7 +50,7 @@ if __name__ == "__main__":
         "rq",
         "vivarium>=3.0.0",
         "psutil",
-        "layered_config_tree>=1.0.1",
+        "layered_config_tree",
     ]
 
     setup_requires = ["setuptools_scm"]
