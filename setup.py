@@ -56,7 +56,7 @@ if __name__ == "__main__":
     setup_requires = ["setuptools_scm"]
 
     lint_requirements = [
-        "vivarium_dependencies[formatting,mypy]",
+        "vivarium_dependencies[format,mypy]",
     ]
 
     test_requirements = [
