@@ -56,7 +56,7 @@ if __name__ == "__main__":
     setup_requires = ["setuptools_scm"]
 
     lint_requirements = [
-        "vivarium_dependencies[format,mypy]",
+        "vivarium_dependencies[lint]",
     ]
 
     test_requirements = [
@@ -64,7 +64,7 @@ if __name__ == "__main__":
     ]
 
     doc_requirements = [
-        "vivarium_dependencies[sphinx,sphinx-rtd-theme,sphinx-click,sphinx-autodoc-typehints,interactive]",
+        "vivarium_dependencies[sphinx,sphinx-click,ipython,matplotlib]",
     ]
 
     interactive_requirements = [
