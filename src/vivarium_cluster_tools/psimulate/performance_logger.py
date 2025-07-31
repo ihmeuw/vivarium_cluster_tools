@@ -101,6 +101,7 @@ def append_child_job_data(child_job_performance_data: pd.DataFrame) -> str:
                 CENTRAL_PERFORMANCE_LOGS_DIRECTORY
                 / f"log_summary_{formatted_new_file_index}.csv"
             )
+
             pd.DataFrame(columns=child_job_performance_data.columns).to_csv(
                 most_recent_file_path, index=False
             )
