@@ -1,8 +1,5 @@
-import os
-from datetime import datetime
-from math import ceil
 from pathlib import Path
-from typing import Any, Generator
+from typing import Generator
 
 import pandas as pd
 import pytest
@@ -89,7 +86,7 @@ def get_output_paths_from_output_directory(output_directory: Path) -> OutputPath
 
 @pytest.mark.parametrize("df_name", ["artifact_perf_df", "artifactless_perf_df"])
 def test_expected_columns(
-    df_name: str, result_directory: Path, tmp_path: Path, request: Any
+    df_name: str, result_directory: Path, request: pytest.FixtureRequest
 ) -> None:
     perf_df = request.getfixturevalue(df_name)
     # transform df
@@ -105,7 +102,7 @@ def test_expected_columns(
 
 @pytest.mark.parametrize("df_name", ["artifact_perf_df", "artifactless_perf_df"])
 def test_data_parsing(
-    df_name: str, result_directory: Path, tmp_path: Path, request: Any
+    df_name: str, result_directory: Path, request: pytest.FixtureRequest
 ) -> None:
     perf_df = request.getfixturevalue(df_name)
     output_paths = get_output_paths_from_output_directory(result_directory)
@@ -128,10 +125,8 @@ def test_data_parsing(
     runner_data = generate_runner_job_data(job_number, output_paths, "first_file_with_data")
 
     assert runner_data["project_name"].squeeze() == "project_name"
-    assert runner_data["root_path"].squeeze() == str(
-        Path(
-            "/mnt/team/simulation_science/pub/models/project_name/results/model_version/artifact"
-        )
+    assert runner_data["root_path"].squeeze() == (
+        "/mnt/team/simulation_science/pub/models/project_name/results/model_version/artifact"
     )
     assert runner_data["original_run_date"].squeeze() == "YYYY_MM_DD_HH_MM_SS"
     assert runner_data["run_date"].squeeze() == "yyyy_mm_dd_hh_mm_ss"
@@ -148,7 +143,7 @@ def test_valid_log_path(
     artifact_perf_df: pd.DataFrame,
     caplog: LogCaptureFixture,
     tmp_path: Path,
-    monkeypatch: Any,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
         "vivarium_cluster_tools.psimulate.performance_logger.CENTRAL_PERFORMANCE_LOGS_DIRECTORY",
@@ -204,7 +199,7 @@ def test_appending(
     artifact_perf_df: pd.DataFrame,
     result_directory: Path,
     tmp_path: Path,
-    monkeypatch: Any,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     max_num_rows = 4
     monkeypatch.setattr(
