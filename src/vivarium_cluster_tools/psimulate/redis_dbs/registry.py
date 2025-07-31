@@ -14,6 +14,7 @@ from collections.abc import Iterator
 from itertools import chain
 from typing import Any
 
+import pandas as pd
 import redis
 import rq
 from loguru import logger
@@ -82,7 +83,7 @@ class QueueManager:
                 job_timeout="7d",
             )
 
-    def get_results(self) -> list[Any]:
+    def get_results(self) -> list[tuple[pd.DataFrame, dict[str, pd.DataFrame]]]:
         self._logger.debug(f"Checking queue {self.name}")
         finished_jobs = self._get_finished_jobs()
         start = time.time()
@@ -170,12 +171,16 @@ class QueueManager:
             self._mark_failed()
             return []
 
-    def _get_result(self, job_id: str) -> Any:
+    def _get_result(self, job_id: str) -> tuple[pd.DataFrame, dict[str, pd.DataFrame]] | None:
         job = self._get_job(job_id)
         result = None
         if job is not None:
             start = time.time()
             result = job.result
+            if not isinstance(result, pd.DataFrame):
+                raise RuntimeError(
+                    f"Results are expected to be a pandas dataframe, got {type(result)}."
+                )
             end = time.time()
             self._logger.debug(
                 f"Deserialized {job_id} result from queue {self.name} in {end - start:.2f}s."
@@ -271,9 +276,9 @@ class RegistryManager:
         for mod in range(num_queues):
             yield [job for i, job in enumerate(jobs) if i % num_queues == mod]
 
-    def get_results(self) -> list[Any]:
+    def get_results(self) -> list[tuple[pd.DataFrame, dict[str, pd.DataFrame]]]:
         to_check = [q for q in self._queues if q.jobs_to_finish]
-        results: list[Any] = []
+        results: list[tuple[pd.DataFrame, dict[str, pd.DataFrame]]] = []
         for queue in to_check:
             results.extend(queue.get_results())
         return results
