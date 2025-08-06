@@ -61,13 +61,13 @@ def build_launch_script(
 
 
 def _retry_handler(job: Job, *exc_info: Any) -> bool:
+    """rq exception handler for test purposes that gets called in the build_launch_script()."""
     retries = job.meta.get("remaining_retries", 2)
 
     if retries > 0:
         retries -= 1
         job.meta["remaining_retries"] = retries
         job.set_status(JobStatus.QUEUED)
-        # Note: Cannot directly assign to read-only exc_info property, but RQ will handle this
         job.save()
         q = Queue(name=job.origin, connection=job.connection)
         q.enqueue_job(job)
@@ -76,7 +76,6 @@ def _retry_handler(job: Job, *exc_info: Any) -> bool:
         logger.error(f"Failing job {job.id}")
         q = Queue(name=job.origin, connection=job.connection)
         failed_queue = FailedJobRegistry(queue=q)
-        # Convert exc_info to string for the failed queue
         exc_string = str(exc_info) if exc_info else "Unknown error"
         failed_queue.add(job, exc_string=exc_string)
     return False
@@ -90,53 +89,33 @@ class _ResilientWorker(Worker):
         logging_directory = Path(ENV_VARIABLES.VIVARIUM_LOGGING_DIRECTORY.value)
         logger.add(logging_directory / log_name, level="DEBUG")
 
-    def work(
-        self,
-        burst: bool = True,
-        logging_level: str | None = "INFO",
-        date_format: str = "%H:%M:%S",
-        log_format: str = "%(asctime)s %(message)s",
-        max_jobs: int | None = None,
-        max_idle_time: int | None = None,
-        with_scheduler: bool = False,
-        dequeue_strategy: Any = None,  # DequeueStrategy type is not available
-    ) -> bool:
-        kwargs = {
-            "burst": burst,
-            "logging_level": "DEBUG",  # Override to DEBUG
-            "date_format": date_format,
-            "log_format": log_format,
-            "max_jobs": max_jobs,
-            "max_idle_time": max_idle_time,
-            "with_scheduler": with_scheduler,
-            "dequeue_strategy": dequeue_strategy,
-        }
+    def work(self, *args: Any, **kwargs: Any) -> bool:
+        kwargs["logging_level"] = "DEBUG"
 
         retries = 0
         while retries < 10:
             try:
-                result = super(_ResilientWorker, self).work(**kwargs)
-                return result
+                return super().work(*args, **kwargs)
             except redis.exceptions.ConnectionError:
                 backoff = random.random() * 60
                 logger.error(f"Couldn't connect to redis. Retrying in {backoff}...")
                 retries += 1
                 time.sleep(backoff)
-        logger.error(f"Ran out of retries. Killing worker")
+        logger.error("Ran out of retries. Killing worker.")
         return False
 
     def main_work_horse(self, job: Job, queue: Queue) -> None:
         retries = 0
         while retries < 10:
             try:
-                super(_ResilientWorker, self).main_work_horse(job, queue)
+                super().main_work_horse(job, queue)
                 return
             except redis.exceptions.ConnectionError:
                 backoff = random.random() * 60
                 logger.error(f"Couldn't connect to redis. Retrying in {backoff}...")
                 retries += 1
                 time.sleep(backoff)
-        logger.error(f"Ran out of retries. Killing work horse")
+        logger.error("Ran out of retries. Killing work horse.")
 
     def fork_work_horse(self, job: Job, queue: Queue) -> None:
         """Spawns a work horse to perform the actual work and passes it a job."""
@@ -148,4 +127,4 @@ class _ResilientWorker(Worker):
             os._exit(0)  # just in case
         else:
             self._horse_pid = child_pid
-            self.procline("Forked {0} at {1}".format(child_pid, time.time()))  # type: ignore[no-untyped-call] # procline is not typed in rq
+            self.procline("Forked {0} at {1}".format(child_pid, time.time()))  # type: ignore[no-untyped-call]
