@@ -1,11 +1,11 @@
 from pathlib import Path
 from time import time
-from typing import Any
+from typing import cast
 
 import dill
 import pandas as pd
 import pytest
-from vivarium.framework.engine import SimulationContext
+from pytest_mock import MockerFixture
 
 from vivarium_cluster_tools.psimulate.jobs import JobParameters
 from vivarium_cluster_tools.psimulate.worker.vivarium_work_horse import (
@@ -27,7 +27,7 @@ from vivarium_cluster_tools.psimulate.worker.vivarium_work_horse import (
     ],
 )
 def test_get_backup(
-    mocker: Any,
+    mocker: MockerFixture,
     tmp_path: Path,
     make_dir: bool,
     has_metadata_file: bool,
@@ -43,7 +43,7 @@ def test_get_backup(
     branch_configuration = {"branch_key": "branch_value"}
     job_id = "prev_job"
     job_parameters = JobParameters(
-        model_specification="test_model_spec.yaml",
+        model_specification="dummy",
         branch_configuration=branch_configuration,
         input_draw=input_draw,
         random_seed=random_seed,
@@ -87,29 +87,26 @@ def test_get_backup(
 
     if make_dir and has_metadata_file and has_backup:
 
-        def write_pickle(filename: str, pickle: Any) -> None:
+        def write_pickle(filename: str, pickle: list[int]) -> None:
             pickle_path = tmp_path / "backups" / f"{filename}.pkl"
             with open(pickle_path, "wb") as f:
                 dill.dump(pickle, f)
 
         if multiple_backups:
-            write_pickle("stale_job", "stale_simulation_data")
-        write_pickle("different_job", "different_simulation_data")
-        correct_pickle = "correct_simulation_data"
+            write_pickle("stale_job", [9, 8, 7, 6, 5])
+        write_pickle("different_job", [6, 7, 8, 9, 10])
+        correct_pickle = [1, 2, 3, 4, 5]
         write_pickle(job_id, correct_pickle)
 
-        backup = get_backup(job_parameters)
-        # The backup function should return something when a backup exists
-        # Since we're using string data for testing, we can't do exact type checking
-        # but we can verify it's not None
-        assert backup is not None
+        backup = cast(list[int], get_backup(job_parameters))
+        assert backup == correct_pickle
         assert not (tmp_path / "backups" / "stale_job.pkl").exists()
         assert not (tmp_path / "backups" / f"{job_id}.pkl").exists()
         assert (tmp_path / "backups" / "current_job.pkl").exists()
         assert (tmp_path / "backups" / "different_job.pkl").exists()
 
     else:
-        backup = get_backup(job_parameters)
+        backup = cast(list[int], get_backup(job_parameters))
         assert not backup
 
 
