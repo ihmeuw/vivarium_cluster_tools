@@ -7,14 +7,14 @@ RQ worker executable for doing load testing.
 
 """
 import time
+from collections.abc import Callable
 from traceback import format_exc
-from typing import Any, Dict
+from typing import Any
 
 import numpy as np
 import pandas as pd
 from loguru import logger
 from rq import get_current_job
-from rq.job import Job
 from vivarium.framework.randomness import get_hash
 
 from vivarium_cluster_tools.psimulate.environment import ENV_VARIABLES
@@ -23,7 +23,9 @@ from vivarium_cluster_tools.psimulate.jobs import JobParameters
 LOAD_TEST_WORK_HORSE_IMPORT_PATH = f"{__name__}.work_horse"
 
 
-def get_psimulate_test_dict() -> Dict[str, Dict[str, Any]]:
+def get_psimulate_test_dict() -> dict[
+    str, dict[str, Callable[[JobParameters], pd.DataFrame] | str | int]
+]:
     return {
         "sleep": {
             "function": sleep_test,
@@ -58,7 +60,7 @@ def large_results_test(job_parameters: JobParameters) -> pd.DataFrame:
     return pd.DataFrame(np.random.random(10_000_000).reshape((1_000_000, 10)))
 
 
-def work_horse(job_parameters: dict[str, Any]) -> pd.DataFrame:
+def mypoy(job_parameters: dict[str, Any]) -> pd.DataFrame:
     node = f"{ENV_VARIABLES.HOSTNAME.value}"
     job = f"{ENV_VARIABLES.JOB_ID.value}:{ENV_VARIABLES.TASK_ID.value}"
 
@@ -69,8 +71,10 @@ def work_horse(job_parameters: dict[str, Any]) -> pd.DataFrame:
 
     logger.info(f"Launching new job {job} on {node}")
     logger.info(f"Starting job: {job_params}")
+    if not callable(test_runner):
+        raise ValueError(f"Test runner for {test_type} is not callable: {test_runner}")
     try:
-        return test_runner(job_params)  # type: ignore[no-any-return] # test_runner returns pd.DataFrame but stored as Any
+        return test_runner(job_params)
     except Exception:
         logger.exception("Unhandled exception in worker")
         current_job = get_current_job()
