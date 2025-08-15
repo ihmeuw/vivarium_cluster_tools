@@ -60,6 +60,7 @@ shared_options: list[Decorator] = [
 @psimulate.command()
 @click.argument(
     "model_specification",
+    required=True,
     type=click.Path(exists=True, dir_okay=False),
     callback=cli_tools.coerce_to_full_path,
 )
@@ -88,8 +89,8 @@ shared_options: list[Decorator] = [
 @cli_tools.pass_shared_options(shared_options)
 def run(
     model_specification: Path,  # Converted by coerce_to_full_path callback
-    branch_configuration: Path,  # Converted by coerce_to_full_path callback
-    artifact_path: str | Path | None,
+    branch_configuration: Path | None,  # Converted by coerce_to_full_path callback
+    artifact_path: Path | None,  # Converted by coerce_to_full_path callback
     result_directory: Path,  # Converted by coerce_to_full_path callback
     **options: Any,
 ) -> None:
@@ -145,11 +146,13 @@ def run(
     "results-root",
     type=click.Path(exists=True, file_okay=False, writable=True),
     callback=cli_tools.coerce_to_full_path,
+    required=True,
 )
 @cli_tools.pass_shared_options(shared_options)
 def restart(
-    results_root: Path, **options: Any
-) -> None:  # Converted by coerce_to_full_path callback
+    results_root: Path,  # Converted by coerce_to_full_path callback
+    **options: Any,
+) -> None:
     """Restart a parallel simulation.
 
     This restarts a parallel simulation from a previous run at RESULTS_ROOT.
@@ -188,6 +191,7 @@ def restart(
     "results-root",
     type=click.Path(exists=True, file_okay=False, writable=True),
     callback=cli_tools.coerce_to_full_path,
+    required=True,
 )
 @click.option(
     "--add-draws",
@@ -205,8 +209,9 @@ def restart(
 )
 @cli_tools.pass_shared_options(shared_options)
 def expand(
-    results_root: Path, **options: Any
-) -> None:  # Converted by coerce_to_full_path callback
+    results_root: Path,  # Converted by coerce_to_full_path callback
+    **options: Any,
+) -> None:
     """Expand a previous run.
 
     This expands a previous run at RESULTS_ROOT by adding input draws and/or
