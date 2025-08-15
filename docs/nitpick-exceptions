@@ -15,6 +15,7 @@ py:class Path
 py:class redis.client.Redis
 # tempfile
 py:class tempfile._TemporaryFileWrapper
+py:class _TemporaryFileWrapper
 # layered-config-tree
 py:class layered_config_tree.main.LayeredConfigTree
 # typing
