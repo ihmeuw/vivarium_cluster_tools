@@ -142,17 +142,18 @@ def report_initial_status(
 def try_run_vipin(output_paths: OutputPaths) -> None:
     log_path = output_paths.worker_logging_root
     try:
-        report_performance(
+        perf_df = report_performance(
             input_directory=log_path, output_directory=log_path, output_hdf=False, verbose=1
         )
-        # Get performance data for central logging
-        perf_summary = PerformanceSummary(log_path)
-        perf_df = perf_summary.to_df()
-        if len(perf_df) > 0:
-            append_perf_data_to_central_logs(perf_df, output_paths)
     except Exception as e:
         logger.warning(f"Performance reporting failed with: {e}")
         return
+
+    try:
+        if perf_df is not None and len(perf_df) > 0:
+            append_perf_data_to_central_logs(perf_df, output_paths)
+    except Exception as e:
+        logger.warning(f"Appending performance data to central logs failed with: {e}")
 
 
 def write_backup_metadata(
@@ -193,10 +194,12 @@ def main(
     cluster.validate_cluster_environment()
 
     # Generate programmatic representation of the output directory structure
-    # The model specification should always be provided via CLI argument
-    assert (
-        input_paths.model_specification is not None
-    ), "Model specification path is required but was None"
+    # FIXME [MIC-6302]: 'psimulate test' is broken.
+    #     This is one place it's broken. psimulate test does NOT require a model
+    #     specification but 'from_entry_point_args' requires one.
+    #     Temporarily add this check for mypy
+    if input_paths.model_specification is None:
+        raise ValueError("Model specification path is required but was None")
     output_paths = paths.OutputPaths.from_entry_point_args(
         command=command,
         input_artifact_path=input_paths.artifact,
@@ -320,7 +323,7 @@ def main(
 
     cluster.submit_worker_jobs(
         num_workers=num_workers,
-        worker_launch_script=worker_launch_script,  # type: ignore[arg-type]  # _TemporaryFileWrapper[str] is compatible with TextIO
+        worker_launch_script=worker_launch_script,
         cluster_logging_root=output_paths.cluster_logging_root,
         native_specification=native_specification,
     )

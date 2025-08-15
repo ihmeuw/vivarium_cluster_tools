@@ -177,10 +177,6 @@ class QueueManager:
         if job is not None:
             start = time.time()
             result = job.result
-            if not isinstance(result, pd.DataFrame):
-                raise RuntimeError(
-                    f"Results are expected to be a pandas dataframe, got {type(result)}."
-                )
             end = time.time()
             self._logger.debug(
                 f"Deserialized {job_id} result from queue {self.name} in {end - start:.2f}s."

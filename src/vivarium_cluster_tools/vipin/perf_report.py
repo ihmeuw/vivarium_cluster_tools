@@ -188,7 +188,7 @@ def report_performance(
     output_directory: Path | str,
     output_hdf: bool,
     verbose: int,
-) -> None:
+) -> pd.DataFrame | None:
     """Main method for vipin reporting.
 
     Gets job performance data, outputs to a file, and logs a report.
@@ -231,3 +231,5 @@ def report_performance(
         f'Performance summary {"hdf" if output_hdf else "csv"} can be found at {out_file}, with '
         f'{perf_df.shape[0]} row{"s" if perf_df.shape[0] > 1 else ""}.'
     )
+
+    return perf_df

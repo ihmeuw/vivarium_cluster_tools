@@ -15,7 +15,7 @@ import shutil
 import tempfile
 import time
 from pathlib import Path
-from typing import Any, TextIO
+from typing import Any
 
 import redis
 from loguru import logger

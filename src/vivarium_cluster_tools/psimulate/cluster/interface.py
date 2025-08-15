@@ -4,12 +4,14 @@ Cluster Interface
 =================
 
 """
+from __future__ import annotations
 
 import atexit
 import os
 import shutil
 from pathlib import Path
-from typing import NamedTuple, TextIO
+from tempfile import _TemporaryFileWrapper
+from typing import NamedTuple
 
 from vivarium_cluster_tools.psimulate.environment import ENV_VARIABLES
 from vivarium_cluster_tools.utilities import get_drmaa
@@ -49,7 +51,7 @@ class NativeSpecification(NamedTuple):
 
 def submit_worker_jobs(
     num_workers: int,
-    worker_launch_script: TextIO,
+    worker_launch_script: _TemporaryFileWrapper[str],
     cluster_logging_root: Path,
     native_specification: NativeSpecification,
 ) -> None:
