@@ -1,5 +1,4 @@
 from pathlib import Path
-from typing import Any
 
 import pandas as pd
 import pytest
@@ -10,6 +9,8 @@ from vivarium_cluster_tools.psimulate.results.processing import (
     _concat_preserve_types,
     write_results_batch,
 )
+
+_TYPES = list[int] | list[float] | list[str] | list[int | float] | list[int | float | str]
 
 
 @pytest.mark.parametrize(
@@ -29,7 +30,7 @@ from vivarium_cluster_tools.psimulate.results.processing import (
         "just strings",
     ],
 )
-def test_concat_preserve_types(data_types: list[Any]) -> None:
+def test_concat_preserve_types(data_types: _TYPES) -> None:
     df = pd.DataFrame([data_types])
     df2 = pd.DataFrame([[d * 2 for d in data_types]])
 
@@ -63,7 +64,7 @@ def test_concat_preserve_types(data_types: list[Any]) -> None:
         "just strings",
     ],
 )
-def test_concat_results(data_types: list[Any]) -> None:
+def test_concat_results(data_types: _TYPES) -> None:
     columns = [chr(i) for i in range(ord("a"), ord("a") + len(data_types))]
     old = pd.DataFrame([data_types], columns=columns)
     new = pd.DataFrame([[d * 2 for d in data_types]], columns=columns)
