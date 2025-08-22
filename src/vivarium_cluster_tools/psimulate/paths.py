@@ -65,19 +65,16 @@ class InputPaths(NamedTuple):
             An instance of InputPaths.
 
         """
-        if result_directory is None:
-            raise ValueError("Result directory must be provided.")
 
-        # Handle the result_directory conversion separately since it has different type requirements
-        result_dir_path = (
-            result_directory if isinstance(result_directory, Path) else Path(result_directory)
-        )
+        results_directory_path = cls._coerce_path(result_directory)
+        if results_directory_path is None:
+            raise ValueError("Result directory must be provided.")
 
         return InputPaths(
             model_specification=cls._coerce_path(input_model_specification_path),
             branch_configuration=cls._coerce_path(input_branch_configuration_path),
             artifact=cls._coerce_path(input_artifact_path),
-            result_directory=result_dir_path,
+            result_directory=results_directory_path,
         )
 
     @staticmethod
@@ -206,7 +203,6 @@ class OutputPaths(NamedTuple):
 
         output_directory = result_directory
         if command == COMMANDS.run:
-            # Handle potential None value for input_artifact_path
             if input_artifact_path is None:
                 raise ValueError("Input artifact path is required for run command")
             model_name = get_output_model_name_string(

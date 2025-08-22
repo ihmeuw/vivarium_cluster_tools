@@ -4,12 +4,14 @@ Cluster Interface
 =================
 
 """
+from __future__ import annotations
 
 import atexit
 import os
 import shutil
 from pathlib import Path
-from typing import NamedTuple, TextIO
+from tempfile import _TemporaryFileWrapper
+from typing import NamedTuple
 
 from vivarium_cluster_tools.psimulate.environment import ENV_VARIABLES
 from vivarium_cluster_tools.utilities import get_drmaa
@@ -30,19 +32,12 @@ class NativeSpecification(NamedTuple):
     queue: str
     peak_memory: int  # Memory in GB
     max_runtime: str
-    hardware: list[str | None]
+    hardware: list[str]
 
     # Class constant
     NUM_THREADS: int = 1
 
     def to_cli_args(self) -> str:
-        hardware_str = ""
-        if self.hardware:
-            # Filter out None values and join the remaining strings
-            valid_hardware = [h for h in self.hardware if h is not None]
-            if valid_hardware:
-                hardware_str = f"-C {'|'.join(valid_hardware)}"
-
         return (
             f"-J {self.job_name} "
             f"-A {self.project} "
@@ -50,13 +45,13 @@ class NativeSpecification(NamedTuple):
             f"--mem={self.peak_memory*1024} "
             f"-t {self.max_runtime} "
             f"-c {self.NUM_THREADS} "
-            f"{hardware_str}"
+            f"{'-C ' + '|'.join(self.hardware) if self.hardware else ''}"
         ).strip()
 
 
 def submit_worker_jobs(
     num_workers: int,
-    worker_launch_script: TextIO,
+    worker_launch_script: _TemporaryFileWrapper[str],
     cluster_logging_root: Path,
     native_specification: NativeSpecification,
 ) -> None:

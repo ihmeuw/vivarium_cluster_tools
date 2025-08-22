@@ -8,7 +8,7 @@ Structs for counting performance metrics.
 """
 import json
 from time import time
-from typing import Any
+from typing import Any, NamedTuple
 
 import psutil
 
@@ -16,10 +16,10 @@ import psutil
 class CounterSnapshot:
     def __init__(
         self,
-        cpu: Any = None,
-        disk: Any = None,
-        freq: Any = None,
-        net: Any = None,
+        cpu: psutil._common.scpustats | None = None,
+        disk: psutil._common.sdiskio | None = None,
+        freq: psutil._common.scpufreq | None = None,
+        net: psutil._common.snetio | None = None,
         timestamp: float | None = None,
     ) -> None:
         self.cpu = psutil.cpu_stats() if cpu is None else cpu
@@ -30,8 +30,8 @@ class CounterSnapshot:
         self.net = psutil.net_io_counters(pernic=False, nowrap=True) if net is None else net
         self.timestamp = time() if timestamp is None else timestamp
 
-    def to_dict(self) -> dict[str, Any]:
-        c_dict: dict[str, Any] = dict()
+    def to_dict(self) -> dict[str, dict[str, int | float] | float]:
+        c_dict: dict[str, dict[str, int | float] | float] = {}
         # Handle potential None values from psutil calls
         if self.cpu is not None:
             c_dict["cpu"] = dict(self.cpu._asdict())

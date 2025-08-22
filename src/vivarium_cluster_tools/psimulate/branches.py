@@ -195,18 +195,18 @@ def calculate_random_seeds(
 
 
 def calculate_keyspace(branches: list[dict[str, Any]]) -> dict[str, list[Any]]:
-    keyspace: dict[str, set[Any]] = {k: {v} for k, v in collapse_nested_dict(branches[0])}
+    tmp_keyspace: dict[str, set[Any]] = {k: {v} for k, v in collapse_nested_dict(branches[0])}
 
     for branch in branches[1:]:
         branch = dict(collapse_nested_dict(branch))
-        if set(branch.keys()) != set(keyspace.keys()):
+        if set(branch.keys()) != set(tmp_keyspace.keys()):
             raise ValueError("All branches must have the same keys")
         for k, v in branch.items():
             if k == FULL_ARTIFACT_PATH_KEY:
                 validate_artifact_path(v)
-            keyspace[k].add(v)
-    keyspace_list: dict[str, list[Any]] = {k: list(v) for k, v in keyspace.items()}
-    return keyspace_list
+            tmp_keyspace[k].add(v)
+    keyspace: dict[str, list[Any]] = {k: list(v) for k, v in tmp_keyspace.items()}
+    return keyspace
 
 
 def load_branch_configuration(

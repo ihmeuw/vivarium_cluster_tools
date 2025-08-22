@@ -138,15 +138,16 @@ def _validate_runtime_and_queue(runtime_string: str, queue: str | None) -> tuple
     elif queue in max_runtime_map:
         # Things are peachy
         pass
-    else:
+    elif queue is None:
         # We need to set a default based on the runtime.
-        assert queue is None
         # First queue we qualify for.
         queue = [
             q
             for q, max_queue_runtime in max_runtime_map.items()
             if total_hours <= max_queue_runtime
         ][0]
+    else:
+        raise ValueError(f"Unexpected queue {queue} supplied.")
 
     return runtime_string, queue
 

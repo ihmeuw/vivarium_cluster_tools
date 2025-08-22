@@ -3,14 +3,12 @@
 Vivarium Worker
 ===============
 
-RQ worker executable for running sim                f"`{k}` == {format_val(v)}"lation jobs.
+RQ worker executable for running simulation jobs.
 
 """
 
 import json
-import math
 import os
-from copy import deepcopy
 from pathlib import Path
 from time import sleep, time
 from traceback import format_exc
@@ -18,10 +16,8 @@ from typing import Any, cast
 
 import dill
 import pandas as pd
-from layered_config_tree import LayeredConfigTree
 from loguru import logger
 from rq import get_current_job
-from rq.job import Job
 from vivarium.framework.engine import SimulationContext
 from vivarium.framework.utilities import collapse_nested_dict
 
@@ -75,7 +71,7 @@ def work_horse(
         current_job = get_current_job()
         if current_job:
             current_job.meta["root_exception"] = format_exc()
-            current_job.save_meta()  # type: ignore[no-untyped-call] # RQ save_meta is not typed
+            current_job.save_meta()  # type: ignore[no-untyped-call]
         raise
     finally:
         logger.info(f"Exiting job: {job_params}")
@@ -87,9 +83,11 @@ def get_backup(job_parameters: JobParameters) -> ParallelSimulationContext | Non
     try:
         pickle_metadata = pd.read_csv(metadata_path)
 
-        def format_val(v: Any) -> str:
-            return str(v) if isinstance(v, (int, float)) else f'"{v}"'
+        def format_val(v: Any) -> str | int | float:
+            return v if isinstance(v, (int, float)) else f'"{v}"'
 
+        # NOTE: queries want forward-ticks (``) around column names being filtered,
+        # quotes around string values and nothing around int/float values.
         query_conditions = " & ".join(
             [
                 f"`{k}` == {format_val(v)}"
@@ -100,7 +98,7 @@ def get_backup(job_parameters: JobParameters) -> ParallelSimulationContext | Non
         # Use the query method to find rows that match the lookup parameters
         run_ids = pickle_metadata.query(query_conditions)["job_id"].to_list()
         possible_pickles = [
-            Path(backup_dir / run_id).with_suffix(".pkl") for run_id in run_ids
+            (backup_dir / str(run_id)).with_suffix(".pkl") for run_id in run_ids
         ]
         existing_pickles = [pickle for pickle in possible_pickles if pickle.exists()]
         if existing_pickles:
@@ -111,8 +109,8 @@ def get_backup(job_parameters: JobParameters) -> ParallelSimulationContext | Non
                 )
                 for stale_file in set(existing_pickles) - {last_pickle}:
                     os.remove(stale_file)
-            with open(last_pickle, "rb") as f:
-                sim = cast(ParallelSimulationContext, dill.load(f))
+            with open(last_pickle, "rb") as backup_file:
+                sim = cast(ParallelSimulationContext, dill.load(backup_file))
             current_job = get_current_job()
             if not current_job:
                 raise RuntimeError("No current job found")
@@ -123,8 +121,8 @@ def get_backup(job_parameters: JobParameters) -> ParallelSimulationContext | Non
                 sleep(5)
                 os.rename(last_pickle, (backup_dir / str(current_job_id)).with_suffix(".pkl"))
             return sim
-        else:
-            return None
+        return None
+
     except (OSError, FileNotFoundError):
         logger.info(
             "Missing backup or backup directory. Restarting simulation from beginning."
@@ -137,9 +135,9 @@ def get_backup(job_parameters: JobParameters) -> ParallelSimulationContext | Non
 
 
 def get_sim_from_backup(
-    event: dict[str, Any], backup: ParallelSimulationContext
-) -> tuple[ParallelSimulationContext, dict[str, Any]]:
-    logger.info(f"Restarting simulation from saved backup")
+    event: dict[str, float], backup: ParallelSimulationContext
+) -> tuple[ParallelSimulationContext, dict[str, float]]:
+    logger.info("Restarting simulation from saved backup")
     sim = backup
     event["simulation_start"] = time()
     exec_time = {
@@ -150,8 +148,8 @@ def get_sim_from_backup(
 
 
 def initialize_new_sim(
-    event: dict[str, Any], job_parameters: JobParameters
-) -> tuple[ParallelSimulationContext, dict[str, Any]]:
+    event: dict[str, float], job_parameters: JobParameters
+) -> tuple[ParallelSimulationContext, dict[str, float]]:
     sim = ParallelSimulationContext(
         job_parameters.model_specification,
         configuration=job_parameters.sim_config,
@@ -163,7 +161,7 @@ def initialize_new_sim(
     event["simulant_initialization_start"] = time()
     exec_time = {
         "setup_minutes": (event["simulant_initialization_start"] - event["start"]) / 60
-    }  # execution event
+    }
     logger.info(f'Simulation setup completed in {exec_time["setup_minutes"]:.3f} minutes.')
 
     sim.initialize_simulants()
@@ -180,9 +178,9 @@ def initialize_new_sim(
 
 def run_simulation(
     job_parameters: JobParameters,
-    event: dict[str, Any],
+    event: dict[str, float],
     sim: ParallelSimulationContext,
-    exec_time: dict[str, Any],
+    exec_time: dict[str, float],
 ) -> Path:
     num_steps = sim.get_number_of_steps_remaining()
     logger.info(f"Starting main simulation loop with {num_steps} time steps")
@@ -215,8 +213,8 @@ def get_sim_results(
     sim: ParallelSimulationContext,
     job_parameters: JobParameters,
     start_snapshot: CounterSnapshot,
-    event: dict[str, Any],
-    exec_time: dict[str, Any],
+    event: dict[str, float],
+    exec_time: dict[str, float],
 ) -> dict[str, pd.DataFrame]:
     event["end"] = time()
     do_sim_epilogue(start_snapshot, CounterSnapshot(), event, exec_time, job_parameters)
@@ -226,8 +224,8 @@ def get_sim_results(
 def do_sim_epilogue(
     start: CounterSnapshot,
     end: CounterSnapshot,
-    event: dict[str, Any],
-    exec_time: dict[str, Any],
+    event: dict[str, float],
+    exec_time: dict[str, float],
     parameters: JobParameters,
 ) -> None:
     exec_time["results_minutes"] = (event["end"] - event["results_start"]) / 60
@@ -242,6 +240,7 @@ def do_sim_epilogue(
         serialize=True,
     )
     current_job = get_current_job()
+
     logger.debug(
         json.dumps(
             {

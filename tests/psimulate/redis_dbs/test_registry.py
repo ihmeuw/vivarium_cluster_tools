@@ -2,13 +2,14 @@ from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
+from pytest_mock import MockerFixture
 
 from vivarium_cluster_tools.psimulate.redis_dbs.registry import RegistryManager
 
 
 @pytest.mark.parametrize("num_queues", [1, 7, 10, 19, 37])
 @pytest.mark.parametrize("num_jobs", [1, 10, 42, 1337, 2023])
-def test_allocate_jobs(mocker: Any, num_queues: int, num_jobs: int) -> None:
+def test_allocate_jobs(mocker: MockerFixture, num_queues: int, num_jobs: int) -> None:
     # mock the QueueManager class
     mocker.patch("vivarium_cluster_tools.psimulate.redis_dbs.registry.QueueManager")
     queues = [(f"queue_{i}", i) for i in range(num_queues)]

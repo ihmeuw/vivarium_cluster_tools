@@ -1,5 +1,4 @@
 from pathlib import Path
-from typing import Any
 
 import pandas as pd
 import pytest
@@ -11,9 +10,13 @@ from vivarium_cluster_tools.psimulate.results.processing import (
     write_results_batch,
 )
 
+_DATA_TYPES = (
+    list[int] | list[float] | list[str] | list[int | float] | list[int | float | str]
+)
+
 
 @pytest.mark.parametrize(
-    "data_types",
+    "data",
     [
         [0, 1, 2],
         [0, 0.0, 1, 2, 3],
@@ -29,9 +32,9 @@ from vivarium_cluster_tools.psimulate.results.processing import (
         "just strings",
     ],
 )
-def test_concat_preserve_types(data_types: list[Any]) -> None:
-    df = pd.DataFrame([data_types])
-    df2 = pd.DataFrame([[d * 2 for d in data_types]])
+def test_concat_preserve_types(data: _DATA_TYPES) -> None:
+    df = pd.DataFrame([data])
+    df2 = pd.DataFrame([[d * 2 for d in data]])
 
     result = pd.DataFrame(_concat_preserve_types([df, df2]))
 
@@ -47,7 +50,7 @@ def test_concat_preserve_types(data_types: list[Any]) -> None:
 
 
 @pytest.mark.parametrize(
-    "data_types",
+    "data",
     [
         [0, 1, 2],
         [0, 0.0, 1, 2, 3],
@@ -63,10 +66,10 @@ def test_concat_preserve_types(data_types: list[Any]) -> None:
         "just strings",
     ],
 )
-def test_concat_results(data_types: list[Any]) -> None:
-    columns = [chr(i) for i in range(ord("a"), ord("a") + len(data_types))]
-    old = pd.DataFrame([data_types], columns=columns)
-    new = pd.DataFrame([[d * 2 for d in data_types]], columns=columns)
+def test_concat_results(data: _DATA_TYPES) -> None:
+    columns = [chr(i) for i in range(ord("a"), ord("a") + len(data))]
+    old = pd.DataFrame([data], columns=columns)
+    new = pd.DataFrame([[d * 2 for d in data]], columns=columns)
 
     old["input_draw"] = old["random_seed"] = 0.0
     new["input_draw"] = new["random_seed"] = 1.0

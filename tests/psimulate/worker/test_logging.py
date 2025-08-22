@@ -1,19 +1,15 @@
 from pathlib import Path
-from typing import Any
 from unittest.mock import patch
 
 import pytest
+from pytest_mock import MockerFixture
 
-from vivarium_cluster_tools.psimulate.environment import ENV_VARIABLES
 from vivarium_cluster_tools.psimulate.jobs import JobParameters
-from vivarium_cluster_tools.psimulate.worker.vivarium_work_horse import (
-    ParallelSimulationContext as ParallelSimulationContext_,
-)
 from vivarium_cluster_tools.psimulate.worker.vivarium_work_horse import work_horse
 
 
 @pytest.mark.parametrize("log_level", [0, 1, 2])
-def test_logging_level(mocker: Any, tmp_path: Path, log_level: int) -> None:
+def test_logging_level(mocker: MockerFixture, tmp_path: Path, log_level: int) -> None:
 
     input_draw = 1
     random_seed = 2

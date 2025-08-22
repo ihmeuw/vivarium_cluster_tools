@@ -5,7 +5,6 @@ psimulate Jobs
 
 """
 
-import random
 from pathlib import Path
 from typing import Any, NamedTuple
 
@@ -80,7 +79,7 @@ def build_job_list(
     backup_dir: Path,
     backup_metadata_path: Path,
     extras: dict[str, Any],
-) -> tuple[list[dict[str, Any]], int]:
+) -> tuple[list[dict[str, str | int | dict[str, Any]]], int]:
     jobs = []
     number_already_completed = 0
 
@@ -118,7 +117,7 @@ def build_job_list(
             )
             jobs.append(parameters.to_dict())
 
-    random.shuffle(jobs)
+    np.random.shuffle(jobs)  # type: ignore [arg-type]
     return jobs, number_already_completed
 
 

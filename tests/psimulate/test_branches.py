@@ -17,10 +17,10 @@ def test_expand_branch_template() -> None:
     ]
     result = expand_branch_templates(source)
 
-    result_collapsed = [list(collapse_nested_dict(r)) for r in result]
+    result_collapsed = [collapse_nested_dict(r) for r in result]
 
     expected = [
-        list(collapse_nested_dict(r))
+        collapse_nested_dict(r)
         for r in [
             {"a": {"b": 1, "c": 3, "d": 4, "e": True}},
             {"a": {"b": 2, "c": 3, "d": 5, "e": True}},
