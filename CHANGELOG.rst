@@ -1,3 +1,7 @@
+**2.1.15 - 08/22/25**
+
+  - Type-hint entire repository
+
 **2.1.14 - 06/16/25**
 
   - Type-hinting: Fix mypy errors in psimulate/cluster/cli_options.py
