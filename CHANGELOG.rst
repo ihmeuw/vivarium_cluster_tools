@@ -1,6 +1,18 @@
-**2.1.15 - 08/22/25**
+**2.1.18 - 08/22/25**
 
   - Type-hint entire repository
+
+**2.1.17 - 08/01/25**
+
+  - Use vivarium_dependencies for common setup constraints
+
+**2.1.16 - 07/25/25**
+
+  - Feature: Support new environment creation via 'make build-env'
+
+**2.1.15 - 07/16/25**
+
+  - Support pinning of vivarium_build_utils; pin vivarium_build_utils>=1.1.0,<2.0.0
 
 **2.1.14 - 06/16/25**
 
