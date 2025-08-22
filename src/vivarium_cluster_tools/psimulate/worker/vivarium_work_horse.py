@@ -240,8 +240,6 @@ def do_sim_epilogue(
         serialize=True,
     )
     current_job = get_current_job()
-    if not current_job:
-        raise RuntimeError("No current job found")
 
     logger.debug(
         json.dumps(
@@ -249,7 +247,7 @@ def do_sim_epilogue(
                 "host": ENV_VARIABLES.HOSTNAME.value,
                 "job_number": ENV_VARIABLES.JOB_ID.value,
                 "task_number": ENV_VARIABLES.TASK_ID.value,
-                "run_id": current_job.id,
+                "run_id": current_job.id if current_job else "unknown",
                 "draw": parameters.input_draw,
                 "seed": parameters.random_seed,
                 "scenario": parameters.branch_configuration,

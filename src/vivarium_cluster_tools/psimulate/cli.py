@@ -88,10 +88,10 @@ shared_options: list[Decorator] = [
 )
 @cli_tools.pass_shared_options(shared_options)
 def run(
-    model_specification: Path,  # Converted by coerce_to_full_path callback
-    branch_configuration: Path | None,  # Converted by coerce_to_full_path callback
-    artifact_path: Path | None,  # Converted by coerce_to_full_path callback
-    result_directory: Path,  # Converted by coerce_to_full_path callback
+    model_specification: Path,
+    branch_configuration: Path | None,
+    artifact_path: Path | None,
+    result_directory: Path,
     **options: Any,
 ) -> None:
     """Run a parallel simulation.
@@ -150,7 +150,7 @@ def run(
 )
 @cli_tools.pass_shared_options(shared_options)
 def restart(
-    results_root: Path,  # Converted by coerce_to_full_path callback
+    results_root: Path,
     **options: Any,
 ) -> None:
     """Restart a parallel simulation.
@@ -209,7 +209,7 @@ def restart(
 )
 @cli_tools.pass_shared_options(shared_options)
 def expand(
-    results_root: Path,  # Converted by coerce_to_full_path callback
+    results_root: Path,
     **options: Any,
 ) -> None:
     """Expand a previous run.
@@ -272,7 +272,7 @@ def expand(
 def test(
     test_type: str,
     num_workers: int,
-    result_directory: Path,  # Converted by coerce_to_full_path callback
+    result_directory: Path,
     **options: Any,
 ) -> None:
     logs.configure_main_process_logging_to_terminal(options["verbose"])

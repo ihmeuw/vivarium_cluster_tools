@@ -60,7 +60,7 @@ def large_results_test(job_parameters: JobParameters) -> pd.DataFrame:
     return pd.DataFrame(np.random.random(10_000_000).reshape((1_000_000, 10)))
 
 
-def mypoy(job_parameters: dict[str, Any]) -> pd.DataFrame:
+def work_horse(job_parameters: dict[str, Any]) -> pd.DataFrame:
     node = f"{ENV_VARIABLES.HOSTNAME.value}"
     job = f"{ENV_VARIABLES.JOB_ID.value}:{ENV_VARIABLES.TASK_ID.value}"
 
