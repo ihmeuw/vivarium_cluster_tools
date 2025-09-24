@@ -1,4 +1,4 @@
-**2.1.20 - 09/25/25**
+**2.1.20 - 09/24/25**
 
   - Bugfix: do not overwrite randomness and input_data simulation configuration details
 
