@@ -47,15 +47,18 @@ class JobParameters(NamedTuple):
     @property
     def sim_config(self) -> dict[str, Any]:
         """Parameters for the simulation configuration."""
-        return {
-            **self.branch_configuration,
-            "randomness": {
-                "random_seed": self.random_seed,
-            },
-            "input_data": {
-                "input_draw_number": self.input_draw,
-            },
-        }
+        config = {**self.branch_configuration}
+        # Add random_seed to randomness configuration
+        if "randomness" in config:
+            config["randomness"]["random_seed"] = self.random_seed
+        else:
+            config["randomness"] = {"random_seed": self.random_seed}
+        # Add input_draw_number to input_data configuration
+        if "input_data" in config:
+            config["input_data"]["input_draw_number"] = self.input_draw
+        else:
+            config["input_data"] = {"input_draw_number": self.input_draw}
+        return config
 
     def to_dict(self) -> dict[str, Any]:
         # I will never understand why this is a private
