@@ -8,7 +8,7 @@ psimulate Jobs
 from collections import defaultdict
 from pathlib import Path
 from typing import Any, NamedTuple
-
+from copy import deepcopy
 import numpy as np
 import pandas as pd
 from vivarium.framework.utilities import collapse_nested_dict
@@ -39,16 +39,15 @@ class JobParameters(NamedTuple):
     @property
     def job_specific(self) -> dict[str, Any]:
         """Parameters that vary by job in a psimulate run."""
-        return {
-            **self.branch_configuration,
-            "input_draw": self.input_draw,
-            "random_seed": self.random_seed,
-        }
+        config = defaultdict(dict, deepcopy(self.branch_configuration))
+        config["random_seed"] = self.random_seed
+        config["input_draw"] = self.input_draw
+        return dict(config)
 
     @property
     def sim_config(self) -> dict[str, Any]:
         """Parameters for the simulation configuration."""
-        config = defaultdict(dict, self.branch_configuration)
+        config = defaultdict(dict, deepcopy(self.branch_configuration))
         config["randomness"]["random_seed"] = self.random_seed
         config["input_data"]["input_draw_number"] = self.input_draw
         return dict(config)
