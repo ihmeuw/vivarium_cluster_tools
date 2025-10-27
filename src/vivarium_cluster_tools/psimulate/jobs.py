@@ -39,10 +39,11 @@ class JobParameters(NamedTuple):
     @property
     def job_specific(self) -> dict[str, Any]:
         """Parameters that vary by job in a psimulate run."""
-        config = defaultdict(dict, deepcopy(self.branch_configuration))
-        config["random_seed"] = self.random_seed
-        config["input_draw"] = self.input_draw
-        return dict(config)
+        return {
+            **self.branch_configuration,
+            "random_seed": self.random_seed,
+            "input_draw": self.input_draw,
+        }
 
     @property
     def sim_config(self) -> dict[str, Any]:
