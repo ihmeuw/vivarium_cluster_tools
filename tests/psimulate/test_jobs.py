@@ -1,5 +1,6 @@
-from vivarium_cluster_tools.psimulate.jobs import JobParameters
 from copy import deepcopy
+
+from vivarium_cluster_tools.psimulate.jobs import JobParameters
 
 
 def test_branch_config_immutable():
