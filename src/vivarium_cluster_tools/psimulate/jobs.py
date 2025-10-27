@@ -6,9 +6,10 @@ psimulate Jobs
 """
 
 from collections import defaultdict
+from copy import deepcopy
 from pathlib import Path
 from typing import Any, NamedTuple
-from copy import deepcopy
+
 import numpy as np
 import pandas as pd
 from vivarium.framework.utilities import collapse_nested_dict
