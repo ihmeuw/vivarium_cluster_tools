@@ -15,5 +15,5 @@ def test_branch_config_immutable() -> None:
         backup_configuration={},
         extras={},
     )
-    params.sim_config # This was previously causing branch_config to change
+    params.sim_config  # This was previously causing branch_config to change
     assert params.branch_configuration == original_branch_config
