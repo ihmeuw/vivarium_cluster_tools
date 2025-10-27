@@ -41,8 +41,8 @@ class JobParameters(NamedTuple):
         """Parameters that vary by job in a psimulate run."""
         return {
             **self.branch_configuration,
-            "random_seed": self.random_seed,
             "input_draw": self.input_draw,
+            "random_seed": self.random_seed,
         }
 
     @property
