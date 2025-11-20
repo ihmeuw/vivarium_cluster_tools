@@ -1,3 +1,7 @@
+**2.1.24 - 11/20/25**
+
+  - Make name optional and handle bar args to 'make build-env'
+
 **2.1.23 - 10/27/25**
 
   - Bugfix: Deep copy branch_configuration when making sim_config property
