@@ -41,7 +41,6 @@ from vivarium_cluster_tools.vipin.perf_report import PerformanceSummary, report_
 def process_job_results(
     registry_manager: redis_dbs.RegistryManager,
     existing_metadata: pd.DataFrame,
-    existing_results: dict[str, pd.DataFrame],
     output_paths: OutputPaths,
     no_batch: bool,
 ) -> dict[str, int | float]:
@@ -63,12 +62,10 @@ def process_job_results(
                 (
                     existing_metadata,
                     unwritten_metadata,
-                    existing_results,
                     unwritten_results,
                 ) = psim_results.write_results_batch(
                     output_paths,
                     existing_metadata,
-                    existing_results,
                     unwritten_metadata,
                     unwritten_results,
                     batch_size,
@@ -83,12 +80,10 @@ def process_job_results(
             (
                 existing_metadata,
                 unwritten_metadata,
-                existing_results,
                 unwritten_results,
             ) = psim_results.write_results_batch(
                 output_paths,
                 existing_metadata,
-                existing_results,
                 unwritten_metadata,
                 unwritten_results,
                 batch_size=batch_size,
@@ -108,16 +103,6 @@ def load_existing_output_metadata(metadata_path: Path, restart: bool) -> pd.Data
         existing_output_metadata.empty or restart
     ), "How do you have existing outputs on an initial run?"
     return existing_output_metadata
-
-
-def load_existing_results(result_path: Path, restart: bool) -> dict[str, pd.DataFrame]:
-    filepaths = result_path.glob("*.parquet")
-    results = {filepath.stem: pd.read_parquet(filepath) for filepath in filepaths}
-    if results and not restart:
-        raise RuntimeError(
-            f"This is an initial run but results aready exist at {result_path}"
-        )
-    return results
 
 
 def report_initial_status(
@@ -329,14 +314,9 @@ def main(
     # Enter the main monitoring and processing loop, which will check on
     # all the queues periodically, report status updates, and gather
     # and write results when they are available.
-    existing_results = load_existing_results(
-        result_path=output_paths.results_dir,
-        restart=command in [COMMANDS.restart, COMMANDS.expand],
-    )
     status = process_job_results(
         registry_manager=registry_manager,
         existing_metadata=finished_sim_metadata,
-        existing_results=existing_results,
         output_paths=output_paths,
         no_batch=no_batch,
     )
