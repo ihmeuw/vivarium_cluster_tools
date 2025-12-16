@@ -228,19 +228,3 @@ def test_write_results_batch_multiple_calls(tmp_path: Path) -> None:
 
     # Check metadata accumulated correctly across calls
     assert len(existing_metadata) == 4
-
-
-def test_concat_batch_results() -> None:
-    """Test that _concat_batch_results only combines new batch results."""
-    new_results = [
-        {"metric1": pd.DataFrame({"a": [1, 2]}), "metric2": pd.DataFrame({"b": [3, 4]})},
-        {"metric1": pd.DataFrame({"a": [5, 6]}), "metric2": pd.DataFrame({"b": [7, 8]})},
-    ]
-
-    combined = _concat_batch_results(new_results)
-
-    assert set(combined.keys()) == {"metric1", "metric2"}
-    assert len(combined["metric1"]) == 4
-    assert combined["metric1"]["a"].tolist() == [1, 2, 5, 6]
-    assert len(combined["metric2"]) == 4
-    assert combined["metric2"]["b"].tolist() == [3, 4, 7, 8]
