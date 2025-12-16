@@ -72,8 +72,7 @@ def write_results_batch(
     for metric, df in results_to_write.items():
         metric_dir = output_paths.results_dir / metric
         metric_dir.mkdir(exist_ok=True)
-        batch_path = metric_dir / f"batch_{batch_timestamp}.parquet"
-        _safe_write_batch(df, batch_path)
+        _safe_write(df, metric_dir / f"batch_{batch_timestamp}.parquet")
     # Metadata is small enough to overwrite entirely each time
     _safe_write(metadata_to_write, output_paths.finished_sim_metadata)
     end = time.time()
@@ -101,7 +100,7 @@ def _concat_metadata(
 def _concat_batch_results(
     new_results: list[dict[str, pd.DataFrame]],
 ) -> dict[str, pd.DataFrame]:
-    """Concatenate only the new batch results (not existing results on disk).
+    """Concatenate the new batch results.
 
     This function combines the results from the current batch into a single
     DataFrame per metric, without loading any existing results from disk.
@@ -135,26 +134,6 @@ def _concat_preserve_types(df_list: list[pd.DataFrame]) -> pd.DataFrame:
         for col, dtype in dtype_mapping.items():
             df[col] = df[col].astype(dtype)
     return pd.concat(df_list, axis=0).reset_index(drop=True)
-
-
-@vct_utils.backoff_and_retry(backoff_seconds=30, num_retries=3, log_function=logger.warning)
-def _safe_write_batch(df: pd.DataFrame, output_path: Path) -> None:
-    """Write a batch dataframe to disk as a new parquet file.
-
-    This function writes a new parquet file without overwriting existing files,
-    supporting incremental batch writes for large-scale simulations.
-
-    Parameters
-    ----------
-    df
-        DataFrame to write to disk.
-    output_path
-        Path to write the DataFrame to. Should be a unique path (e.g., with timestamp).
-    """
-    # Write to temp file first, then move to final location for atomicity
-    temp_output_path = output_path.with_name(output_path.stem + "_temp" + output_path.suffix)
-    df.to_parquet(temp_output_path)
-    temp_output_path.replace(output_path)
 
 
 @vct_utils.backoff_and_retry(backoff_seconds=30, num_retries=3, log_function=logger.warning)
