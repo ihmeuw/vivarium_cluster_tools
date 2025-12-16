@@ -74,7 +74,6 @@ def process_job_results(
             logger.info(f"Unwritten results: {len(unwritten_results)}")
             logger.info(f"Elapsed time: {(time() - start_time)/60:.1f} minutes.")
     finally:
-        batch_size = 500
         while unwritten_results:
             (
                 existing_metadata,
