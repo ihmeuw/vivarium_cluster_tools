@@ -42,11 +42,10 @@ def process_job_results(
     registry_manager: redis_dbs.RegistryManager,
     existing_metadata: pd.DataFrame,
     output_paths: OutputPaths,
-    no_batch: bool,
+    batch_size: int,
 ) -> dict[str, int | float]:
     unwritten_metadata = []
     unwritten_results = []
-    batch_size = 0 if no_batch else 200
     status: dict[str, int | float] = defaultdict(int)
 
     logger.info("Entering main processing loop.")
@@ -171,7 +170,7 @@ def main(
     native_specification: cluster.NativeSpecification,
     max_workers: int | None,
     redis_processes: int,
-    no_batch: bool,
+    batch_size: int,
     backup_freq: int | None,
     extra_args: dict[str, Any],
 ) -> None:
@@ -318,7 +317,7 @@ def main(
         registry_manager=registry_manager,
         existing_metadata=finished_sim_metadata,
         output_paths=output_paths,
-        no_batch=no_batch,
+        batch_size=batch_size,
     )
 
     # Spit out a performance report for the workers.

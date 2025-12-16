@@ -50,7 +50,7 @@ shared_options: list[Decorator] = [
     cluster.with_hardware,
     redis_dbs.with_max_workers,
     redis_dbs.with_redis,
-    results.with_no_batch,
+    results.with_batch_size,
     results.backup_freq,
     cli_tools.with_verbose_and_pdb,
     cli_tools.with_sim_verbosity,
@@ -133,7 +133,7 @@ def run(
         ),
         max_workers=options["max_workers"],
         redis_processes=options["redis"],
-        no_batch=options["no_batch"],
+        batch_size=options["batch_size"],
         backup_freq=options["backup_freq"],
         extra_args={
             "sim_verbosity": int(options["sim_verbosity"]),
@@ -178,7 +178,7 @@ def restart(
         ),
         max_workers=options["max_workers"],
         redis_processes=options["redis"],
-        no_batch=options["no_batch"],
+        batch_size=options["batch_size"],
         backup_freq=options["backup_freq"],
         extra_args={
             "sim_verbosity": int(options["sim_verbosity"]),
@@ -238,7 +238,7 @@ def expand(
         ),
         max_workers=options["max_workers"],
         redis_processes=options["redis"],
-        no_batch=options["no_batch"],
+        batch_size=options["batch_size"],
         backup_freq=options["backup_freq"],
         extra_args={
             "num_draws": options["add_draws"],
@@ -316,7 +316,7 @@ def test(
         ),
         max_workers=options["max_workers"],
         redis_processes=options["redis"],
-        no_batch=options["no_batch"],
+        batch_size=options["batch_size"],
         backup_freq=options["backup_freq"],
         extra_args={
             "test_type": test_type,

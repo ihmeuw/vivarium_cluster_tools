@@ -10,8 +10,14 @@ import click
 
 from vivarium_cluster_tools.cli_tools import MINUTES_OR_NONE
 
-with_no_batch = click.option(
-    "--no-batch", is_flag=True, help="Don't batch results, write them as they come in."
+DEFAULT_BATCH_SIZE = 200
+
+with_batch_size = click.option(
+    "--batch-size",
+    type=int,
+    default=DEFAULT_BATCH_SIZE,
+    show_default=True,
+    help="Number of simulation jobs to accumulate before writing results to disk.",
 )
 with_no_cleanup = click.option(
     "--no-cleanup",
