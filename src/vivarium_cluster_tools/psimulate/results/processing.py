@@ -91,7 +91,7 @@ def write_results_batch(
     unwritten_results: list[dict[str, pd.DataFrame]],
     batch_size: int,
 ) -> tuple[
-    pd.DataFrame, list[pd.DataFrame], dict[str, pd.DataFrame], list[dict[str, pd.DataFrame]]
+    chunk_size: int,
 ]:
     """Write batch of results and finished simulation metadata to disk.
 
@@ -109,6 +109,8 @@ def write_results_batch(
         Results for finished simulations that have not yet been written to disk.
     batch_size
         Number of results to write in this batch.
+    chunk_size
+        Maximum file size in bytes per chunk. When exceeded, a new chunk is started.
 
     Returns
     -------

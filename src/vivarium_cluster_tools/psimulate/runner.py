@@ -41,13 +41,14 @@ from vivarium_cluster_tools.vipin.perf_report import PerformanceSummary, report_
 def process_job_results(
     registry_manager: redis_dbs.RegistryManager,
     existing_metadata: pd.DataFrame,
-    existing_results: dict[str, pd.DataFrame],
     output_paths: OutputPaths,
+    batch_size: int,
+    chunk_size: int,
     no_batch: bool,
 ) -> dict[str, int | float]:
     unwritten_metadata = []
     unwritten_results = []
-    batch_size = 0 if no_batch else 200
+    batch_size = 0 if no_batch else batch_size
     status: dict[str, int | float] = defaultdict(int)
 
     logger.info("Entering main processing loop.")
@@ -72,13 +73,14 @@ def process_job_results(
                     unwritten_metadata,
                     unwritten_results,
                     batch_size,
+                    chunk_size,
                 )
 
             status = registry_manager.update_and_report()
             logger.info(f"Unwritten results: {len(unwritten_results)}")
             logger.info(f"Elapsed time: {(time() - start_time)/60:.1f} minutes.")
     finally:
-        batch_size = 500
+        # Flush all remaining results
         while unwritten_results:
             (
                 existing_metadata,
@@ -91,7 +93,8 @@ def process_job_results(
                 existing_results,
                 unwritten_metadata,
                 unwritten_results,
-                batch_size=batch_size,
+                batch_size=len(unwritten_results),
+                chunk_size=chunk_size,
             )
             logger.info(f"Unwritten results: {len(unwritten_results)}")
             logger.info(f"Elapsed time: {(time() - start_time) / 60:.1f} minutes.")
@@ -186,6 +189,8 @@ def main(
     native_specification: cluster.NativeSpecification,
     max_workers: int | None,
     redis_processes: int,
+    batch_size: int,
+    chunk_size: int,
     no_batch: bool,
     backup_freq: int | None,
     extra_args: dict[str, Any],
@@ -336,8 +341,9 @@ def main(
     status = process_job_results(
         registry_manager=registry_manager,
         existing_metadata=finished_sim_metadata,
-        existing_results=existing_results,
         output_paths=output_paths,
+        batch_size=batch_size,
+        chunk_size=chunk_size,
         no_batch=no_batch,
     )
 
