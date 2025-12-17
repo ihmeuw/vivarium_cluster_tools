@@ -9,6 +9,7 @@ Tools for processing and writing results.
 
 import re
 import time
+from collections import defaultdict
 from pathlib import Path
 
 import pandas as pd
@@ -29,11 +30,13 @@ class ChunkMap:
     Attributes
     ----------
     metrics
-        Dictionary mapping metric name to current chunk number.
+        Dictionary mapping metric name to current chunk number. Defaults to 0 for new metrics.
     """
 
     def __init__(self, metrics: dict[str, int] | None = None) -> None:
-        self.metrics: dict[str, int] = metrics if metrics is not None else {}
+        self.metrics = defaultdict(int)
+        if metrics is not None:
+            self.metrics.update(metrics)
 
     @classmethod
     def from_existing_results(cls, results_dir: Path) -> "ChunkMap":
@@ -73,9 +76,14 @@ class ChunkMap:
 
         return cls(metrics)
 
-    def get(self, metric: str) -> int:
+    def get_path(self, metric: str) -> Path:
+        """Get current chunk path for a metric."""
+        chunk_num = self.metrics[metric]
+        return Path(f"chunk_{chunk_num:04d}.parquet")
+
+    def __getitem__(self, metric: str) -> int:
         """Get current chunk number for a metric."""
-        return self.metrics.get(metric, 0)
+        return self.metrics[metric]
 
     def __setitem__(self, metric: str, chunk_num: int) -> None:
         """Set chunk number for a metric."""
@@ -212,14 +220,12 @@ def _write_metric_chunk(
     remaining = new_data.reset_index(drop=True)
 
     while not remaining.empty:
-        chunk_num = chunk_map.get(metric)
-        chunk_path = metric_dir / f"chunk_{chunk_num:04d}.parquet"
+        chunk_path = metric_dir / chunk_map.get_path(metric)
 
         # If current chunk is already at/over limit, rotate first
         if chunk_path.exists() and chunk_path.stat().st_size >= chunk_size:
-            chunk_num += 1
-            chunk_path = metric_dir / f"chunk_{chunk_num:04d}.parquet"
-            chunk_map[metric] = chunk_num
+            chunk_map[metric] += 1
+            chunk_path = metric_dir / chunk_map.get_path(metric)
 
         # Estimate how many rows will fit
         bytes_per_row = _estimate_bytes_per_row(chunk_path, remaining)
@@ -237,19 +243,17 @@ def _write_metric_chunk(
 
         # Combine with existing data if present
         if chunk_path.exists():
-            existing_df = pd.read_parquet(chunk_path)
-            combined = _concat_preserve_types([existing_df.reset_index(drop=True), to_write])
+            combined = _concat_preserve_types(
+                [pd.read_parquet(chunk_path).reset_index(drop=True), to_write]
+            )
         else:
             combined = to_write
-            if metric not in chunk_map:
-                chunk_map[metric] = chunk_num
 
         _safe_write(combined, chunk_path)
 
         # If more data remains, rotate to next chunk for next iteration
         if not remaining.empty:
-            chunk_num += 1
-            chunk_map[metric] = chunk_num
+            chunk_map[metric] += 1
 
 
 def _concat_metadata(
