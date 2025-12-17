@@ -51,6 +51,9 @@ def process_job_results(
     batch_size = 0 if no_batch else batch_size
     status: dict[str, int | float] = defaultdict(int)
 
+    # Initialize chunk map from any existing results (for restart support)
+    chunk_map = psim_results.ChunkMap.from_existing_results(output_paths.results_dir)
+
     logger.info("Entering main processing loop.")
     start_time = time()
     try:
@@ -64,15 +67,14 @@ def process_job_results(
                 (
                     existing_metadata,
                     unwritten_metadata,
-                    existing_results,
                     unwritten_results,
                 ) = psim_results.write_results_batch(
                     output_paths,
                     existing_metadata,
-                    existing_results,
                     unwritten_metadata,
                     unwritten_results,
                     batch_size,
+                    chunk_map,
                     chunk_size,
                 )
 
@@ -85,15 +87,14 @@ def process_job_results(
             (
                 existing_metadata,
                 unwritten_metadata,
-                existing_results,
                 unwritten_results,
             ) = psim_results.write_results_batch(
                 output_paths,
                 existing_metadata,
-                existing_results,
                 unwritten_metadata,
                 unwritten_results,
                 batch_size=len(unwritten_results),
+                chunk_map=chunk_map,
                 chunk_size=chunk_size,
             )
             logger.info(f"Unwritten results: {len(unwritten_results)}")
@@ -111,16 +112,6 @@ def load_existing_output_metadata(metadata_path: Path, restart: bool) -> pd.Data
         existing_output_metadata.empty or restart
     ), "How do you have existing outputs on an initial run?"
     return existing_output_metadata
-
-
-def load_existing_results(result_path: Path, restart: bool) -> dict[str, pd.DataFrame]:
-    filepaths = result_path.glob("*.parquet")
-    results = {filepath.stem: pd.read_parquet(filepath) for filepath in filepaths}
-    if results and not restart:
-        raise RuntimeError(
-            f"This is an initial run but results aready exist at {result_path}"
-        )
-    return results
 
 
 def report_initial_status(
@@ -334,10 +325,6 @@ def main(
     # Enter the main monitoring and processing loop, which will check on
     # all the queues periodically, report status updates, and gather
     # and write results when they are available.
-    existing_results = load_existing_results(
-        result_path=output_paths.results_dir,
-        restart=command in [COMMANDS.restart, COMMANDS.expand],
-    )
     status = process_job_results(
         registry_manager=registry_manager,
         existing_metadata=finished_sim_metadata,

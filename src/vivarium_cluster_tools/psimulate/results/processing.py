@@ -86,14 +86,20 @@ class ChunkMap:
 def write_results_batch(
     output_paths: OutputPaths,
     existing_metadata: pd.DataFrame,
-    existing_results: dict[str, pd.DataFrame],
     unwritten_metadata: list[pd.DataFrame],
     unwritten_results: list[dict[str, pd.DataFrame]],
     batch_size: int,
-) -> tuple[
+    chunk_map: ChunkMap,
     chunk_size: int,
-]:
+) -> tuple[pd.DataFrame, list[pd.DataFrame], list[dict[str, pd.DataFrame]]]:
     """Write batch of results and finished simulation metadata to disk.
+
+    Results are written to chunked parquet files within per-metric directories
+    (e.g., ``results_dir/metric_name/chunk_0000.parquet``). When a chunk file
+    exceeds ``chunk_size`` bytes, a new chunk file is started.
+
+    To read all results for a metric, use ``pd.read_parquet(results_dir / metric_name)``,
+    which automatically combines all parquet files in the directory.
 
     Parameters
     ----------
@@ -101,14 +107,14 @@ def write_results_batch(
         Container class with output filepaths as attributes.
     existing_metadata
         Metadata for finished simulations that has already been written to disk.
-    existing_results
-        Results for finished simulations that have already been written to disk.
     unwritten_metadata
         Metadata for finished simulations that has not yet been written to disk.
     unwritten_results
         Results for finished simulations that have not yet been written to disk.
     batch_size
         Number of results to write in this batch.
+    chunk_map
+        Dictionary mapping metric names to current chunk numbers. Updated in place.
     chunk_size
         Maximum file size in bytes per chunk. When exceeded, a new chunk is started.
 
@@ -116,9 +122,8 @@ def write_results_batch(
     -------
         A tuple of:
         - The updated metadata that was written to disk as part of this batch.
-        - The updated metadata to write to disk in the next batch.
-        - The updated results that were written to disk as part of this batch.
-        - The updated results to write to disk in the next batch.
+        - The unwritten metadata remaining to write in subsequent batches.
+        - The unwritten results remaining to write in subsequent batches.
     """
     logger.info(f"Writing batch of {batch_size} results.")
     new_metadata_to_write, unwritten_metadata = (
@@ -130,23 +135,66 @@ def write_results_batch(
         unwritten_results[batch_size:],
     )
     metadata_to_write = _concat_metadata(existing_metadata, new_metadata_to_write)
-    results_to_write = _concat_results(existing_results, new_results_to_write)
+    results_to_write = _concat_batch_results(new_results_to_write)
 
     start = time.time()
-    # write out updated metadata and results
-    for metric, df in results_to_write.items():
-        _safe_write(df, output_paths.results_dir / f"{metric}.parquet")
+    # Write results to chunked files per metric
+    for metric, new_df in results_to_write.items():
+        _write_metric_chunk(
+            metric_dir=output_paths.results_dir / metric,
+            new_data=new_df,
+            chunk_map=chunk_map,
+            metric=metric,
+            chunk_size=chunk_size,
+        )
+    # Metadata is small enough to overwrite entirely each time
     _safe_write(metadata_to_write, output_paths.finished_sim_metadata)
     end = time.time()
     logger.info(f"Updated results in {end - start:.4f}s.")
-    return metadata_to_write, unwritten_metadata, results_to_write, unwritten_results
+    return metadata_to_write, unwritten_metadata, unwritten_results
+
+
+def _write_metric_chunk(
+    metric_dir: Path,
+    new_data: pd.DataFrame,
+    chunk_map: ChunkMap,
+    metric: str,
+    chunk_size: int,
+) -> None:
+    """Write new data to chunk file, rotating when file size exceeds chunk_size bytes.
+
+    File size is checked before writing. If the current chunk would exceed chunk_size,
+    a new chunk is started. This avoids needing to read the existing file.
+    """
+    metric_dir.mkdir(exist_ok=True)
+
+    chunk_num = chunk_map.get(metric, 0)
+    chunk_path = metric_dir / f"chunk_{chunk_num:04d}.parquet"
+
+    # Check if we need to rotate to a new chunk based on file size
+    if chunk_path.exists() and chunk_path.stat().st_size >= chunk_size:
+        chunk_num += 1
+        chunk_path = metric_dir / f"chunk_{chunk_num:04d}.parquet"
+        chunk_map[metric] = chunk_num
+
+    # Load existing chunk data if present
+    if chunk_path.exists():
+        existing_df = pd.read_parquet(chunk_path)
+        combined = _concat_preserve_types(
+            [existing_df.reset_index(drop=True), new_data.reset_index(drop=True)]
+        )
+    else:
+        combined = new_data.reset_index(drop=True)
+        if metric not in chunk_map:
+            chunk_map[metric] = chunk_num
+
+    _safe_write(combined, chunk_path)
 
 
 def _concat_metadata(
     old_metadata: pd.DataFrame, new_metadata: list[pd.DataFrame]
 ) -> pd.DataFrame:
     """Concatenate the new metadata to the old."""
-    # Skips all the pandas index checking because columns are in the same order.
     start = time.time()
 
     to_concat_old = [old_metadata.reset_index(drop=True)] if not old_metadata.empty else []
@@ -159,25 +207,24 @@ def _concat_metadata(
     return updated
 
 
-def _concat_results(
-    old_results: dict[str, pd.DataFrame], new_results: list[dict[str, pd.DataFrame]]
+def _concat_batch_results(
+    new_results: list[dict[str, pd.DataFrame]],
 ) -> dict[str, pd.DataFrame]:
-    """Concatenate the new results to the old."""
-    # Skips all the pandas index checking because columns are in the same order.
+    """Concatenate only the new batch results (not existing results on disk).
+
+    This function combines the results from the current batch into a single
+    DataFrame per metric, without loading any existing results from disk.
+    """
     start = time.time()
     results = {}
     metrics = {key for new in new_results for key in new.keys()}
     for metric in metrics:
-        to_concat_old = (
-            [old_results[metric].reset_index(drop=True)] if metric in old_results else []
-        )
-        to_concat = to_concat_old + [
+        to_concat = [
             df.reset_index(drop=True)
             for result in new_results
             for met, df in result.items()
             if met == metric
         ]
-
         results[metric] = _concat_preserve_types(to_concat)
 
     end = time.time()
