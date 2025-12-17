@@ -176,6 +176,7 @@ def write_results_batch(
     start = time.time()
     # Write results to chunked files per metric
     for metric, new_df in results_to_write.items():
+        (output_paths.results_dir / metric).mkdir(exist_ok=True)
         _write_metric_chunk(
             new_data=new_df,
             chunk_map=chunk_map,
@@ -204,12 +205,6 @@ def _write_metric_chunk(
 
     while not remaining.empty:
         chunk_path = chunk_map.get_path(metric)
-        chunk_path.parent.mkdir(exist_ok=True)
-
-        # If current chunk is already at/over limit, rotate first
-        if chunk_path.exists() and chunk_path.stat().st_size >= chunk_size:
-            chunk_map[metric] += 1
-            chunk_path = chunk_map.get_path(metric)
 
         if chunk_path.exists():
             current_size = chunk_path.stat().st_size
@@ -218,7 +213,21 @@ def _write_metric_chunk(
             remaining_space = chunk_size
 
         # Calculate rows that fit, but always write at least 1 row to make progress
-        rows_that_fit = max(1, int(remaining_space / chunk_map.bytes_per_row(metric)))
+        rows_that_fit = int(remaining_space / chunk_map.bytes_per_row(metric))
+        if rows_that_fit < 1:
+            if chunk_map.bytes_per_row(metric) > chunk_size:
+                logger.warning(
+                    f"Estimated bytes per row for metric '{metric}' "
+                    f"({chunk_map.bytes_per_row(metric):.2f} bytes) "
+                    f"exceeds chunk size ({chunk_size} bytes). "
+                    f"Writing one row per chunk file."
+                )
+                rows_that_fit = 1
+            else:
+                # No space left in current chunk, rotate to next chunk
+                chunk_map[metric] += 1
+                continue
+
         to_write = remaining.iloc[:rows_that_fit].reset_index(drop=True)
         remaining = remaining.iloc[rows_that_fit:].reset_index(drop=True)
 
