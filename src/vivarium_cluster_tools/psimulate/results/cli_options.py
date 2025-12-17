@@ -12,7 +12,7 @@ import click
 from vivarium_cluster_tools.cli_tools import MINUTES_OR_NONE
 
 DEFAULT_BATCH_SIZE = 200
-DEFAULT_CHUNK_SIZE = 500 * 1024 * 1024  # 100 MB in bytes
+DEFAULT_CHUNK_SIZE = 500 * 1024 * 1024  # 500 MB in bytes
 
 with_batch_size = click.option(
     "--batch-size",
