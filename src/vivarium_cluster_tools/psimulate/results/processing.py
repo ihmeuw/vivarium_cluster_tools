@@ -113,7 +113,7 @@ class ChunkMap:
         """
         chunk_0_path = self.results_dir / metric / "chunk_0000.parquet"
         if chunk_0_path.exists():
-            rows = pq.read_metadata(chunk_0_path).num_rows
+            rows: int = pq.read_metadata(chunk_0_path).num_rows
             if rows > 0:
                 return chunk_0_path.stat().st_size / rows
         return DEFAULT_BYTES_PER_ROW_ESTIMATE
