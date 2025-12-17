@@ -7,6 +7,7 @@ Tools for processing and writing results.
 
 """
 
+import re
 import time
 from pathlib import Path
 
@@ -15,6 +16,71 @@ from loguru import logger
 
 from vivarium_cluster_tools import utilities as vct_utils
 from vivarium_cluster_tools.psimulate.paths import OutputPaths
+
+
+class ChunkMap:
+    """Tracks current chunk number per metric during results writing.
+
+    This is mutable state that gets updated in place as chunks rotate.
+
+    Attributes
+    ----------
+    metrics
+        Dictionary mapping metric name to current chunk number.
+    """
+
+    def __init__(self, metrics: dict[str, int] | None = None) -> None:
+        self.metrics: dict[str, int] = metrics if metrics is not None else {}
+
+    @classmethod
+    def from_existing_results(cls, results_dir: Path) -> "ChunkMap":
+        """Create ChunkMap by scanning existing chunk files.
+
+        Parameters
+        ----------
+        results_dir
+            Directory containing metric subdirectories with chunk files.
+
+        Returns
+        -------
+            ChunkMap initialized with current chunk numbers per metric.
+        """
+        metrics: dict[str, int] = {}
+
+        if not results_dir.exists():
+            return cls(metrics)
+
+        for metric_dir in results_dir.iterdir():
+            if not metric_dir.is_dir():
+                continue
+
+            chunk_files = list(metric_dir.glob("chunk_*.parquet"))
+            if not chunk_files:
+                continue
+
+            # Find highest chunk number
+            chunk_nums = []
+            for f in chunk_files:
+                match = re.match(r"chunk_(\d+)\.parquet", f.name)
+                if match:
+                    chunk_nums.append(int(match.group(1)))
+
+            if chunk_nums:
+                metrics[metric_dir.name] = max(chunk_nums)
+
+        return cls(metrics)
+
+    def get(self, metric: str, default: int = 0) -> int:
+        """Get current chunk number for a metric."""
+        return self.metrics.get(metric, default)
+
+    def __setitem__(self, metric: str, chunk_num: int) -> None:
+        """Set chunk number for a metric."""
+        self.metrics[metric] = chunk_num
+
+    def __contains__(self, metric: str) -> bool:
+        """Check if metric is tracked."""
+        return metric in self.metrics
 
 
 def write_results_batch(
