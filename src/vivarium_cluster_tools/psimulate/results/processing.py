@@ -29,12 +29,15 @@ class ChunkMap:
 
     Attributes
     ----------
+    results_dir
+        Directory containing metric subdirectories with chunk files.
     metrics
         Dictionary mapping metric name to current chunk number. Defaults to 0 for new metrics.
     """
 
-    def __init__(self, metrics: dict[str, int] | None = None) -> None:
-        self.metrics = defaultdict(int)
+    def __init__(self, results_dir: Path, metrics: dict[str, int] | None = None) -> None:
+        self.results_dir = results_dir
+        self.metrics: defaultdict[str, int] = defaultdict(int)
         if metrics is not None:
             self.metrics.update(metrics)
 
@@ -54,7 +57,7 @@ class ChunkMap:
         metrics: dict[str, int] = {}
 
         if not results_dir.exists():
-            return cls(metrics)
+            return cls(results_dir, metrics)
 
         for metric_dir in results_dir.iterdir():
             if not metric_dir.is_dir():
@@ -74,12 +77,12 @@ class ChunkMap:
             if chunk_nums:
                 metrics[metric_dir.name] = max(chunk_nums)
 
-        return cls(metrics)
+        return cls(results_dir, metrics)
 
     def get_path(self, metric: str) -> Path:
-        """Get current chunk path for a metric."""
+        """Get full path to current chunk file for a metric."""
         chunk_num = self.metrics[metric]
-        return Path(f"chunk_{chunk_num:04d}.parquet")
+        return self.results_dir / metric / f"chunk_{chunk_num:04d}.parquet"
 
     def __getitem__(self, metric: str) -> int:
         """Get current chunk number for a metric."""
@@ -92,6 +95,28 @@ class ChunkMap:
     def __contains__(self, metric: str) -> bool:
         """Check if metric is tracked."""
         return metric in self.metrics
+
+    def bytes_per_row(self, metric: str) -> float:
+        """Get estimated bytes per row for a metric.
+
+        Uses the initial chunk file (chunk_0000.parquet) if it exists,
+        otherwise returns the default estimate.
+
+        Parameters
+        ----------
+        metric
+            The metric name.
+
+        Returns
+        -------
+            Estimated bytes per row.
+        """
+        chunk_0_path = self.results_dir / metric / "chunk_0000.parquet"
+        if chunk_0_path.exists():
+            rows = pq.read_metadata(chunk_0_path).num_rows
+            if rows > 0:
+                return chunk_0_path.stat().st_size / rows
+        return DEFAULT_BYTES_PER_ROW_ESTIMATE
 
 
 def write_results_batch(
@@ -152,7 +177,6 @@ def write_results_batch(
     # Write results to chunked files per metric
     for metric, new_df in results_to_write.items():
         _write_metric_chunk(
-            metric_dir=output_paths.results_dir / metric,
             new_data=new_df,
             chunk_map=chunk_map,
             metric=metric,
@@ -165,46 +189,7 @@ def write_results_batch(
     return metadata_to_write, unwritten_metadata, unwritten_results
 
 
-def _estimate_bytes_per_row(
-    chunk_path: Path | None, sample_df: pd.DataFrame | None = None
-) -> float:
-    """Estimate bytes per row from existing file or by sampling the data.
-
-    Parameters
-    ----------
-    chunk_path
-        Path to existing parquet file to estimate from.
-    sample_df
-        DataFrame to sample if no existing file available.
-
-    Returns
-    -------
-        Estimated bytes per row.
-    """
-    # Try to estimate from existing file
-    if chunk_path and chunk_path.exists():
-        rows = pq.read_metadata(chunk_path).num_rows
-        if rows > 0:
-            return chunk_path.stat().st_size / rows
-
-    # Estimate by serializing a small sample of the data
-    # Use a small sample to get a conservative (larger) estimate that accounts
-    # for per-file overhead, which ensures we don't overfill chunks
-    if sample_df is not None and not sample_df.empty:
-        import io
-
-        buf = io.BytesIO()
-        # Use a small sample (10 rows) to get conservative overhead estimate
-        sample_rows = min(10, len(sample_df))
-        sample_df.head(sample_rows).to_parquet(buf)
-        return buf.tell() / sample_rows
-
-    # Fallback default (conservative estimate)
-    return DEFAULT_BYTES_PER_ROW_ESTIMATE
-
-
 def _write_metric_chunk(
-    metric_dir: Path,
     new_data: pd.DataFrame,
     chunk_map: ChunkMap,
     metric: str,
@@ -215,20 +200,16 @@ def _write_metric_chunk(
     Data may be split across multiple chunk files to respect chunk_size limits.
     Each chunk file will be approximately chunk_size bytes or smaller.
     """
-    metric_dir.mkdir(exist_ok=True)
-
     remaining = new_data.reset_index(drop=True)
 
     while not remaining.empty:
-        chunk_path = metric_dir / chunk_map.get_path(metric)
+        chunk_path = chunk_map.get_path(metric)
+        chunk_path.parent.mkdir(exist_ok=True)
 
         # If current chunk is already at/over limit, rotate first
         if chunk_path.exists() and chunk_path.stat().st_size >= chunk_size:
             chunk_map[metric] += 1
-            chunk_path = metric_dir / chunk_map.get_path(metric)
-
-        # Estimate how many rows will fit
-        bytes_per_row = _estimate_bytes_per_row(chunk_path, remaining)
+            chunk_path = chunk_map.get_path(metric)
 
         if chunk_path.exists():
             current_size = chunk_path.stat().st_size
@@ -237,7 +218,7 @@ def _write_metric_chunk(
             remaining_space = chunk_size
 
         # Calculate rows that fit, but always write at least 1 row to make progress
-        rows_that_fit = max(1, int(remaining_space / bytes_per_row))
+        rows_that_fit = max(1, int(remaining_space / chunk_map.bytes_per_row(metric)))
         to_write = remaining.iloc[:rows_that_fit].reset_index(drop=True)
         remaining = remaining.iloc[rows_that_fit:].reset_index(drop=True)
 
