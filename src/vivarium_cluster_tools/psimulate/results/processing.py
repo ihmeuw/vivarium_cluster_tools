@@ -18,6 +18,8 @@ from loguru import logger
 from vivarium_cluster_tools import utilities as vct_utils
 from vivarium_cluster_tools.psimulate.paths import OutputPaths
 
+DEFAULT_BYTES_PER_ROW_ESTIMATE = 500.0
+
 
 class ChunkMap:
     """Tracks current chunk number per metric during results writing.
@@ -71,9 +73,9 @@ class ChunkMap:
 
         return cls(metrics)
 
-    def get(self, metric: str, default: int = 0) -> int:
+    def get(self, metric: str) -> int:
         """Get current chunk number for a metric."""
-        return self.metrics.get(metric, default)
+        return self.metrics.get(metric, 0)
 
     def __setitem__(self, metric: str, chunk_num: int) -> None:
         """Set chunk number for a metric."""
@@ -155,19 +157,42 @@ def write_results_batch(
     return metadata_to_write, unwritten_metadata, unwritten_results
 
 
-def _needs_new_chunk(chunk_path: Path, new_data: pd.DataFrame, chunk_size: int) -> bool:
-    """Check if adding new_data would exceed chunk_size, requiring a new chunk.
+def _estimate_bytes_per_row(
+    chunk_path: Path | None, sample_df: pd.DataFrame | None = None
+) -> float:
+    """Estimate bytes per row from existing file or by sampling the data.
 
-    Estimates the combined file size based on bytes-per-row of the existing file.
+    Parameters
+    ----------
+    chunk_path
+        Path to existing parquet file to estimate from.
+    sample_df
+        DataFrame to sample if no existing file available.
+
+    Returns
+    -------
+        Estimated bytes per row.
     """
-    if not chunk_path.exists():
-        return False
-    existing_rows = pq.read_metadata(chunk_path).num_rows
-    if existing_rows == 0:
-        return False
-    new_rows = len(new_data)
-    estimated_size = chunk_path.stat().st_size * (1 + new_rows / existing_rows)
-    return estimated_size >= chunk_size
+    # Try to estimate from existing file
+    if chunk_path and chunk_path.exists():
+        rows = pq.read_metadata(chunk_path).num_rows
+        if rows > 0:
+            return chunk_path.stat().st_size / rows
+
+    # Estimate by serializing a small sample of the data
+    # Use a small sample to get a conservative (larger) estimate that accounts
+    # for per-file overhead, which ensures we don't overfill chunks
+    if sample_df is not None and not sample_df.empty:
+        import io
+
+        buf = io.BytesIO()
+        # Use a small sample (10 rows) to get conservative overhead estimate
+        sample_rows = min(10, len(sample_df))
+        sample_df.head(sample_rows).to_parquet(buf)
+        return buf.tell() / sample_rows
+
+    # Fallback default (conservative estimate)
+    return DEFAULT_BYTES_PER_ROW_ESTIMATE
 
 
 def _write_metric_chunk(
@@ -177,34 +202,54 @@ def _write_metric_chunk(
     metric: str,
     chunk_size: int,
 ) -> None:
-    """Write new data to chunk file, rotating when file size exceeds chunk_size bytes.
+    """Write new data to chunk file(s), splitting across chunks if needed.
 
-    File size is checked before writing. If the current chunk would exceed chunk_size,
-    a new chunk is started. This avoids needing to read the existing file.
+    Data may be split across multiple chunk files to respect chunk_size limits.
+    Each chunk file will be approximately chunk_size bytes or smaller.
     """
     metric_dir.mkdir(exist_ok=True)
 
-    chunk_num = chunk_map.get(metric, 0)
-    chunk_path = metric_dir / f"chunk_{chunk_num:04d}.parquet"
+    remaining = new_data.reset_index(drop=True)
 
-    # Check if we need to rotate to a new chunk based on estimated size
-    if _needs_new_chunk(chunk_path, new_data, chunk_size):
-        chunk_num += 1
+    while not remaining.empty:
+        chunk_num = chunk_map.get(metric)
         chunk_path = metric_dir / f"chunk_{chunk_num:04d}.parquet"
-        chunk_map[metric] = chunk_num
 
-    # Load existing chunk data if present
-    if chunk_path.exists():
-        existing_df = pd.read_parquet(chunk_path)
-        combined = _concat_preserve_types(
-            [existing_df.reset_index(drop=True), new_data.reset_index(drop=True)]
-        )
-    else:
-        combined = new_data.reset_index(drop=True)
-        if metric not in chunk_map:
+        # If current chunk is already at/over limit, rotate first
+        if chunk_path.exists() and chunk_path.stat().st_size >= chunk_size:
+            chunk_num += 1
+            chunk_path = metric_dir / f"chunk_{chunk_num:04d}.parquet"
             chunk_map[metric] = chunk_num
 
-    _safe_write(combined, chunk_path)
+        # Estimate how many rows will fit
+        bytes_per_row = _estimate_bytes_per_row(chunk_path, remaining)
+
+        if chunk_path.exists():
+            current_size = chunk_path.stat().st_size
+            remaining_space = max(0, chunk_size - current_size)
+        else:
+            remaining_space = chunk_size
+
+        # Calculate rows that fit, but always write at least 1 row to make progress
+        rows_that_fit = max(1, int(remaining_space / bytes_per_row))
+        to_write = remaining.iloc[:rows_that_fit].reset_index(drop=True)
+        remaining = remaining.iloc[rows_that_fit:].reset_index(drop=True)
+
+        # Combine with existing data if present
+        if chunk_path.exists():
+            existing_df = pd.read_parquet(chunk_path)
+            combined = _concat_preserve_types([existing_df.reset_index(drop=True), to_write])
+        else:
+            combined = to_write
+            if metric not in chunk_map:
+                chunk_map[metric] = chunk_num
+
+        _safe_write(combined, chunk_path)
+
+        # If more data remains, rotate to next chunk for next iteration
+        if not remaining.empty:
+            chunk_num += 1
+            chunk_map[metric] = chunk_num
 
 
 def _concat_metadata(
