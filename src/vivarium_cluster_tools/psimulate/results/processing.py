@@ -12,6 +12,7 @@ import time
 from pathlib import Path
 
 import pandas as pd
+import pyarrow.parquet as pq
 from loguru import logger
 
 from vivarium_cluster_tools import utilities as vct_utils
@@ -154,6 +155,21 @@ def write_results_batch(
     return metadata_to_write, unwritten_metadata, unwritten_results
 
 
+def _needs_new_chunk(chunk_path: Path, new_data: pd.DataFrame, chunk_size: int) -> bool:
+    """Check if adding new_data would exceed chunk_size, requiring a new chunk.
+
+    Estimates the combined file size based on bytes-per-row of the existing file.
+    """
+    if not chunk_path.exists():
+        return False
+    existing_rows = pq.read_metadata(chunk_path).num_rows
+    if existing_rows == 0:
+        return False
+    new_rows = len(new_data)
+    estimated_size = chunk_path.stat().st_size * (1 + new_rows / existing_rows)
+    return estimated_size >= chunk_size
+
+
 def _write_metric_chunk(
     metric_dir: Path,
     new_data: pd.DataFrame,
@@ -171,8 +187,8 @@ def _write_metric_chunk(
     chunk_num = chunk_map.get(metric, 0)
     chunk_path = metric_dir / f"chunk_{chunk_num:04d}.parquet"
 
-    # Check if we need to rotate to a new chunk based on file size
-    if chunk_path.exists() and chunk_path.stat().st_size >= chunk_size:
+    # Check if we need to rotate to a new chunk based on estimated size
+    if _needs_new_chunk(chunk_path, new_data, chunk_size):
         chunk_num += 1
         chunk_path = metric_dir / f"chunk_{chunk_num:04d}.parquet"
         chunk_map[metric] = chunk_num
