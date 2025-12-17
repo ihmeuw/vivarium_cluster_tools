@@ -125,11 +125,7 @@ def test_write_results_batch(tmp_path: Path) -> None:
         {"results": pd.DataFrame({"rows": [5], "batch": [3], "value": [50]})},
     ]
 
-    (
-        existing_metadata,
-        unwritten_metadata,
-        unwritten_results,
-    ) = write_results_batch(
+    (existing_metadata, unwritten_metadata, unwritten_results,) = write_results_batch(
         output_paths,
         existing_metadata_orig,
         unwritten_metadata_orig,
