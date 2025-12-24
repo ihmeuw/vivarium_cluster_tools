@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 import psutil
 
 if TYPE_CHECKING:
-    from psutil import scpufreq, scpustats, sdiskio, snetio
+    from psutil import scpufreq, scpustats, sdiskio, snetio  # type: ignore[attr-defined]
 
 
 class CounterSnapshot:
