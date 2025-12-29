@@ -54,11 +54,10 @@ class ChunkMap:
         -------
             ChunkMap initialized with current chunk numbers per metric.
         """
+        metrics: dict[str, int] = {}
 
         if not results_dir.exists():
-            return cls(results_dir)
-
-        metrics: dict[str, int] = {}
+            return cls(results_dir, metrics)
 
         for metric_dir in results_dir.iterdir():
             if not metric_dir.is_dir():
