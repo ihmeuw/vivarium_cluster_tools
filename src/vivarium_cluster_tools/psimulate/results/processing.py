@@ -7,7 +7,6 @@ Tools for processing and writing results.
 
 """
 
-import re
 import time
 from collections import defaultdict
 from pathlib import Path
@@ -63,19 +62,10 @@ class ChunkMap:
             if not metric_dir.is_dir():
                 continue
 
-            chunk_files = list(metric_dir.glob("chunk_*.parquet"))
-            if not chunk_files:
-                continue
-
-            # Find highest chunk number
-            chunk_nums = []
-            for f in chunk_files:
-                match = re.match(r"chunk_(\d+)\.parquet", f.name)
-                if match:
-                    chunk_nums.append(int(match.group(1)))
-
-            if chunk_nums:
-                metrics[metric_dir.name] = max(chunk_nums)
+            chunk_files = sorted(metric_dir.glob("chunk_[0-9]*.parquet"))
+            if chunk_files:
+                # Last file alphabetically has highest chunk number due to zero-padding
+                metrics[metric_dir.name] = int(chunk_files[-1].stem.split("_")[1])
 
         return cls(results_dir, metrics)
 
