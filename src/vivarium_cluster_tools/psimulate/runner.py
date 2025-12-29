@@ -53,7 +53,7 @@ def process_job_results(
 
     # Initialize output file map from any existing results (for restart support)
     output_file_map = psim_results.OutputFileMap.from_existing_results(
-        output_paths.results_dir
+        output_paths.results_dir, output_file_size
     )
 
     logger.info("Entering main processing loop.")

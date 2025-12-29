@@ -18,7 +18,7 @@ from loguru import logger
 from vivarium_cluster_tools import utilities as vct_utils
 from vivarium_cluster_tools.psimulate.paths import OutputPaths
 
-INITIAL_BYTES_PER_ROW_ESTIMATE = 500.0
+INITIAL_SAMPLE_ROWS = 500
 
 
 class OutputFileMap:
@@ -30,24 +30,37 @@ class OutputFileMap:
     ----------
     results_dir
         Directory containing metric subdirectories with chunked output files.
+    output_file_size
+        Target size in bytes for each output file.
     metrics
         Dictionary mapping metric name to current file number. Defaults to 0 for new metrics.
     """
 
-    def __init__(self, results_dir: Path, metrics: dict[str, int] | None = None) -> None:
+    def __init__(
+        self,
+        results_dir: Path,
+        output_file_size: int,
+        metrics: dict[str, int] | None = None,
+    ) -> None:
         self.results_dir = results_dir
+        self.output_file_size = output_file_size
         self.metrics: defaultdict[str, int] = defaultdict(int)
+        self._bytes_per_row: dict[str, float] = {}
         if metrics is not None:
             self.metrics.update(metrics)
 
     @classmethod
-    def from_existing_results(cls, results_dir: Path) -> "OutputFileMap":
+    def from_existing_results(
+        cls, results_dir: Path, output_file_size: int
+    ) -> "OutputFileMap":
         """Create OutputFileMap by scanning existing chunked output files.
 
         Parameters
         ----------
         results_dir
             Directory containing metric subdirectories with chunked output files.
+        output_file_size
+            Target size in bytes for each output file.
 
         Returns
         -------
@@ -56,7 +69,7 @@ class OutputFileMap:
         metrics: dict[str, int] = {}
 
         if not results_dir.exists():
-            return cls(results_dir, metrics)
+            return cls(results_dir, output_file_size, metrics)
 
         for metric_dir in results_dir.iterdir():
             if not metric_dir.is_dir():
@@ -66,7 +79,7 @@ class OutputFileMap:
             if existing_output_files:
                 metrics[metric_dir.name] = int(existing_output_files[-1].stem)
 
-        return cls(results_dir, metrics)
+        return cls(results_dir, output_file_size, metrics)
 
     def get_path(self, metric: str) -> Path:
         """Get full path to current chunk file for a metric."""
@@ -88,8 +101,9 @@ class OutputFileMap:
     def bytes_per_row(self, metric: str) -> float:
         """Get estimated bytes per row for a metric.
 
-        Uses the initial chunk file (0000.parquet) if it exists,
-        otherwise returns the default estimate.
+        While still filling the initial output file (0000.parquet), we dynamically
+        recalculate from actual file size. Once that file is full (i.e., we've
+        moved to file 0001 or higher), the estimate is locked in.
 
         Parameters
         ----------
@@ -100,12 +114,23 @@ class OutputFileMap:
         -------
             Estimated bytes per row.
         """
+        # If we've already locked in an estimate, use it
+        if metric in self._bytes_per_row:
+            return self._bytes_per_row[metric]
+
         output_file_0_path = self.results_dir / metric / "0000.parquet"
+
+        # Calculate dynamically from data in file 0
         if output_file_0_path.exists():
             rows: int = pq.read_metadata(output_file_0_path).num_rows
             if rows > 0:
-                return output_file_0_path.stat().st_size / rows
-        return INITIAL_BYTES_PER_ROW_ESTIMATE
+                if self.metrics[metric] > 0:
+                    # If we've moved past file 0, lock in the estimate
+                    self._bytes_per_row[metric] = output_file_0_path.stat().st_size / rows
+                return self._bytes_per_row[metric]
+
+        # No data yet - use initial estimate
+        return self.output_file_size / INITIAL_SAMPLE_ROWS
 
 
 def write_results_batch(

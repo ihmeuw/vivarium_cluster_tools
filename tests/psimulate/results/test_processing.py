@@ -112,7 +112,7 @@ def test_write_results_batch(tmp_path: Path) -> None:
     # This means 2 should be written, 1 should remain unwritten
     batch_size = 2
     output_file_size = 100 * 1024 * 1024  # 100 MB
-    output_file_map = OutputFileMap(output_paths.results_dir)
+    output_file_map = OutputFileMap(output_paths.results_dir, output_file_size)
 
     unwritten_metadata_orig = [
         pd.DataFrame({"rows": [3], "batch": [2]}),
@@ -176,10 +176,9 @@ def test_write_results_batch_multiple_calls(tmp_path: Path) -> None:
     )
     output_paths.results_dir.mkdir()
 
-    existing_metadata = pd.DataFrame()
     batch_size = 2
     output_file_size = 100 * 1024 * 1024  # 100 MB
-    output_file_map = OutputFileMap(output_paths.results_dir)
+    output_file_map = OutputFileMap(output_paths.results_dir, output_file_size)
 
     # First call: write 2 results
     unwritten_metadata_1 = [
@@ -247,7 +246,8 @@ def test_output_file_rotation_between_batches(tmp_path: Path) -> None:
 
     existing_metadata = pd.DataFrame()
     batch_size = 2
-    output_file_map = OutputFileMap(output_paths.results_dir)
+    output_file_size = 100 * 1024 * 1024  # 100 MB
+    output_file_map = OutputFileMap(output_paths.results_dir, output_file_size)
 
     # First batch: write 2 results - creates 0000.parquet
     unwritten_metadata_1 = [pd.DataFrame({"rows": [i], "batch": [1]}) for i in range(2)]
@@ -311,7 +311,8 @@ def test_batch_split_across_old_and_new_chunk(tmp_path: Path) -> None:
     output_paths.results_dir.mkdir()
 
     existing_metadata = pd.DataFrame()
-    output_file_map = OutputFileMap(output_paths.results_dir)
+    output_file_size = 100 * 1024 * 1024  # 100 MB
+    output_file_map = OutputFileMap(output_paths.results_dir, output_file_size)
 
     # First batch: write 1 result to establish 0000.parquet
     unwritten_metadata_1 = [pd.DataFrame({"rows": [0], "batch": [1]})]
@@ -378,7 +379,8 @@ def test_large_batch_splits_into_multiple_new_chunks(tmp_path: Path) -> None:
     output_paths.results_dir.mkdir()
 
     existing_metadata = pd.DataFrame()
-    output_file_map = OutputFileMap(output_paths.results_dir)
+    output_file_size = 100 * 1024 * 1024  # 100 MB (will be adjusted later)
+    output_file_map = OutputFileMap(output_paths.results_dir, output_file_size)
 
     # Create a batch with many results - use larger data to minimize parquet overhead effects
     num_results = 100
@@ -450,7 +452,7 @@ def test_output_file_map_from_existing_results(tmp_path: Path) -> None:
     pd.DataFrame({"b": [10, 20]}).to_parquet(metric_b_dir / "0000.parquet")
 
     # Load output file map
-    output_file_map = OutputFileMap.from_existing_results(tmp_path / "results")
+    output_file_map = OutputFileMap.from_existing_results(tmp_path / "results", 1024 * 1024)
 
     # Should detect highest chunk number for each metric
     assert output_file_map.metrics == {"metric_a": 1, "metric_b": 0}
