@@ -5,7 +5,7 @@ import pytest
 
 from vivarium_cluster_tools.psimulate.paths import OutputPaths
 from vivarium_cluster_tools.psimulate.results.processing import (
-    ChunkMap,
+    OutputFileMap,
     _combine_batch_results,
     _concat_metadata,
     _concat_preserve_types,
@@ -95,7 +95,7 @@ def test_concat_results(data: _DATA_TYPES) -> None:
 
 
 def test_write_results_batch(tmp_path: Path) -> None:
-    """Test that one call writes exactly batch_size results to chunk files."""
+    """Test that one call writes exactly batch_size results to output files."""
     output_paths = OutputPaths.from_entry_point_args(
         command="foo",
         input_artifact_path=Path("some/artifact/path"),
@@ -112,7 +112,7 @@ def test_write_results_batch(tmp_path: Path) -> None:
     # This means 2 should be written, 1 should remain unwritten
     batch_size = 2
     output_file_size = 100 * 1024 * 1024  # 100 MB
-    chunk_map = ChunkMap(output_paths.results_dir)
+    output_file_map = OutputFileMap(output_paths.results_dir)
 
     unwritten_metadata_orig = [
         pd.DataFrame({"rows": [3], "batch": [2]}),
@@ -125,13 +125,17 @@ def test_write_results_batch(tmp_path: Path) -> None:
         {"results": pd.DataFrame({"rows": [5], "batch": [3], "value": [50]})},
     ]
 
-    (existing_metadata, unwritten_metadata, unwritten_results,) = write_results_batch(
+    (
+        existing_metadata,
+        unwritten_metadata,
+        unwritten_results,
+    ) = write_results_batch(
         output_paths,
         existing_metadata_orig,
         unwritten_metadata_orig,
         unwritten_results_orig,
         batch_size,
-        chunk_map,
+        output_file_map,
         output_file_size,
     )
 
@@ -142,28 +146,28 @@ def test_write_results_batch(tmp_path: Path) -> None:
     assert existing_metadata.equals(expected_metadata)
     assert existing_metadata.equals(pd.read_csv(output_paths.finished_sim_metadata))
 
-    # Check results were written to chunk files in metric directories
+    # Check results were written to output files in metric directories
     results_metric_dir = output_paths.results_dir / "results"
     assert results_metric_dir.is_dir()
-    chunk_files = list(results_metric_dir.glob("chunk_*.parquet"))
-    assert len(chunk_files) == 1
+    output_files = list(results_metric_dir.glob("[0-9]*.parquet"))
+    assert len(output_files) == 1
 
     # Check the chunk file contains exactly batch_size results
-    chunk_results = pd.read_parquet(chunk_files[0])
-    assert len(chunk_results) == batch_size
-    assert chunk_results["value"].tolist() == [30, 40]
+    output_file_results = pd.read_parquet(output_files[0])
+    assert len(output_file_results) == batch_size
+    assert output_file_results["value"].tolist() == [30, 40]
 
     # Check that the remaining item is returned for future batches
     assert len(unwritten_metadata) == 1
     assert len(unwritten_results) == 1
     assert unwritten_results[0]["results"]["value"].tolist() == [50]
 
-    # Check chunk_map was updated
-    assert chunk_map.metrics == {"results": 0}
+    # Check output_file_map was updated
+    assert output_file_map.metrics == {"results": 0}
 
 
 def test_write_results_batch_multiple_calls(tmp_path: Path) -> None:
-    """Test that multiple calls accumulate data in chunk files and pd.read_parquet() combines them."""
+    """Test that multiple calls accumulate data in output files and pd.read_parquet() combines them."""
     output_paths = OutputPaths.from_entry_point_args(
         command="foo",
         input_artifact_path=Path("some/artifact/path"),
@@ -175,7 +179,7 @@ def test_write_results_batch_multiple_calls(tmp_path: Path) -> None:
     existing_metadata = pd.DataFrame()
     batch_size = 2
     output_file_size = 100 * 1024 * 1024  # 100 MB
-    chunk_map = ChunkMap(output_paths.results_dir)
+    output_file_map = OutputFileMap(output_paths.results_dir)
 
     # First call: write 2 results
     unwritten_metadata_1 = [
@@ -193,7 +197,7 @@ def test_write_results_batch_multiple_calls(tmp_path: Path) -> None:
         unwritten_metadata_1,
         unwritten_results_1,
         batch_size=batch_size,
-        chunk_map=chunk_map,
+        output_file_map=output_file_map,
         output_file_size=output_file_size,
     )
 
@@ -213,14 +217,14 @@ def test_write_results_batch_multiple_calls(tmp_path: Path) -> None:
         unwritten_metadata_2,
         unwritten_results_2,
         batch_size=batch_size,
-        chunk_map=chunk_map,
+        output_file_map=output_file_map,
         output_file_size=output_file_size,
     )
 
     # Check that there's still just 1 chunk file (all data fits)
     results_metric_dir = output_paths.results_dir / "results"
-    chunk_files = sorted(results_metric_dir.glob("chunk_*.parquet"))
-    assert len(chunk_files) == 1
+    output_files = sorted(results_metric_dir.glob("[0-9]*.parquet"))
+    assert len(output_files) == 1
 
     # pd.read_parquet() on the directory returns all data
     all_results = pd.read_parquet(results_metric_dir)
@@ -231,7 +235,7 @@ def test_write_results_batch_multiple_calls(tmp_path: Path) -> None:
     assert len(existing_metadata) == 4
 
 
-def test_chunk_rotation_between_batches(tmp_path: Path) -> None:
+def test_output_file_rotation_between_batches(tmp_path: Path) -> None:
     """Test that chunks rotate between batches when file size exceeds output_file_size."""
     output_paths = OutputPaths.from_entry_point_args(
         command="foo",
@@ -243,9 +247,9 @@ def test_chunk_rotation_between_batches(tmp_path: Path) -> None:
 
     existing_metadata = pd.DataFrame()
     batch_size = 2
-    chunk_map = ChunkMap(output_paths.results_dir)
+    output_file_map = OutputFileMap(output_paths.results_dir)
 
-    # First batch: write 2 results - creates chunk_0000
+    # First batch: write 2 results - creates 0000.parquet
     unwritten_metadata_1 = [pd.DataFrame({"rows": [i], "batch": [1]}) for i in range(2)]
     unwritten_results_1 = [
         {"results": pd.DataFrame({"rows": [i], "batch": [1], "value": [i * 10]})}
@@ -258,13 +262,13 @@ def test_chunk_rotation_between_batches(tmp_path: Path) -> None:
         unwritten_metadata_1,
         unwritten_results_1,
         batch_size=batch_size,
-        chunk_map=chunk_map,
+        output_file_map=output_file_map,
         output_file_size=100 * 1024 * 1024,  # Large - no rotation within batch
     )
 
     # Get the size of the first chunk to use as output_file_size for second batch
     results_metric_dir = output_paths.results_dir / "results"
-    first_output_file_size = (results_metric_dir / "chunk_0000.parquet").stat().st_size
+    first_output_file_size = (results_metric_dir / "0000.parquet").stat().st_size
 
     # Second batch with output_file_size = first_output_file_size means rotation should happen
     unwritten_metadata_2 = [pd.DataFrame({"rows": [i], "batch": [2]}) for i in range(2, 4)]
@@ -279,16 +283,16 @@ def test_chunk_rotation_between_batches(tmp_path: Path) -> None:
         unwritten_metadata_2,
         unwritten_results_2,
         batch_size=batch_size,
-        chunk_map=chunk_map,
+        output_file_map=output_file_map,
         output_file_size=first_output_file_size,  # This will force rotation
     )
 
-    # Check that 2 chunk files were created
-    chunk_files = sorted(results_metric_dir.glob("chunk_*.parquet"))
-    assert len(chunk_files) == 2
+    # Check that 2 output files were created
+    output_files = sorted(results_metric_dir.glob("[0-9]*.parquet"))
+    assert len(output_files) == 2
 
-    # Check chunk_map was updated
-    assert chunk_map.metrics["results"] == 1
+    # Check output_file_map was updated
+    assert output_file_map.metrics["results"] == 1
 
     # Check reading directory combines all chunks
     all_results = pd.read_parquet(results_metric_dir)
@@ -307,9 +311,9 @@ def test_batch_split_across_old_and_new_chunk(tmp_path: Path) -> None:
     output_paths.results_dir.mkdir()
 
     existing_metadata = pd.DataFrame()
-    chunk_map = ChunkMap(output_paths.results_dir)
+    output_file_map = OutputFileMap(output_paths.results_dir)
 
-    # First batch: write 1 result to establish chunk_0000
+    # First batch: write 1 result to establish 0000.parquet
     unwritten_metadata_1 = [pd.DataFrame({"rows": [0], "batch": [1]})]
     unwritten_results_1 = [
         {"results": pd.DataFrame({"rows": [0], "batch": [1], "value": [0]})}
@@ -321,15 +325,15 @@ def test_batch_split_across_old_and_new_chunk(tmp_path: Path) -> None:
         unwritten_metadata_1,
         unwritten_results_1,
         batch_size=1,
-        chunk_map=chunk_map,
+        output_file_map=output_file_map,
         output_file_size=100 * 1024 * 1024,  # Large - no rotation yet
     )
 
     results_metric_dir = output_paths.results_dir / "results"
-    first_output_file_size = (results_metric_dir / "chunk_0000.parquet").stat().st_size
+    first_output_file_size = (results_metric_dir / "0000.parquet").stat().st_size
 
     # Second batch: write 4 results with output_file_size allowing ~2 rows per chunk
-    # This should split: some rows append to chunk_0000, rest go to chunk_0001
+    # This should split: some rows append to 0000.parquet, rest go to 0001.parquet
     unwritten_metadata_2 = [pd.DataFrame({"rows": [i], "batch": [2]}) for i in range(1, 5)]
     unwritten_results_2 = [
         {"results": pd.DataFrame({"rows": [i], "batch": [2], "value": [i * 10]})}
@@ -345,17 +349,17 @@ def test_batch_split_across_old_and_new_chunk(tmp_path: Path) -> None:
         unwritten_metadata_2,
         unwritten_results_2,
         batch_size=4,
-        chunk_map=chunk_map,
+        output_file_map=output_file_map,
         output_file_size=output_file_size,
     )
 
-    # Check that multiple chunk files were created
-    chunk_files = sorted(results_metric_dir.glob("chunk_*.parquet"))
-    assert len(chunk_files) >= 2, f"Expected at least 2 chunks, got {len(chunk_files)}"
+    # Check that multiple output files were created
+    output_files = sorted(results_metric_dir.glob("[0-9]*.parquet"))
+    assert len(output_files) >= 2, f"Expected at least 2 chunks, got {len(output_files)}"
 
-    # Check that chunk_0000 has more than 1 row (original + some from batch 2)
-    chunk_0 = pd.read_parquet(results_metric_dir / "chunk_0000.parquet")
-    assert len(chunk_0) > 1, "Chunk 0 should have data from both batches"
+    # Check that 0000.parquet has more than 1 row (original + some from batch 2)
+    output_file_0 = pd.read_parquet(results_metric_dir / "0000.parquet")
+    assert len(output_file_0) > 1, "Chunk 0 should have data from both batches"
 
     # Check reading directory combines all chunks correctly
     all_results = pd.read_parquet(results_metric_dir)
@@ -364,7 +368,7 @@ def test_batch_split_across_old_and_new_chunk(tmp_path: Path) -> None:
 
 
 def test_large_batch_splits_into_multiple_new_chunks(tmp_path: Path) -> None:
-    """Test that a single large batch can be split across multiple new chunk files."""
+    """Test that a single large batch can be split across multiple new output files."""
     output_paths = OutputPaths.from_entry_point_args(
         command="foo",
         input_artifact_path=Path("some/artifact/path"),
@@ -374,7 +378,7 @@ def test_large_batch_splits_into_multiple_new_chunks(tmp_path: Path) -> None:
     output_paths.results_dir.mkdir()
 
     existing_metadata = pd.DataFrame()
-    chunk_map = ChunkMap(output_paths.results_dir)
+    output_file_map = OutputFileMap(output_paths.results_dir)
 
     # Create a batch with many results - use larger data to minimize parquet overhead effects
     num_results = 100
@@ -415,14 +419,14 @@ def test_large_batch_splits_into_multiple_new_chunks(tmp_path: Path) -> None:
         unwritten_metadata,
         unwritten_results,
         batch_size=num_results,
-        chunk_map=chunk_map,
+        output_file_map=output_file_map,
         output_file_size=output_file_size,
     )
 
-    # Check that multiple chunk files were created
+    # Check that multiple output files were created
     results_metric_dir = output_paths.results_dir / "results"
-    chunk_files = sorted(results_metric_dir.glob("chunk_*.parquet"))
-    assert len(chunk_files) >= 3, f"Expected at least 3 chunks, got {len(chunk_files)}"
+    output_files = sorted(results_metric_dir.glob("[0-9]*.parquet"))
+    assert len(output_files) >= 3, f"Expected at least 3 chunks, got {len(output_files)}"
 
     # Check reading directory combines all chunks correctly
     all_results = pd.read_parquet(results_metric_dir)
@@ -430,23 +434,23 @@ def test_large_batch_splits_into_multiple_new_chunks(tmp_path: Path) -> None:
     assert set(all_results["value"].tolist()) == {i * 10 for i in range(num_results)}
 
 
-def test_chunk_map_from_existing_results(tmp_path: Path) -> None:
-    """Test that ChunkMap.from_existing_results correctly scans existing chunk files."""
-    # Create existing chunk files for two metrics
+def test_output_file_map_from_existing_results(tmp_path: Path) -> None:
+    """Test that OutputFileMapleMap.from_existing_results correctly scans existing output files."""
+    # Create existing output files for two metrics
     metric_a_dir = tmp_path / "results" / "metric_a"
     metric_a_dir.mkdir(parents=True)
     metric_b_dir = tmp_path / "results" / "metric_b"
     metric_b_dir.mkdir(parents=True)
 
     # Write chunks for metric_a (two chunks)
-    pd.DataFrame({"a": [1, 2, 3]}).to_parquet(metric_a_dir / "chunk_0000.parquet")
-    pd.DataFrame({"a": [4, 5]}).to_parquet(metric_a_dir / "chunk_0001.parquet")
+    pd.DataFrame({"a": [1, 2, 3]}).to_parquet(metric_a_dir / "0000.parquet")
+    pd.DataFrame({"a": [4, 5]}).to_parquet(metric_a_dir / "0001.parquet")
 
     # Write chunks for metric_b (one chunk)
-    pd.DataFrame({"b": [10, 20]}).to_parquet(metric_b_dir / "chunk_0000.parquet")
+    pd.DataFrame({"b": [10, 20]}).to_parquet(metric_b_dir / "0000.parquet")
 
-    # Load chunk map
-    chunk_map = ChunkMap.from_existing_results(tmp_path / "results")
+    # Load output file map
+    output_file_map = OutputFileMap.from_existing_results(tmp_path / "results")
 
     # Should detect highest chunk number for each metric
-    assert chunk_map.metrics == {"metric_a": 1, "metric_b": 0}
+    assert output_file_map.metrics == {"metric_a": 1, "metric_b": 0}

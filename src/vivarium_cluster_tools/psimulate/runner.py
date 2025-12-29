@@ -51,8 +51,10 @@ def process_job_results(
     batch_size = 0 if no_batch else batch_size
     status: dict[str, int | float] = defaultdict(int)
 
-    # Initialize chunk map from any existing results (for restart support)
-    chunk_map = psim_results.ChunkMap.from_existing_results(output_paths.results_dir)
+    # Initialize output file map from any existing results (for restart support)
+    output_file_map = psim_results.OutputFileMap.from_existing_results(
+        output_paths.results_dir
+    )
 
     logger.info("Entering main processing loop.")
     start_time = time()
@@ -74,7 +76,7 @@ def process_job_results(
                     unwritten_metadata,
                     unwritten_results,
                     batch_size,
-                    chunk_map,
+                    output_file_map,
                     output_file_size,
                 )
 
@@ -94,7 +96,7 @@ def process_job_results(
                 unwritten_metadata,
                 unwritten_results,
                 batch_size=len(unwritten_results),
-                chunk_map=chunk_map,
+                output_file_map=output_file_map,
                 output_file_size=output_file_size,
             )
             logger.info(f"Unwritten results: {len(unwritten_results)}")

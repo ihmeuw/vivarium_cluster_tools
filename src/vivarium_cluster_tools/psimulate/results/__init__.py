@@ -12,4 +12,7 @@ from vivarium_cluster_tools.psimulate.results.cli_options import (
     with_no_cleanup,
     with_output_file_size,
 )
-from vivarium_cluster_tools.psimulate.results.processing import ChunkMap, write_results_batch
+from vivarium_cluster_tools.psimulate.results.processing import (
+    OutputFileMap,
+    write_results_batch,
+)

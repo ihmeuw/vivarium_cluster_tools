@@ -31,7 +31,7 @@ with_output_file_size = click.option(
 with_no_batch = click.option(
     "--no-batch",
     is_flag=True,
-    help="Write results immediately as they come in (batch_size=0). Files are still chunked per --chunk-size.",
+    help="Write results immediately as they come in (batch_size=0). Files are still split by size per --output_file_size.",
 )
 with_no_cleanup = click.option(
     "--no-cleanup",
