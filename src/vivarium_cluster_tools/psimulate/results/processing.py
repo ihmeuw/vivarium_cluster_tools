@@ -171,7 +171,7 @@ def write_results_batch(
         unwritten_results[batch_size:],
     )
     metadata_to_write = _concat_metadata(existing_metadata, new_metadata_to_write)
-    results_to_write = _concat_batch_results(new_results_to_write)
+    results_to_write = _combine_batch_results(new_results_to_write)
 
     start = time.time()
     # Write results to chunked files per metric
@@ -263,7 +263,7 @@ def _concat_metadata(
     return updated
 
 
-def _concat_batch_results(
+def _combine_batch_results(
     new_results: list[dict[str, pd.DataFrame]],
 ) -> dict[str, pd.DataFrame]:
     """Concatenate only the new batch results (not existing results on disk).

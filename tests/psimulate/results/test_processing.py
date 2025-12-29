@@ -6,7 +6,7 @@ import pytest
 from vivarium_cluster_tools.psimulate.paths import OutputPaths
 from vivarium_cluster_tools.psimulate.results.processing import (
     ChunkMap,
-    _concat_batch_results,
+    _combine_batch_results,
     _concat_metadata,
     _concat_preserve_types,
     write_results_batch,
