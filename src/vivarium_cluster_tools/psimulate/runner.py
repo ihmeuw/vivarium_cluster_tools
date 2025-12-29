@@ -43,7 +43,7 @@ def process_job_results(
     existing_metadata: pd.DataFrame,
     output_paths: OutputPaths,
     batch_size: int,
-    chunk_size: int,
+    output_file_size: int,
     no_batch: bool,
 ) -> dict[str, int | float]:
     unwritten_metadata = []
@@ -75,7 +75,7 @@ def process_job_results(
                     unwritten_results,
                     batch_size,
                     chunk_map,
-                    chunk_size,
+                    output_file_size,
                 )
 
             status = registry_manager.update_and_report()
@@ -95,7 +95,7 @@ def process_job_results(
                 unwritten_results,
                 batch_size=len(unwritten_results),
                 chunk_map=chunk_map,
-                chunk_size=chunk_size,
+                output_file_size=output_file_size,
             )
             logger.info(f"Unwritten results: {len(unwritten_results)}")
             logger.info(f"Elapsed time: {(time() - start_time) / 60:.1f} minutes.")
@@ -181,7 +181,7 @@ def main(
     max_workers: int | None,
     redis_processes: int,
     batch_size: int,
-    chunk_size: int,
+    output_file_size: int,
     no_batch: bool,
     backup_freq: int | None,
     extra_args: dict[str, Any],
@@ -330,7 +330,7 @@ def main(
         existing_metadata=finished_sim_metadata,
         output_paths=output_paths,
         batch_size=batch_size,
-        chunk_size=chunk_size,
+        output_file_size=output_file_size,
         no_batch=no_batch,
     )
 

@@ -111,7 +111,7 @@ def test_write_results_batch(tmp_path: Path) -> None:
     # Create 3 unwritten results with batch_size=2
     # This means 2 should be written, 1 should remain unwritten
     batch_size = 2
-    chunk_size = 100 * 1024 * 1024  # 100 MB
+    output_file_size = 100 * 1024 * 1024  # 100 MB
     chunk_map = ChunkMap(output_paths.results_dir)
 
     unwritten_metadata_orig = [
@@ -125,14 +125,18 @@ def test_write_results_batch(tmp_path: Path) -> None:
         {"results": pd.DataFrame({"rows": [5], "batch": [3], "value": [50]})},
     ]
 
-    (existing_metadata, unwritten_metadata, unwritten_results,) = write_results_batch(
+    (
+        existing_metadata,
+        unwritten_metadata,
+        unwritten_results,
+    ) = write_results_batch(
         output_paths,
         existing_metadata_orig,
         unwritten_metadata_orig,
         unwritten_results_orig,
         batch_size,
         chunk_map,
-        chunk_size,
+        output_file_size,
     )
 
     # Check metadata was updated with only the batch_size items
@@ -174,7 +178,7 @@ def test_write_results_batch_multiple_calls(tmp_path: Path) -> None:
 
     existing_metadata = pd.DataFrame()
     batch_size = 2
-    chunk_size = 100 * 1024 * 1024  # 100 MB
+    output_file_size = 100 * 1024 * 1024  # 100 MB
     chunk_map = ChunkMap(output_paths.results_dir)
 
     # First call: write 2 results
@@ -194,7 +198,7 @@ def test_write_results_batch_multiple_calls(tmp_path: Path) -> None:
         unwritten_results_1,
         batch_size=batch_size,
         chunk_map=chunk_map,
-        chunk_size=chunk_size,
+        output_file_size=output_file_size,
     )
 
     # Second call: write 2 more results (should append to same chunk)
@@ -214,7 +218,7 @@ def test_write_results_batch_multiple_calls(tmp_path: Path) -> None:
         unwritten_results_2,
         batch_size=batch_size,
         chunk_map=chunk_map,
-        chunk_size=chunk_size,
+        output_file_size=output_file_size,
     )
 
     # Check that there's still just 1 chunk file (all data fits)
@@ -232,7 +236,7 @@ def test_write_results_batch_multiple_calls(tmp_path: Path) -> None:
 
 
 def test_chunk_rotation_between_batches(tmp_path: Path) -> None:
-    """Test that chunks rotate between batches when file size exceeds chunk_size."""
+    """Test that chunks rotate between batches when file size exceeds output_file_size."""
     output_paths = OutputPaths.from_entry_point_args(
         command="foo",
         input_artifact_path=Path("some/artifact/path"),
@@ -259,14 +263,14 @@ def test_chunk_rotation_between_batches(tmp_path: Path) -> None:
         unwritten_results_1,
         batch_size=batch_size,
         chunk_map=chunk_map,
-        chunk_size=100 * 1024 * 1024,  # Large - no rotation within batch
+        output_file_size=100 * 1024 * 1024,  # Large - no rotation within batch
     )
 
-    # Get the size of the first chunk to use as chunk_size for second batch
+    # Get the size of the first chunk to use as output_file_size for second batch
     results_metric_dir = output_paths.results_dir / "results"
-    first_chunk_size = (results_metric_dir / "chunk_0000.parquet").stat().st_size
+    first_output_file_size = (results_metric_dir / "chunk_0000.parquet").stat().st_size
 
-    # Second batch with chunk_size = first_chunk_size means rotation should happen
+    # Second batch with output_file_size = first_output_file_size means rotation should happen
     unwritten_metadata_2 = [pd.DataFrame({"rows": [i], "batch": [2]}) for i in range(2, 4)]
     unwritten_results_2 = [
         {"results": pd.DataFrame({"rows": [i], "batch": [2], "value": [i * 10]})}
@@ -280,7 +284,7 @@ def test_chunk_rotation_between_batches(tmp_path: Path) -> None:
         unwritten_results_2,
         batch_size=batch_size,
         chunk_map=chunk_map,
-        chunk_size=first_chunk_size,  # This will force rotation
+        output_file_size=first_output_file_size,  # This will force rotation
     )
 
     # Check that 2 chunk files were created
@@ -322,13 +326,13 @@ def test_batch_split_across_old_and_new_chunk(tmp_path: Path) -> None:
         unwritten_results_1,
         batch_size=1,
         chunk_map=chunk_map,
-        chunk_size=100 * 1024 * 1024,  # Large - no rotation yet
+        output_file_size=100 * 1024 * 1024,  # Large - no rotation yet
     )
 
     results_metric_dir = output_paths.results_dir / "results"
-    first_chunk_size = (results_metric_dir / "chunk_0000.parquet").stat().st_size
+    first_output_file_size = (results_metric_dir / "chunk_0000.parquet").stat().st_size
 
-    # Second batch: write 4 results with chunk_size allowing ~2 rows per chunk
+    # Second batch: write 4 results with output_file_size allowing ~2 rows per chunk
     # This should split: some rows append to chunk_0000, rest go to chunk_0001
     unwritten_metadata_2 = [pd.DataFrame({"rows": [i], "batch": [2]}) for i in range(1, 5)]
     unwritten_results_2 = [
@@ -336,8 +340,8 @@ def test_batch_split_across_old_and_new_chunk(tmp_path: Path) -> None:
         for i in range(1, 5)
     ]
 
-    # Set chunk_size to ~2x the single-row file size
-    chunk_size = int(first_chunk_size * 2.5)
+    # Set output_file_size to ~2x the single-row file size
+    output_file_size = int(first_output_file_size * 2.5)
 
     existing_metadata, _, _ = write_results_batch(
         output_paths,
@@ -346,7 +350,7 @@ def test_batch_split_across_old_and_new_chunk(tmp_path: Path) -> None:
         unwritten_results_2,
         batch_size=4,
         chunk_map=chunk_map,
-        chunk_size=chunk_size,
+        output_file_size=output_file_size,
     )
 
     # Check that multiple chunk files were created
@@ -405,9 +409,9 @@ def test_large_batch_splits_into_multiple_new_chunks(tmp_path: Path) -> None:
     sample_combined.to_parquet(sample_path)
     ten_row_size = sample_path.stat().st_size
 
-    # Set chunk_size to hold approximately 20 rows (twice the sample)
+    # Set output_file_size to hold approximately 20 rows (twice the sample)
     # This should result in ~5 chunks for 100 rows
-    chunk_size = ten_row_size * 2
+    output_file_size = ten_row_size * 2
 
     existing_metadata, _, _ = write_results_batch(
         output_paths,
@@ -416,7 +420,7 @@ def test_large_batch_splits_into_multiple_new_chunks(tmp_path: Path) -> None:
         unwritten_results,
         batch_size=num_results,
         chunk_map=chunk_map,
-        chunk_size=chunk_size,
+        output_file_size=output_file_size,
     )
 
     # Check that multiple chunk files were created

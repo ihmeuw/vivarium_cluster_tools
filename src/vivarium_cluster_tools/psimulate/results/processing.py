@@ -126,13 +126,13 @@ def write_results_batch(
     unwritten_results: list[dict[str, pd.DataFrame]],
     batch_size: int,
     chunk_map: ChunkMap,
-    chunk_size: int,
+    output_file_size: int,
 ) -> tuple[pd.DataFrame, list[pd.DataFrame], list[dict[str, pd.DataFrame]]]:
     """Write batch of results and finished simulation metadata to disk.
 
     Results are written to chunked parquet files within per-metric directories
     (e.g., ``results_dir/metric_name/chunk_0000.parquet``). When a chunk file
-    exceeds ``chunk_size`` bytes, a new chunk file is started.
+    exceeds ``output_file_size`` bytes, a new chunk file is started.
 
     To read all results for a metric, use ``pd.read_parquet(results_dir / metric_name)``,
     which automatically combines all parquet files in the directory.
@@ -151,7 +151,7 @@ def write_results_batch(
         Number of results to write in this batch.
     chunk_map
         Dictionary mapping metric names to current chunk numbers. Updated in place.
-    chunk_size
+    output_file_size
         Maximum file size in bytes per chunk. When exceeded, a new chunk is started.
 
     Returns
@@ -181,7 +181,7 @@ def write_results_batch(
             new_data=new_df,
             chunk_map=chunk_map,
             metric=metric,
-            chunk_size=chunk_size,
+            output_file_size=output_file_size,
         )
     # Metadata is small enough to overwrite entirely each time
     _safe_write(metadata_to_write, output_paths.finished_sim_metadata)
@@ -194,12 +194,12 @@ def _write_metric_chunk(
     new_data: pd.DataFrame,
     chunk_map: ChunkMap,
     metric: str,
-    chunk_size: int,
+    output_file_size: int,
 ) -> None:
     """Write new data to chunk file(s), splitting across chunks if needed.
 
-    Data may be split across multiple chunk files to respect chunk_size limits.
-    Each chunk file will be approximately chunk_size bytes or smaller.
+    Data may be split across multiple chunk files to respect output_file_size limits.
+    Each chunk file will be approximately output_file_size bytes or smaller.
     """
     remaining = new_data.reset_index(drop=True)
 
@@ -208,18 +208,18 @@ def _write_metric_chunk(
 
         if chunk_path.exists():
             current_size = chunk_path.stat().st_size
-            remaining_space = max(0, chunk_size - current_size)
+            remaining_space = max(0, output_file_size - current_size)
         else:
-            remaining_space = chunk_size
+            remaining_space = output_file_size
 
         # Calculate rows that fit, but always write at least 1 row to make progress
         rows_that_fit = int(remaining_space / chunk_map.bytes_per_row(metric))
         if rows_that_fit < 1:
-            if chunk_map.bytes_per_row(metric) > chunk_size:
+            if chunk_map.bytes_per_row(metric) > output_file_size:
                 logger.warning(
                     f"Estimated bytes per row for metric '{metric}' "
                     f"({chunk_map.bytes_per_row(metric):.2f} bytes) "
-                    f"exceeds chunk size ({chunk_size} bytes). "
+                    f"exceeds chunk size ({output_file_size} bytes). "
                     f"Writing one row per chunk file."
                 )
                 rows_that_fit = 1

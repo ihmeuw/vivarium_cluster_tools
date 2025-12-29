@@ -51,7 +51,7 @@ shared_options: list[Decorator] = [
     redis_dbs.with_max_workers,
     redis_dbs.with_redis,
     results.with_batch_size,
-    results.with_chunk_size,
+    results.with_output_file_size,
     results.with_no_batch,
     results.backup_freq,
     cli_tools.with_verbose_and_pdb,
@@ -136,7 +136,7 @@ def run(
         max_workers=options["max_workers"],
         redis_processes=options["redis"],
         batch_size=options["batch_size"],
-        chunk_size=options["chunk_size"],
+        output_file_size=options["output_file_size"],
         no_batch=options["no_batch"],
         backup_freq=options["backup_freq"],
         extra_args={
@@ -183,7 +183,7 @@ def restart(
         max_workers=options["max_workers"],
         redis_processes=options["redis"],
         batch_size=options["batch_size"],
-        chunk_size=options["chunk_size"],
+        output_file_size=options["output_file_size"],
         no_batch=options["no_batch"],
         backup_freq=options["backup_freq"],
         extra_args={
@@ -245,7 +245,7 @@ def expand(
         max_workers=options["max_workers"],
         redis_processes=options["redis"],
         batch_size=options["batch_size"],
-        chunk_size=options["chunk_size"],
+        output_file_size=options["output_file_size"],
         no_batch=options["no_batch"],
         backup_freq=options["backup_freq"],
         extra_args={
@@ -325,7 +325,7 @@ def test(
         max_workers=options["max_workers"],
         redis_processes=options["redis"],
         batch_size=options["batch_size"],
-        chunk_size=options["chunk_size"],
+        output_file_size=options["output_file_size"],
         no_batch=options["no_batch"],
         backup_freq=options["backup_freq"],
         extra_args={
