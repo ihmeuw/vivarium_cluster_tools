@@ -124,10 +124,11 @@ class OutputFileMap:
         if output_file_0_path.exists():
             rows: int = pq.read_metadata(output_file_0_path).num_rows
             if rows > 0:
+                bytes_per_row = output_file_0_path.stat().st_size / rows
                 if self.metrics[metric] > 0:
                     # If we've moved past file 0, lock in the estimate
-                    self._bytes_per_row[metric] = output_file_0_path.stat().st_size / rows
-                return self._bytes_per_row[metric]
+                    self._bytes_per_row[metric] = bytes_per_row
+                return bytes_per_row
 
         # No data yet - use initial estimate
         return self.output_file_size / INITIAL_SAMPLE_ROWS
