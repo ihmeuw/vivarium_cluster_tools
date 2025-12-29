@@ -212,10 +212,11 @@ def _write_metric_chunk(
         else:
             remaining_space = output_file_size
 
-        # Calculate rows that fit, but always write at least 1 row to make progress
         rows_that_fit = int(remaining_space / chunk_map.bytes_per_row(metric))
         if rows_that_fit < 1:
             if chunk_map.bytes_per_row(metric) > output_file_size:
+                # If the file size is smaller than estimated bytes per row,
+                # we have no choice but to write one row per chunk
                 logger.warning(
                     f"Estimated bytes per row for metric '{metric}' "
                     f"({chunk_map.bytes_per_row(metric):.2f} bytes) "
