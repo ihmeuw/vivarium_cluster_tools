@@ -125,7 +125,11 @@ def test_write_results_batch(tmp_path: Path) -> None:
         {"results": pd.DataFrame({"rows": [5], "batch": [3], "value": [50]})},
     ]
 
-    (existing_metadata, unwritten_metadata, unwritten_results,) = write_results_batch(
+    (
+        existing_metadata,
+        unwritten_metadata,
+        unwritten_results,
+    ) = write_results_batch(
         output_paths,
         existing_metadata_orig,
         unwritten_metadata_orig,
@@ -172,6 +176,7 @@ def test_write_results_batch_multiple_calls(tmp_path: Path) -> None:
     )
     output_paths.results_dir.mkdir()
 
+    existing_metadata = pd.DataFrame()
     batch_size = 2
     output_file_size = 100 * 1024 * 1024  # 100 MB
     output_file_map = OutputFileMap(output_paths.results_dir, output_file_size)
