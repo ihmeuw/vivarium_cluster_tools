@@ -231,9 +231,9 @@ def _write_output_file_per_metric(
         rows_that_fit = int(remaining_space / output_file_map.bytes_per_row(metric))
         if rows_that_fit < 1:
             single_row_too_large = output_file_map.bytes_per_row(metric) > output_file_size
-            file_nonempty = not output_file_exists or remaining_space > 0
+            file_empty = not output_file_exists or remaining_space == output_file_size
 
-            if single_row_too_large and file_nonempty:
+            if single_row_too_large and file_empty:
                 # If the file size is smaller than estimated bytes per row,
                 # we have no choice but to write one row per output file
                 logger.warning(
