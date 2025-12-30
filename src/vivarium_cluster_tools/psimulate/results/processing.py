@@ -18,7 +18,7 @@ from loguru import logger
 from vivarium_cluster_tools import utilities as vct_utils
 from vivarium_cluster_tools.psimulate.paths import OutputPaths
 
-INITIAL_SAMPLE_ROWS = 500
+INITIAL_SAMPLE_ROWS = 1000
 
 
 class OutputFileMap:
@@ -256,10 +256,6 @@ def _write_output_file_per_metric(
             combined = to_write
 
         _safe_write(combined, output_file_path)
-
-        # If more data remains, rotate to next chunk for next iteration
-        if not remaining.empty:
-            output_file_map[metric] += 1
 
 
 def _concat_metadata(
