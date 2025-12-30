@@ -220,8 +220,9 @@ def _write_output_file_per_metric(
 
     while not remaining.empty:
         output_file_path = output_file_map.get_path(metric)
+        output_file_exists = output_file_path.exists()
 
-        if output_file_path.exists():
+        if output_file_exists:
             current_size = output_file_path.stat().st_size
             remaining_space = max(0, output_file_size - current_size)
         else:
@@ -229,7 +230,10 @@ def _write_output_file_per_metric(
 
         rows_that_fit = int(remaining_space / output_file_map.bytes_per_row(metric))
         if rows_that_fit < 1:
-            if output_file_map.bytes_per_row(metric) > output_file_size:
+            single_row_too_large = output_file_map.bytes_per_row(metric) > output_file_size
+            file_nonempty = not output_file_exists or remaining_space > 0
+
+            if single_row_too_large and file_nonempty:
                 # If the file size is smaller than estimated bytes per row,
                 # we have no choice but to write one row per output file
                 logger.warning(
@@ -248,7 +252,7 @@ def _write_output_file_per_metric(
         remaining = remaining.iloc[rows_that_fit:].reset_index(drop=True)
 
         # Combine with existing data if present
-        if output_file_path.exists():
+        if output_file_exists:
             combined = _concat_preserve_types(
                 [pd.read_parquet(output_file_path).reset_index(drop=True), to_write]
             )
