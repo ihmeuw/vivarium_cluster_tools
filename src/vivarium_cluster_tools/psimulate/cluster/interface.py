@@ -80,11 +80,16 @@ def submit_worker_jobs(
         # FIXME: Hack around issue where drmaa.errors sometimes doesn't
         #        exist.
         except Exception as e:
-            if "already completing" in str(e) or "Invalid job" in str(e):
-                # This is the case where all our workers have already shut down
-                # on their own, which isn't actually an error.
-                pass
-            else:
+            error_msg = str(e)
+            # These errors occur when workers have already shut down on their own,
+            # which isn't actually an error. "Unspecified error" is slurm-drmaa's
+            # poor translation of ESLURM_ALREADY_DONE (errno 2021).
+            expected_errors = [
+                "already completing",
+                "Invalid job",
+                "Unspecified error",
+            ]
+            if not any(err in error_msg for err in expected_errors):
                 raise
 
     atexit.register(kill_jobs)
