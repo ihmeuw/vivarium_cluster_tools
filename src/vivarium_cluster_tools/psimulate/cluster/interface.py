@@ -72,7 +72,7 @@ def submit_worker_jobs(
     jt.nativeSpecification = native_specification.to_cli_args()
 
     job_ids = s.runBulkJobs(jt, 1, num_workers, 1)
-    array_job_id = job_ids[0].split(".")[0]
+    array_job_id = job_ids[0].split("_")[0]
 
     def kill_jobs() -> None:
         try:
