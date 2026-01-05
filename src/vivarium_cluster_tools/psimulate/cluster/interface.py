@@ -77,9 +77,18 @@ def submit_worker_jobs(
     def kill_jobs() -> None:
         try:
             s.control(array_job_id, drmaa.JobControlAction.TERMINATE)
-        # FIXME: Hack around issue where drmaa.errors sometimes doesn't
-        #        exist.
         except Exception as e:
+            # Check if the job already finished - if so, this error is expected
+            try:
+                status = s.jobStatus(array_job_id)
+                if status in (drmaa.JobState.DONE, drmaa.JobState.FAILED):
+                    return  # Job already finished, nothing to do
+            except Exception:
+                # If we can't get status, fall back to string matching
+                pass
+
+            # FIXME: Hack around issue where drmaa.errors sometimes doesn't
+            #        exist.
             error_msg = str(e)
             # These errors occur when workers have already shut down on their own,
             # which isn't actually an error. "Unspecified error" is slurm-drmaa's
@@ -87,7 +96,6 @@ def submit_worker_jobs(
             expected_errors = [
                 "already completing",
                 "Invalid job",
-                "Unspecified error",
             ]
             if not any(err in error_msg for err in expected_errors):
                 raise
