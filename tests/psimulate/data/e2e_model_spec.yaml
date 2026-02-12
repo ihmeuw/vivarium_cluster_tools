@@ -1,6 +1,10 @@
 # Minimal vivarium model specification for E2E testing.
 # Runs 2 time steps with 10 simulants -- completes in seconds.
 # No components, no data artifact, no results observers.
+components:
+    vivarium.examples.disease_model:
+        population:
+            - BasePopulation()
 configuration:
   time:
     start:

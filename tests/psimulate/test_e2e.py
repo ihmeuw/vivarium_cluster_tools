@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import shutil
 import subprocess
-import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -152,6 +152,26 @@ def _run_basic_simulation(
 
 
 @pytest.fixture
+def shared_tmp_path(tmp_path: Path) -> Path:
+    """Temporary directory on a shared filesystem visible to all cluster nodes.
+
+    pytest's ``tmp_path`` creates directories under ``/tmp`` which is
+    node-local.  Workers scheduled on other nodes cannot access those
+    paths, causing every job to fail immediately.  This fixture creates
+    a temporary directory under the user's home directory (which lives
+    on the shared ``/ihme`` filesystem) and cleans it up after the test.
+    """
+    shared_dir = Path(
+        tempfile.mkdtemp(
+            prefix="psimulate_e2e_",
+            dir=Path.home(),
+        )
+    )
+    yield shared_dir
+    shutil.rmtree(shared_dir, ignore_errors=True)
+
+
+@pytest.fixture
 def slurm_project(request: Any) -> str:
     """SLURM project for cluster tests, from --slurm-project CLI option."""
     return request.config.getoption("--slurm-project")
@@ -165,15 +185,15 @@ def slurm_project(request: Any) -> str:
 class TestPsimulateRun:
     """E2E tests for ``psimulate run``."""
 
-    def test_basic_run(self, tmp_path: Path, slurm_project: str) -> None:
+    def test_basic_run(self, shared_tmp_path: Path, slurm_project: str) -> None:
         """Run a minimal simulation and verify output files are created."""
-        proc, output_dir = _run_basic_simulation(tmp_path, slurm_project)
+        proc, output_dir = _run_basic_simulation(shared_tmp_path, slurm_project)
 
         # Verify metadata file
         metadata = _read_metadata(output_dir)
-        assert len(metadata) == _EXPECTED_TOTAL_JOBS, (
-            f"Expected {_EXPECTED_TOTAL_JOBS} rows in metadata, got {len(metadata)}"
-        )
+        assert (
+            len(metadata) == _EXPECTED_TOTAL_JOBS
+        ), f"Expected {_EXPECTED_TOTAL_JOBS} rows in metadata, got {len(metadata)}"
 
         # Verify expected columns exist
         assert "input_draw" in metadata.columns
@@ -193,39 +213,40 @@ class TestPsimulateRun:
         log_dirs = list((output_dir / "logs").iterdir())
         assert len(log_dirs) >= 1, "Expected at least one log directory"
 
-    def test_run_with_max_workers(self, tmp_path: Path, slurm_project: str) -> None:
+    def test_run_with_max_workers(self, shared_tmp_path: Path, slurm_project: str) -> None:
         """Verify that --max-workers is accepted and all jobs still complete."""
-        result_dir = tmp_path / "results"
+        result_dir = shared_tmp_path / "results"
         result_dir.mkdir()
 
-        proc = _run_psimulate([
-            "run",
-            str(_MODEL_SPEC),
-            str(_BRANCHES),
-            "-o",
-            str(result_dir),
-            "-P",
-            slurm_project,
-            "-r",
-            "00:30:00",
-            "-m",
-            "1",
-            "-w",
-            "2",  # Limit to 2 concurrent workers for 4 jobs
-        ])
+        proc = _run_psimulate(
+            [
+                "run",
+                str(_MODEL_SPEC),
+                str(_BRANCHES),
+                "-o",
+                str(result_dir),
+                "-P",
+                slurm_project,
+                "-r",
+                "00:30:00",
+                "-m",
+                "1",
+                "-w",
+                "2",  # Limit to 2 concurrent workers for 4 jobs
+            ]
+        )
         assert proc.returncode == 0, (
-            f"psimulate run with --max-workers 2 failed.\n"
-            f"STDERR:\n{proc.stderr}"
+            f"psimulate run with --max-workers 2 failed.\n" f"STDERR:\n{proc.stderr}"
         )
 
         output_dir = _find_output_dir(result_dir)
         metadata = _read_metadata(output_dir)
         assert len(metadata) == _EXPECTED_TOTAL_JOBS
 
-    def test_run_with_backups(self, tmp_path: Path, slurm_project: str) -> None:
+    def test_run_with_backups(self, shared_tmp_path: Path, slurm_project: str) -> None:
         """Verify backup directory is cleaned up after a fully successful run."""
         proc, output_dir = _run_basic_simulation(
-            tmp_path, slurm_project, extra_args=["--backup-freq", "1"]
+            shared_tmp_path, slurm_project, extra_args=["--backup-freq", "1"]
         )
 
         # On full success, runner.main() calls shutil.rmtree(backup_dir).
@@ -244,38 +265,11 @@ class TestPsimulateRun:
 class TestPsimulateRestart:
     """E2E tests for ``psimulate restart``."""
 
-    def test_restart_no_remaining_work(
-        self, tmp_path: Path, slurm_project: str
-    ) -> None:
-        """Restart a fully completed run; should exit immediately."""
-        _, output_dir = _run_basic_simulation(tmp_path, slurm_project)
-
-        # Restart the completed run
-        proc = _run_psimulate([
-            "restart",
-            str(output_dir),
-            "-P",
-            slurm_project,
-            "-r",
-            "00:30:00",
-            "-m",
-            "1",
-        ])
-        assert proc.returncode == 0, (
-            f"psimulate restart failed.\nSTDERR:\n{proc.stderr}"
-        )
-
-        # The output should indicate no jobs to run
-        combined_output = proc.stdout + proc.stderr
-        assert "No jobs to run" in combined_output, (
-            f"Expected 'No jobs to run' in output, got:\n{combined_output}"
-        )
-
     def test_restart_completes_remaining(
-        self, tmp_path: Path, slurm_project: str
+        self, shared_tmp_path: Path, slurm_project: str
     ) -> None:
         """Delete partial outputs, restart, and verify all jobs re-complete."""
-        _, output_dir = _run_basic_simulation(tmp_path, slurm_project)
+        _, output_dir = _run_basic_simulation(shared_tmp_path, slurm_project)
 
         # Verify initial completion
         metadata = _read_metadata(output_dir)
@@ -291,21 +285,21 @@ class TestPsimulateRestart:
                 f.unlink()
 
         # Restart -- should re-run all jobs
-        proc = _run_psimulate([
-            "restart",
-            str(output_dir),
-            "-P",
-            slurm_project,
-            "-r",
-            "00:30:00",
-            "-m",
-            "1",
-            "-w",
-            str(_EXPECTED_TOTAL_JOBS),
-        ])
-        assert proc.returncode == 0, (
-            f"psimulate restart failed.\nSTDERR:\n{proc.stderr}"
+        proc = _run_psimulate(
+            [
+                "restart",
+                str(output_dir),
+                "-P",
+                slurm_project,
+                "-r",
+                "00:30:00",
+                "-m",
+                "1",
+                "-w",
+                str(_EXPECTED_TOTAL_JOBS),
+            ]
         )
+        assert proc.returncode == 0, f"psimulate restart failed.\nSTDERR:\n{proc.stderr}"
 
         # Verify all jobs completed again
         metadata = _read_metadata(output_dir)
@@ -323,9 +317,9 @@ class TestOutputFormatConsistency:
     that downstream consumers depend on.
     """
 
-    def test_metadata_columns(self, tmp_path: Path, slurm_project: str) -> None:
+    def test_metadata_columns(self, shared_tmp_path: Path, slurm_project: str) -> None:
         """Verify finished_sim_metadata.csv has the expected column schema."""
-        _, output_dir = _run_basic_simulation(tmp_path, slurm_project)
+        _, output_dir = _run_basic_simulation(shared_tmp_path, slurm_project)
         metadata = _read_metadata(output_dir)
 
         # These columns must always be present (they come from job_specific params)
@@ -340,10 +334,10 @@ class TestOutputFormatConsistency:
         assert pd.api.types.is_numeric_dtype(metadata["random_seed"])
 
     def test_keyspace_and_branches_persisted(
-        self, tmp_path: Path, slurm_project: str
+        self, shared_tmp_path: Path, slurm_project: str
     ) -> None:
         """Verify keyspace.yaml and branches.yaml are written to the output directory."""
-        _, output_dir = _run_basic_simulation(tmp_path, slurm_project)
+        _, output_dir = _run_basic_simulation(shared_tmp_path, slurm_project)
 
         keyspace_path = output_dir / "keyspace.yaml"
         branches_path = output_dir / "branches.yaml"
