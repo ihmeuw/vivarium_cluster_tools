@@ -24,10 +24,10 @@ from vivarium_cluster_tools.psimulate import (
     COMMANDS,
     cluster,
     paths,
-    redis_dbs,
     results,
     runner,
 )
+from vivarium_cluster_tools.psimulate.jobmon_config import with_max_workers
 from vivarium_cluster_tools.psimulate.worker.load_test_work_horse import (
     get_psimulate_test_dict,
 )
@@ -48,8 +48,7 @@ shared_options: list[Decorator] = [
     cluster.with_queue_and_max_runtime,
     cluster.with_peak_memory,
     cluster.with_hardware,
-    redis_dbs.with_max_workers,
-    redis_dbs.with_redis,
+    with_max_workers,
     results.with_batch_size,
     results.with_output_file_size,
     results.with_no_batch,
@@ -134,7 +133,6 @@ def run(
             hardware=options["hardware"],
         ),
         max_workers=options["max_workers"],
-        redis_processes=options["redis"],
         batch_size=options["batch_size"],
         output_file_size=options["output_file_size"],
         no_batch=options["no_batch"],
@@ -181,7 +179,6 @@ def restart(
             hardware=options["hardware"],
         ),
         max_workers=options["max_workers"],
-        redis_processes=options["redis"],
         batch_size=options["batch_size"],
         output_file_size=options["output_file_size"],
         no_batch=options["no_batch"],
@@ -243,7 +240,6 @@ def expand(
             hardware=options["hardware"],
         ),
         max_workers=options["max_workers"],
-        redis_processes=options["redis"],
         batch_size=options["batch_size"],
         output_file_size=options["output_file_size"],
         no_batch=options["no_batch"],
@@ -323,7 +319,6 @@ def test(
             hardware=options["hardware"],
         ),
         max_workers=options["max_workers"],
-        redis_processes=options["redis"],
         batch_size=options["batch_size"],
         output_file_size=options["output_file_size"],
         no_batch=options["no_batch"],

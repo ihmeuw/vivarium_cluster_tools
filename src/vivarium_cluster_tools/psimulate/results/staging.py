@@ -227,6 +227,7 @@ class PeriodicAggregator(threading.Thread):
         self._lock = threading.Lock()
         self._stop_event = threading.Event()
         self._processed: set[str] = set()
+        self._buffer_task_ids: list[str] = []
         self._buffer_metadata: list[pd.DataFrame] = []
         self._buffer_results: list[dict[str, pd.DataFrame]] = []
         self._output_file_map = OutputFileMap.from_existing_results(
@@ -276,6 +277,7 @@ class PeriodicAggregator(threading.Thread):
             try:
                 metadata_df, results_dict = read_staging_result(self._staging_dir, task_id)
                 with self._lock:
+                    self._buffer_task_ids.append(task_id)
                     self._buffer_metadata.append(metadata_df)
                     self._buffer_results.append(results_dict)
                     self._processed.add(task_id)
@@ -290,12 +292,18 @@ class PeriodicAggregator(threading.Thread):
             self._flush_buffer()
 
     def _flush_buffer(self, force: bool = False) -> None:
-        """Write buffered results to disk."""
+        """Write buffered results to disk.
+
+        On success, cleans up the staging files for the flushed tasks.
+        On failure, puts the data back into the buffer so it can be retried.
+        """
         with self._lock:
             if not self._buffer_results and not force:
                 return
+            task_ids_to_write = self._buffer_task_ids
             metadata_to_write = self._buffer_metadata
             results_to_write = self._buffer_results
+            self._buffer_task_ids = []
             self._buffer_metadata = []
             self._buffer_results = []
 
@@ -305,24 +313,30 @@ class PeriodicAggregator(threading.Thread):
         count = len(results_to_write)
         logger.info(f"Flushing {count} buffered results to disk.")
 
-        self._existing_metadata, _, _ = write_results_batch(
-            output_paths=self._output_paths,
-            existing_metadata=self._existing_metadata,
-            unwritten_metadata=metadata_to_write,
-            unwritten_results=results_to_write,
-            batch_size=count,
-            output_file_map=self._output_file_map,
-            output_file_size=self._output_file_size,
-        )
+        try:
+            with self._lock:
+                self._existing_metadata, _, _ = write_results_batch(
+                    output_paths=self._output_paths,
+                    existing_metadata=self._existing_metadata,
+                    unwritten_metadata=metadata_to_write,
+                    unwritten_results=results_to_write,
+                    batch_size=count,
+                    output_file_map=self._output_file_map,
+                    output_file_size=self._output_file_size,
+                )
+                self._total_flushed += count
+        except Exception:
+            logger.exception(
+                f"Failed to flush {count} buffered results. "
+                "Returning them to the buffer for retry."
+            )
+            with self._lock:
+                # Put the data back at the front of the buffer for retry
+                self._buffer_task_ids = task_ids_to_write + self._buffer_task_ids
+                self._buffer_metadata = metadata_to_write + self._buffer_metadata
+                self._buffer_results = results_to_write + self._buffer_results
+            return
 
-        # Clean up staging files for flushed tasks
-        with self._lock:
-            self._total_flushed += count
-
-        # We can get the task_ids from the processed set, but we only
-        # want to clean up the ones we just flushed. Since scan_done_markers
-        # returns task_ids in order and we process them in order, we can
-        # track which ones to clean up based on the metadata we just wrote.
-        # For simplicity, clean up all processed tasks that have been flushed.
-        for task_id in list(self._processed):
+        # Only clean up staging files for successfully flushed tasks
+        for task_id in task_ids_to_write:
             cleanup_staging_files(self._staging_dir, task_id)
