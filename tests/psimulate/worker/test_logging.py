@@ -33,9 +33,6 @@ def test_logging_level(mocker: MockerFixture, tmp_path: Path, log_level: int) ->
     mocker.patch(
         "vivarium_cluster_tools.psimulate.worker.vivarium_work_horse.ENV_VARIABLES",
     )
-    mocker.patch(
-        "vivarium_cluster_tools.psimulate.worker.vivarium_work_horse.get_current_job",
-    )
     mocker.patch("vivarium_cluster_tools.psimulate.worker.vivarium_work_horse.run_simulation")
     mocker.patch("vivarium_cluster_tools.psimulate.worker.vivarium_work_horse.remove_backups")
     mocker.patch(
@@ -47,7 +44,7 @@ def test_logging_level(mocker: MockerFixture, tmp_path: Path, log_level: int) ->
     with patch(
         "vivarium_cluster_tools.psimulate.worker.vivarium_work_horse.ParallelSimulationContext"
     ) as mock_parallel_sim:
-        work_horse(job_parameters.to_dict())
+        work_horse(job_parameters.to_dict(), task_id="test_task_id")
         mock_parallel_sim.assert_called_once_with(
             job_parameters.model_specification,
             configuration=job_parameters.sim_config,
