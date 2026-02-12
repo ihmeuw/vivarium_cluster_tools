@@ -104,10 +104,13 @@ class OutputPaths(NamedTuple):
     worker_logging_root: Path
     """The root directory for worker logs."""
 
+    job_spec_dir: Path
+    """The directory for Jobmon task spec JSON files."""
+    staging_dir: Path
+    """The directory for staging results before aggregation."""
+
     # Files
     # Environment configuration
-    worker_settings: Path
-    """The path to the worker settings file."""
     environment_file: Path
     """The path to the requirements.txt environment file."""
 
@@ -224,7 +227,8 @@ class OutputPaths(NamedTuple):
         output_paths = OutputPaths(
             root=output_directory,
             **logging_dirs,
-            worker_settings=output_directory / "settings.py",
+            job_spec_dir=output_directory / "job_specs",
+            staging_dir=output_directory / "staging",
             environment_file=output_directory / "requirements.txt",
             model_specification=output_directory / "model_specification.yaml",
             keyspace=output_directory / "keyspace.yaml",
@@ -238,7 +242,13 @@ class OutputPaths(NamedTuple):
 
     def touch(self) -> None:
         """Create the required directories."""
-        for dir in [self.root, self.results_dir, self.backup_dir]:
+        for dir in [
+            self.root,
+            self.results_dir,
+            self.backup_dir,
+            self.job_spec_dir,
+            self.staging_dir,
+        ]:
             vct_utils.mkdir(dir, exists_ok=True, parents=True)
         for dir in [self.logging_root, self.cluster_logging_root, self.worker_logging_root]:
             vct_utils.mkdir(dir, parents=True)
