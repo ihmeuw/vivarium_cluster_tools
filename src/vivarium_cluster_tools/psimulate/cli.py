@@ -130,9 +130,6 @@ def run(
             hardware=options["hardware"],
         ),
         max_workers=options["max_workers"],
-        batch_size=options["batch_size"],
-        output_file_size=options["output_file_size"],
-        no_batch=options["no_batch"],
         backup_freq=options["backup_freq"],
         extra_args={
             "sim_verbosity": int(options["sim_verbosity"]),
