@@ -1,3 +1,19 @@
+**2.2.2 - 01/06/26**
+
+ - Fail deployment if changelog date does not match current date
+
+**2.2.1 - 01/06/26**
+
+  - Fix noisy psimulate output error
+
+**2.2.0 - 01/02/26**
+
+  - Add output data file splitting
+
+**2.1.26 - 12/24/25**
+
+  - Fix build failure due to unsafe import of private psutil types
+
 **2.1.25 - 11/25/25**
 
   - Select from 250 instead of 500 draws when generating input draws 
