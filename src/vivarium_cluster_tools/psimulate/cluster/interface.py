@@ -4,6 +4,7 @@ Cluster Interface
 =================
 
 """
+
 from __future__ import annotations
 
 from typing import NamedTuple
@@ -24,7 +25,7 @@ class NativeSpecification(NamedTuple):
     job_name: str
     project: str
     queue: str
-    peak_memory: int  # Memory in GB
+    peak_memory: float  # Memory in GB
     max_runtime: str
     hardware: list[str]
 
