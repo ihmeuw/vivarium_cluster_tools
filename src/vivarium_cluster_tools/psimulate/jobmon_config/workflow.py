@@ -115,11 +115,11 @@ def build_workflow(
             f"{python_path} -m vivarium_cluster_tools.psimulate.worker.task_runner "
             "--job-spec-dir {job_spec_dir} "
             "--task-id {task_id} "
-            "--staging-dir {staging_dir} "
+            "--results-dir {results_dir} "
             "--worker-log-dir {worker_log_dir}"
         ),
         node_args=["task_id"],
-        task_args=["job_spec_dir", "staging_dir", "worker_log_dir"],
+        task_args=["job_spec_dir", "results_dir", "worker_log_dir"],
         op_args=[],
         default_cluster_name="slurm",
         default_compute_resources=_build_compute_resources(native_specification),
@@ -152,7 +152,7 @@ def build_workflow(
             name=f"psim_{task_id[:12]}",
             task_id=task_id,
             job_spec_dir=str(output_paths.job_spec_dir),
-            staging_dir=str(output_paths.staging_dir),
+            results_dir=str(output_paths.results_dir),
             worker_log_dir=str(output_paths.worker_logging_root),
         )
         tasks.append(task)

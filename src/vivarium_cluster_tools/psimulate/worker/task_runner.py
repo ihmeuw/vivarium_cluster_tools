@@ -4,15 +4,16 @@ Jobmon Task Runner
 ========================
 
 CLI entry point for individual Jobmon tasks. Each task loads its job spec
-JSON file, runs the appropriate work horse, and writes results to the
-staging directory.
+JSON file, runs the appropriate work horse, and writes results directly
+to the results directory (one parquet per metric per task, one metadata
+CSV per task).
 
 Usage::
 
     python -m vivarium_cluster_tools.psimulate.worker.task_runner \
         --job-spec-dir /path/to/job_specs \
         --task-id <task_id> \
-        --staging-dir /path/to/staging \
+        --results-dir /path/to/results \
         --worker-log-dir /path/to/worker_logs
 
 """
@@ -42,10 +43,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="The deterministic task ID.",
     )
     parser.add_argument(
-        "--staging-dir",
+        "--results-dir",
         type=Path,
         required=True,
-        help="Directory to write staged results.",
+        help="Directory to write results to.",
     )
     parser.add_argument(
         "--worker-log-dir",
@@ -103,17 +104,17 @@ def main(argv: list[str] | None = None) -> None:
     else:
         raise ValueError(f"Unknown command: {command}")
 
-    logger.info(f"Task {task_id} completed, writing staged results.")
+    logger.info(f"Task {task_id} completed, writing results.")
 
-    from vivarium_cluster_tools.psimulate.results.staging import write_staging_results
+    from vivarium_cluster_tools.psimulate.results.writing import write_task_results
 
-    write_staging_results(
-        staging_dir=args.staging_dir,
+    write_task_results(
+        results_dir=args.results_dir,
         task_id=task_id,
         metadata_df=metadata_df,
         results_dict=results_dict,
     )
-    logger.info(f"Task {task_id} staged results written successfully.")
+    logger.info(f"Task {task_id} results written successfully.")
 
 
 if __name__ == "__main__":

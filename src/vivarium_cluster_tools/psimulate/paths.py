@@ -106,8 +106,6 @@ class OutputPaths(NamedTuple):
 
     job_spec_dir: Path
     """The directory for Jobmon task spec JSON files."""
-    staging_dir: Path
-    """The directory for staging results before aggregation."""
 
     # Files
     # Environment configuration
@@ -228,7 +226,6 @@ class OutputPaths(NamedTuple):
             root=output_directory,
             **logging_dirs,
             job_spec_dir=output_directory / "job_specs",
-            staging_dir=output_directory / "staging",
             environment_file=output_directory / "requirements.txt",
             model_specification=output_directory / "model_specification.yaml",
             keyspace=output_directory / "keyspace.yaml",
@@ -247,7 +244,6 @@ class OutputPaths(NamedTuple):
             self.results_dir,
             self.backup_dir,
             self.job_spec_dir,
-            self.staging_dir,
         ]:
             vct_utils.mkdir(dir, exists_ok=True, parents=True)
         for dir in [self.logging_root, self.cluster_logging_root, self.worker_logging_root]:

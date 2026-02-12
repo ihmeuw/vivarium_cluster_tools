@@ -31,22 +31,11 @@ from vivarium_cluster_tools.psimulate.paths import OutputPaths
 from vivarium_cluster_tools.psimulate.performance_logger import (
     append_perf_data_to_central_logs,
 )
-from vivarium_cluster_tools.psimulate.results.staging import (
-    PeriodicAggregator,
-    aggregate_pending_staging,
+from vivarium_cluster_tools.psimulate.results.writing import (
+    collect_metadata,
+    count_completed_tasks,
 )
 from vivarium_cluster_tools.vipin.perf_report import report_performance
-
-
-def load_existing_output_metadata(metadata_path: Path, restart: bool) -> pd.DataFrame:
-    try:
-        existing_output_metadata = pd.read_csv(metadata_path)
-    except FileNotFoundError:
-        existing_output_metadata = pd.DataFrame()
-    assert (
-        existing_output_metadata.empty or restart
-    ), "How do you have existing outputs on an initial run?"
-    return existing_output_metadata
 
 
 def report_initial_status(
@@ -118,9 +107,6 @@ def main(
     input_paths: paths.InputPaths,
     native_specification: cluster.NativeSpecification,
     max_workers: int,
-    batch_size: int,
-    output_file_size: int,
-    no_batch: bool,
     backup_freq: int | None,
     extra_args: dict[str, Any],
 ) -> None:
@@ -175,19 +161,13 @@ def main(
     model_specification.persist(model_spec, output_paths.model_specification)
 
     logger.info("Loading existing outputs if present.")
-    # Load in any existing partial outputs if present.
-    finished_sim_metadata = load_existing_output_metadata(
-        metadata_path=output_paths.finished_sim_metadata,
-        restart=command in [COMMANDS.restart, COMMANDS.expand],
-    )
-
-    # Flush any pending staged results from a crashed prior run
-    finished_sim_metadata = aggregate_pending_staging(
-        staging_dir=output_paths.staging_dir,
-        output_paths=output_paths,
-        existing_metadata=finished_sim_metadata,
-        output_file_size=output_file_size,
-    )
+    # Collect existing metadata from per-task CSV files in results/metadata/
+    finished_sim_metadata = collect_metadata(output_paths.results_dir)
+    if not finished_sim_metadata.empty:
+        assert command in [
+            COMMANDS.restart,
+            COMMANDS.expand,
+        ], "How do you have existing outputs on an initial run?"
 
     logger.info("Parsing arguments into worker job parameters.")
     # Translate the keyspace into the list of jobs to actually run
@@ -230,38 +210,20 @@ def main(
         max_workers=max_workers,
     )
 
-    # Start the periodic aggregator to flush staged results
-    effective_batch_size = 0 if no_batch else batch_size
-    aggregator = PeriodicAggregator(
-        staging_dir=output_paths.staging_dir,
-        output_paths=output_paths,
-        existing_metadata=finished_sim_metadata,
-        output_file_size=output_file_size,
-        batch_size=max(effective_batch_size, 1),
-        interval=30.0,
-    )
-    aggregator.start()
-
     logger.info(
         "Submitting Jobmon workflow. " f"Results will be written to {str(output_paths.root)}"
     )
 
-    try:
-        wf_status = workflow.run()
-    finally:
-        # Stop aggregator and flush remaining results regardless of outcome
-        aggregator.stop()
-        aggregator.join(timeout=60)
-        finished_sim_metadata = aggregator.final_flush()
-
-    num_flushed = aggregator.total_flushed
+    wf_status = workflow.run()
 
     # Spit out a performance report for the workers.
     try_run_vipin(output_paths)
 
-    # Determine status from workflow result
-    num_successful = num_jobs_completed + num_flushed
-    num_failed = len(job_parameters) - num_flushed
+    # Count results written directly by workers
+    num_completed_this_run = count_completed_tasks(output_paths.results_dir) - num_jobs_completed
+    num_failed = len(job_parameters) - num_completed_this_run
+    num_successful = num_jobs_completed + num_completed_this_run
+
     if wf_status != "D":
         logger.warning(
             f"Workflow finished with status '{wf_status}' (expected 'D' for DONE)."
@@ -278,7 +240,7 @@ def main(
         shutil.rmtree(output_paths.backup_dir, ignore_errors=True)
 
     logger.info(
-        f"{num_flushed} of {len(job_parameters)} jobs "
+        f"{num_completed_this_run} of {len(job_parameters)} jobs "
         f"completed successfully from this {command}.\n"
         f"({num_successful} of {total_num_jobs} total jobs completed successfully overall)\n"
         f"Results written to: {str(output_paths.results_dir)}"
