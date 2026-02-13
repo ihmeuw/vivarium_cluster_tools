@@ -210,9 +210,25 @@ def main(
         max_workers=max_workers,
     )
 
+    # Bind the workflow to get its ID before running, so we can display the
+    # monitoring URL immediately rather than waiting for run() to finish.
+    workflow.bind()
+
+    try:
+        from jobmon.core.configuration import JobmonConfig
+        from jobmon.core.exceptions import ConfigError
+
+        gui_url = JobmonConfig().get("http", "gui_url")
+    except (ConfigError, Exception):
+        gui_url = ""
+
+    monitoring_url = f"{gui_url}/#/workflow/{workflow.workflow_id}" if gui_url else ""
+
     logger.info(
         "Submitting Jobmon workflow. " f"Results will be written to {str(output_paths.root)}"
     )
+    if monitoring_url:
+        logger.info(f"Monitor progress at: {monitoring_url}")
 
     wf_status = workflow.run()
 
@@ -220,7 +236,9 @@ def main(
     try_run_vipin(output_paths)
 
     # Count results written directly by workers
-    num_completed_this_run = count_completed_tasks(output_paths.results_dir) - num_jobs_completed
+    num_completed_this_run = (
+        count_completed_tasks(output_paths.results_dir) - num_jobs_completed
+    )
     num_failed = len(job_parameters) - num_completed_this_run
     num_successful = num_jobs_completed + num_completed_this_run
 
