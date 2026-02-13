@@ -48,7 +48,7 @@ def process_job_results(
 ) -> dict[str, int | float]:
     unwritten_metadata = []
     unwritten_results = []
-    batch_size = 0 if no_batch else batch_size
+    batch_size = 1 if no_batch else batch_size
     status: dict[str, int | float] = defaultdict(int)
 
     # Initialize output file map from any existing results (for restart support)
@@ -65,7 +65,7 @@ def process_job_results(
                 unwritten_metadata.append(metadata)
                 unwritten_results.append(results)
 
-                if len(unwritten_results) >= batch_size > 0:
+                if len(unwritten_results) == batch_size:
                     (
                         existing_metadata,
                         unwritten_metadata,
