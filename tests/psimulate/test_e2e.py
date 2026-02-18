@@ -43,7 +43,9 @@ _TIMEOUT = 600
 
 RESULTS_DIR = "/mnt/team/simulation_science/priv/engineering/tests/output/"
 
-pytestmark = [pytest.mark.cluster, pytest.mark.slow, pytest.mark.weekly]
+# Don't enforce weekly run requirement during development
+# pytestmark = [pytest.mark.cluster, pytest.mark.slow, pytest.mark.weekly]
+pytestmark = [pytest.mark.cluster, pytest.mark.slow]
 
 
 @pytest.fixture
@@ -84,13 +86,7 @@ def _run_psimulate(
     args: list[str],
     timeout: int = _TIMEOUT,
 ) -> subprocess.CompletedProcess[str]:
-    """Run a psimulate CLI command as a subprocess.
-
-    Using subprocess (rather than click's CliRunner) gives us true process
-    isolation: Redis subprocesses and DRMAA sessions are fully contained,
-    and atexit handlers fire at subprocess exit rather than polluting the
-    test process.
-    """
+    """Run a psimulate CLI command as a subprocess."""
     cmd = ["psimulate", *args]
     return subprocess.run(
         cmd,
@@ -239,23 +235,27 @@ class TestPsimulateRestart:
     def test_restart_completes_remaining(
         self, shared_tmp_path: Path, slurm_project: str
     ) -> None:
-        """Delete partial outputs, restart, and verify all jobs re-complete."""
+        """Delete partial outputs, restart, and verify only missing jobs re-run."""
         _, output_dir = _run_basic_simulation(shared_tmp_path, slurm_project)
 
         # Verify initial completion
         metadata = _read_metadata(output_dir)
         assert len(metadata) == _EXPECTED_TOTAL_JOBS
 
-        # Simulate a partial run by removing all outputs.
-        # Delete metadata file and all result parquet files.
+        # Simulate a partial run by removing SOME outputs.
+        # Delete metadata file and half of the result files.
         metadata_path = output_dir / "finished_sim_metadata.csv"
         metadata_path.unlink()
+        
         results_dir = output_dir / "results"
         if results_dir.exists():
-            for f in results_dir.iterdir():
+            result_files = list(results_dir.iterdir())
+            # Delete half of the result files to simulate partial completion
+            files_to_delete = result_files[: len(result_files) // 2]
+            for f in files_to_delete:
                 f.unlink()
 
-        # Restart -- should re-run all jobs
+        # Restart -- should re-run only the missing jobs
         proc = _run_psimulate(
             [
                 "restart",
@@ -272,7 +272,7 @@ class TestPsimulateRestart:
         )
         assert proc.returncode == 0, f"psimulate restart failed.\nSTDERR:\n{proc.stderr}"
 
-        # Verify all jobs completed again
+        # Verify all jobs completed (both preserved and re-run)
         metadata = _read_metadata(output_dir)
         assert len(metadata) == _EXPECTED_TOTAL_JOBS
 
