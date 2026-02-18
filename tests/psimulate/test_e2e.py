@@ -24,14 +24,12 @@ import shutil
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Any
-
+from typing import Any, Iterator
+import time
 import pandas as pd
 import pytest
+import os
 
-# ---------------------------------------------------------------------------
-# Constants
-# ---------------------------------------------------------------------------
 
 _DATA_DIR = Path(__file__).parent / "data"
 _MODEL_SPEC = _DATA_DIR / "e2e_model_spec.yaml"
@@ -43,20 +41,43 @@ _EXPECTED_TOTAL_JOBS = 4
 # Generous timeout for SLURM scheduling + execution (10 minutes)
 _TIMEOUT = 600
 
+RESULTS_DIR = "/mnt/team/simulation_science/priv/engineering/tests/output/"
+
 pytestmark = [pytest.mark.cluster, pytest.mark.slow, pytest.mark.weekly]
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
+@pytest.fixture
+def shared_tmp_path() -> Iterator[Path]:
+    """Temporary directory on a shared filesystem visible to all cluster nodes.
+
+    pytest's ``tmp_path`` creates directories under ``/tmp`` which is
+    node-local.  Workers scheduled on other nodes cannot access those
+    paths, causing every job to fail immediately.  This fixture creates
+    a temporary directory under the user's home directory (which lives
+    on the shared ``/ihme`` filesystem) and cleans it up after the test.
+    """
+    results_dir = tempfile.mkdtemp(dir=RESULTS_DIR)
+    # give the dir the same permissions as the parent directory so that cluster jobs
+    # can write to it
+    os.chmod(results_dir, os.stat(RESULTS_DIR).st_mode)
+    results_dir = Path(results_dir)
+    yield results_dir
+
+    # Try 10 times to delete the dir.
+    # NOTE: There seems to be times where the directory is not removed (even after
+    # the several attempts with a rest between them). Typically the dir is empty.
+    for _ in range(10):
+        if not results_dir.exists():
+            break  # the dir has been removed
+        # Take a quick nap to ensure processes are finished with the directory
+        time.sleep(1)
+        shutil.rmtree(results_dir)
 
 
-def _psimulate_cmd() -> str:
-    """Return the path to the psimulate CLI entry point."""
-    cmd = shutil.which("psimulate")
-    if cmd is None:
-        pytest.skip("psimulate not found on PATH; is the package installed?")
-    return cmd
+@pytest.fixture
+def slurm_project(request: Any) -> str:
+    """SLURM project for cluster tests, from --slurm-project CLI option."""
+    return request.config.getoption("--slurm-project")
 
 
 def _run_psimulate(
@@ -70,7 +91,7 @@ def _run_psimulate(
     and atexit handlers fire at subprocess exit rather than polluting the
     test process.
     """
-    cmd = [_psimulate_cmd(), *args]
+    cmd = ["psimulate", *args]
     return subprocess.run(
         cmd,
         capture_output=True,
@@ -148,42 +169,6 @@ def _run_basic_simulation(
 
     output_dir = _find_output_dir(result_dir)
     return proc, output_dir
-
-
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
-
-
-@pytest.fixture
-def shared_tmp_path(tmp_path: Path) -> Path:
-    """Temporary directory on a shared filesystem visible to all cluster nodes.
-
-    pytest's ``tmp_path`` creates directories under ``/tmp`` which is
-    node-local.  Workers scheduled on other nodes cannot access those
-    paths, causing every job to fail immediately.  This fixture creates
-    a temporary directory under the user's home directory (which lives
-    on the shared ``/ihme`` filesystem) and cleans it up after the test.
-    """
-    shared_dir = Path(
-        tempfile.mkdtemp(
-            prefix="psimulate_e2e_",
-            dir=Path.home(),
-        )
-    )
-    yield shared_dir
-    shutil.rmtree(shared_dir, ignore_errors=True)
-
-
-@pytest.fixture
-def slurm_project(request: Any) -> str:
-    """SLURM project for cluster tests, from --slurm-project CLI option."""
-    return request.config.getoption("--slurm-project")
-
-
-# ---------------------------------------------------------------------------
-# Tests
-# ---------------------------------------------------------------------------
 
 
 class TestPsimulateRun:
