@@ -1,16 +1,11 @@
 import pytest
 from _pytest.config import Config, argparsing
 from _pytest.python import Function
+import shutil
 
 
 def pytest_addoption(parser: argparsing.Parser) -> None:
     parser.addoption("--runslow", action="store_true", default=False, help="run slow tests")
-    parser.addoption(
-        "--runcluster",
-        action="store_true",
-        default=False,
-        help="run tests that require a SLURM cluster",
-    )
     parser.addoption(
         "--slurm-project",
         type=str,
@@ -33,8 +28,13 @@ def pytest_collection_modifyitems(config: Config, items: list[Function]) -> None
             if "slow" in item.keywords:
                 item.add_marker(skip_slow)
 
-    if not config.getoption("--runcluster"):
-        skip_cluster = pytest.mark.skip(reason="need --runcluster option to run")
+    if not is_on_slurm():
+        skip_cluster = pytest.mark.skip(reason="not running on SLURM cluster")
         for item in items:
             if "cluster" in item.keywords:
                 item.add_marker(skip_cluster)
+
+
+def is_on_slurm() -> bool:
+    """Returns True if the current environment is a SLURM cluster."""
+    return shutil.which("sbatch") is not None
