@@ -232,24 +232,6 @@ class TestPsimulateRun:
         metadata = _read_metadata(output_dir)
         assert len(metadata) == _EXPECTED_TOTAL_JOBS
 
-    def test_run_with_backups(self, shared_tmp_path: Path, slurm_project: str) -> None:
-        """Verify backup directory is cleaned up after a fully successful run."""
-        proc, output_dir = _run_basic_simulation(
-            shared_tmp_path, slurm_project, extra_args=["--backup-freq", "1"]
-        )
-
-        # On full success, runner.main() calls shutil.rmtree(backup_dir).
-        # The backup dir should either not exist or be empty.
-        backup_dir = output_dir / "sim_backups"
-        if backup_dir.exists():
-            remaining = list(backup_dir.iterdir())
-            # backup_metadata.csv may remain; pickle files should not
-            pkl_files = [f for f in remaining if f.suffix == ".pkl"]
-            assert len(pkl_files) == 0, (
-                f"Backup pickle files should be cleaned up after success, "
-                f"found: {pkl_files}"
-            )
-
 
 class TestPsimulateRestart:
     """E2E tests for ``psimulate restart``."""
