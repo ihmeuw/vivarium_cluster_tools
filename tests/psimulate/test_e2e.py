@@ -5,9 +5,13 @@ These tests run against a real SLURM cluster and exercise the full psimulate
 pipeline: job creation, SLURM submission, worker execution, result collection,
 and output file generation.
 
-They are gated behind the ``@pytest.mark.cluster`` marker and require the
-``--runcluster`` pytest option to run. A SLURM project can be specified with
-``--slurm-project`` (defaults to ``proj_simscience``).
+They are gated behind the ``@pytest.mark.cluster`` marker and require:
+1. Execution on a SLURM cluster (automatically detected)
+2. The ``--runslow`` pytest option
+3. Running on the designated slow test day (default: Sunday)
+
+A SLURM project can be specified with ``--slurm-project`` (defaults to
+``proj_simscience``).
 
 These tests serve as a pre-refactor behavioral baseline: they capture the
 current system's observable behavior so that we can verify the jobmon refactor
@@ -39,7 +43,7 @@ _EXPECTED_TOTAL_JOBS = 4
 # Generous timeout for SLURM scheduling + execution (10 minutes)
 _TIMEOUT = 600
 
-pytestmark = pytest.mark.cluster
+pytestmark = [pytest.mark.cluster, pytest.mark.slow, pytest.mark.weekly]
 
 
 # ---------------------------------------------------------------------------
