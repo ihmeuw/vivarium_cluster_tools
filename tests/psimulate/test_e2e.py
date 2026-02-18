@@ -348,6 +348,48 @@ class TestPsimulateExpand:
         assert len(draw_seed_pairs) == expected_total
 
 
+class TestPsimulateLoadTest:
+    """E2E tests for ``psimulate test``."""
+
+    # Number of workers to use for the load test (keep small for speed)
+    _NUM_WORKERS = 2
+    # large_results_test sleeps for 30s per worker, so allow generous timeout
+    _LOAD_TEST_TIMEOUT = _TIMEOUT
+
+    def test_large_results(self, shared_tmp_path: Path, slurm_project: str) -> None:
+        """Run the large_results load test and verify outputs are produced."""
+        result_dir = shared_tmp_path / "load_test_results"
+        result_dir.mkdir()
+
+        proc = _run_psimulate(
+            [
+                "test",
+                "large_results",
+                "-n",
+                str(self._NUM_WORKERS),
+                "-o",
+                str(result_dir),
+                "-P",
+                slurm_project,
+                "-w",
+                str(self._NUM_WORKERS),
+            ],
+            timeout=self._LOAD_TEST_TIMEOUT,
+        )
+        assert proc.returncode == 0, (
+            f"psimulate test large_results failed.\n"
+            f"STDOUT:\n{proc.stdout}\n"
+            f"STDERR:\n{proc.stderr}"
+        )
+
+        # Verify that the output directory was created with results
+        output_dir = _find_output_dir(result_dir)
+        metadata = _read_metadata(output_dir)
+        assert (
+            len(metadata) == self._NUM_WORKERS
+        ), f"Expected {self._NUM_WORKERS} rows in metadata, got {len(metadata)}"
+
+
 class TestOutputFormatConsistency:
     """Verify output file formats match expectations.
 
