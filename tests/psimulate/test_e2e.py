@@ -281,6 +281,73 @@ class TestPsimulateRestart:
         assert len(draw_seed_pairs) == _EXPECTED_TOTAL_JOBS
 
 
+class TestPsimulateExpand:
+    """E2E tests for ``psimulate expand``."""
+
+    def test_expand_adds_draws_and_seeds(
+        self, shared_tmp_path: Path, slurm_project: str
+    ) -> None:
+        """Expand a completed run by adding draws and seeds, verify new jobs complete."""
+        _, output_dir = _run_basic_simulation(shared_tmp_path, slurm_project)
+
+        # Verify initial completion: 2 draws x 2 seeds = 4 jobs
+        metadata = _read_metadata(output_dir)
+        assert len(metadata) == _EXPECTED_TOTAL_JOBS
+        initial_draws = set(metadata["input_draw"])
+        initial_seeds = set(metadata["random_seed"])
+
+        # Expand by adding 1 draw and 1 seed.
+        # New jobs: (1 new draw x 2 old seeds) + (3 total draws x 1 new seed) = 2 + 3 = 5
+        # Total: 4 original + 5 new = 9
+        proc = _run_psimulate(
+            [
+                "expand",
+                str(output_dir),
+                "--add-draws",
+                "1",
+                "--add-seeds",
+                "1",
+                "-P",
+                slurm_project,
+                "-r",
+                "00:30:00",
+                "-m",
+                "1",
+                "-w",
+                str(_EXPECTED_TOTAL_JOBS),
+            ]
+        )
+        assert proc.returncode == 0, (
+            f"psimulate expand failed.\nSTDOUT:\n{proc.stdout}\nSTDERR:\n{proc.stderr}"
+        )
+
+        metadata = _read_metadata(output_dir)
+        expected_total = 9  # 3 draws x 3 seeds
+        assert len(metadata) == expected_total, (
+            f"Expected {expected_total} rows after expand, got {len(metadata)}"
+        )
+
+        # Verify we have 3 distinct draws (original 2 + 1 new)
+        expanded_draws = set(metadata["input_draw"])
+        assert len(expanded_draws) == 3, (
+            f"Expected 3 distinct draws, got {len(expanded_draws)}: {expanded_draws}"
+        )
+        new_draws = expanded_draws - initial_draws
+        assert len(new_draws) == 1, f"Expected 1 new draw, got {new_draws}"
+
+        # Verify we have 3 distinct seeds (original 2 + 1 new)
+        expanded_seeds = set(metadata["random_seed"])
+        assert len(expanded_seeds) == 3, (
+            f"Expected 3 distinct seeds, got {len(expanded_seeds)}: {expanded_seeds}"
+        )
+        new_seeds = expanded_seeds - initial_seeds
+        assert len(new_seeds) == 1, f"Expected 1 new seed, got {new_seeds}"
+
+        # Every draw/seed pair should be unique
+        draw_seed_pairs = metadata[["input_draw", "random_seed"]].drop_duplicates()
+        assert len(draw_seed_pairs) == expected_total
+
+
 class TestOutputFormatConsistency:
     """Verify output file formats match expectations.
 
