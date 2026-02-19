@@ -162,6 +162,18 @@ def _read_metadata(output_dir: Path) -> pd.DataFrame:
     return pd.read_csv(metadata_path)
 
 
+def _common_slurm_args(slurm_project: str) -> list[str]:
+    """Return common SLURM-related CLI arguments used across tests."""
+    return [
+        "-P",
+        slurm_project,
+        "-r",
+        "00:03:00",
+        "-m",
+        "1",
+    ]
+
+
 def _run_basic_simulation(
     tmp_path: Path,
     slurm_project: str,
@@ -181,12 +193,7 @@ def _run_basic_simulation(
         str(_BRANCHES),
         "-o",
         str(result_dir),
-        "-P",
-        slurm_project,
-        "-r",
-        "00:03:00",
-        "-m",
-        "1",
+        *_common_slurm_args(slurm_project),
         "-w",
         str(_EXPECTED_TOTAL_JOBS),
     ]
@@ -268,12 +275,7 @@ class TestPsimulateRun:
                 str(_BRANCHES),
                 "-o",
                 str(result_dir),
-                "-P",
-                slurm_project,
-                "-r",
-                "00:03:00",
-                "-m",
-                "1",
+                *_common_slurm_args(slurm_project),
                 "-w",
                 "2",  # Limit to 2 concurrent workers for 4 jobs
             ]
@@ -318,12 +320,7 @@ class TestPsimulateRestart:
             [
                 "restart",
                 str(output_dir),
-                "-P",
-                slurm_project,
-                "-r",
-                "00:03:00",
-                "-m",
-                "1",
+                *_common_slurm_args(slurm_project),
                 "-w",
                 str(_EXPECTED_TOTAL_JOBS),
             ]
@@ -365,12 +362,7 @@ class TestPsimulateExpand:
                 "1",
                 "--add-seeds",
                 "1",
-                "-P",
-                slurm_project,
-                "-r",
-                "00:03:00",
-                "-m",
-                "1",
+                *_common_slurm_args(slurm_project),
                 "-w",
                 str(_EXPECTED_TOTAL_JOBS),
             ]
@@ -426,8 +418,7 @@ class TestPsimulateLoadTest:
                 str(self._NUM_WORKERS),
                 "-o",
                 str(result_dir),
-                "-P",
-                slurm_project,
+                *_common_slurm_args(slurm_project),
                 "-w",
                 str(self._NUM_WORKERS),
             ],
