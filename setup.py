@@ -64,6 +64,7 @@ if __name__ == "__main__":
 
     test_requirements = [
         "vivarium_dependencies[pytest]",
+        "vivarium_testing_utils@pnast/feature/mic-6827-plugin-updates",
     ]
 
     doc_requirements = [
