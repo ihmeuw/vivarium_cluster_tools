@@ -209,7 +209,7 @@ class TestPsimulateRun:
         assert len(log_dirs) >= 1, "Expected at least one log directory"
 
     def test_run_with_max_workers(self, shared_tmp_path: Path, slurm_project: str) -> None:
-        """Verify that --max-workers is accepted and all jobs still complete."""
+        """Verify that --max-workers (-w) is accepted and all jobs still complete."""
         result_dir = shared_tmp_path / "results"
         result_dir.mkdir()
 
