@@ -20,16 +20,16 @@ preserves it (red/green TDD).
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 from typing import Any, Iterator
-import time
+
 import pandas as pd
 import pytest
-import os
-
 
 _DATA_DIR = Path(__file__).parent / "data"
 _MODEL_SPEC = _DATA_DIR / "e2e_model_spec.yaml"
@@ -246,7 +246,7 @@ class TestPsimulateRestart:
         # Delete metadata file and half of the result files.
         metadata_path = output_dir / "finished_sim_metadata.csv"
         metadata_path.unlink()
-        
+
         results_dir = output_dir / "results"
         if results_dir.exists():
             result_files = list(results_dir.iterdir())
@@ -317,29 +317,29 @@ class TestPsimulateExpand:
                 str(_EXPECTED_TOTAL_JOBS),
             ]
         )
-        assert proc.returncode == 0, (
-            f"psimulate expand failed.\nSTDOUT:\n{proc.stdout}\nSTDERR:\n{proc.stderr}"
-        )
+        assert (
+            proc.returncode == 0
+        ), f"psimulate expand failed.\nSTDOUT:\n{proc.stdout}\nSTDERR:\n{proc.stderr}"
 
         metadata = _read_metadata(output_dir)
         expected_total = 9  # 3 draws x 3 seeds
-        assert len(metadata) == expected_total, (
-            f"Expected {expected_total} rows after expand, got {len(metadata)}"
-        )
+        assert (
+            len(metadata) == expected_total
+        ), f"Expected {expected_total} rows after expand, got {len(metadata)}"
 
         # Verify we have 3 distinct draws (original 2 + 1 new)
         expanded_draws = set(metadata["input_draw"])
-        assert len(expanded_draws) == 3, (
-            f"Expected 3 distinct draws, got {len(expanded_draws)}: {expanded_draws}"
-        )
+        assert (
+            len(expanded_draws) == 3
+        ), f"Expected 3 distinct draws, got {len(expanded_draws)}: {expanded_draws}"
         new_draws = expanded_draws - initial_draws
         assert len(new_draws) == 1, f"Expected 1 new draw, got {new_draws}"
 
         # Verify we have 3 distinct seeds (original 2 + 1 new)
         expanded_seeds = set(metadata["random_seed"])
-        assert len(expanded_seeds) == 3, (
-            f"Expected 3 distinct seeds, got {len(expanded_seeds)}: {expanded_seeds}"
-        )
+        assert (
+            len(expanded_seeds) == 3
+        ), f"Expected 3 distinct seeds, got {len(expanded_seeds)}: {expanded_seeds}"
         new_seeds = expanded_seeds - initial_seeds
         assert len(new_seeds) == 1, f"Expected 1 new seed, got {new_seeds}"
 
