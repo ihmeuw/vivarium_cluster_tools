@@ -84,9 +84,7 @@ def main(argv: list[str] | None = None) -> None:
     logger.info(f"Running task {task_id} with command '{command}'")
 
     if command in (COMMANDS.run, COMMANDS.restart, COMMANDS.expand):
-        from vivarium_cluster_tools.psimulate.worker.vivarium_work_horse import (
-            work_horse,
-        )
+        from vivarium_cluster_tools.psimulate.worker.vivarium_work_horse import work_horse
 
         metadata_df, results_dict = work_horse(job_parameters, task_id=task_id)
     elif command == COMMANDS.load_test:

@@ -13,6 +13,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from jobmon.client.api import Tool
 from loguru import logger
 
 from vivarium_cluster_tools.psimulate.cluster.interface import NativeSpecification
@@ -77,7 +78,6 @@ def build_workflow(
     -------
         A ready-to-run Jobmon Workflow object.
     """
-    from jobmon.client.api import Tool
 
     python_path = shutil.which("python") or sys.executable
 
