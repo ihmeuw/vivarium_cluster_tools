@@ -8,8 +8,6 @@ Build and configure Jobmon workflows for psimulate runs.
 """
 
 import json
-import shutil
-import sys
 from pathlib import Path
 from typing import Any
 
@@ -78,14 +76,11 @@ def build_workflow(
     -------
         A ready-to-run Jobmon Workflow object.
     """
-
-    python_path = shutil.which("python") or sys.executable
-
     tool = Tool(name="vivarium_cluster_tools_psimulate")
     task_template = tool.get_task_template(
         template_name="psimulate_task",
         command_template=(
-            f"{python_path} -m vivarium_cluster_tools.psimulate.worker.task_runner "
+            f"python -m vivarium_cluster_tools.psimulate.worker.task_runner "
             "--job-spec-dir {job_spec_dir} "
             "--task-id {task_id} "
             "--results-dir {results_dir} "
