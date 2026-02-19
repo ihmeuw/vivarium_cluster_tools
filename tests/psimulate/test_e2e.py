@@ -208,6 +208,16 @@ class TestPsimulateRun:
         log_dirs = list((output_dir / "logs").iterdir())
         assert len(log_dirs) >= 1, "Expected at least one log directory"
 
+        # Verify results output from DeathsObserver
+        results_dir = output_dir / "results"
+        assert results_dir.exists()
+
+        deaths_dir = results_dir / "deaths"
+        assert deaths_dir.exists()
+
+        deaths_df = pd.read_parquet(deaths_dir)
+        assert not deaths_df.empty, "Deaths dataframe should not be empty"
+
     def test_run_with_max_workers(self, shared_tmp_path: Path, slurm_project: str) -> None:
         """Verify that --max-workers is accepted and all jobs still complete."""
         result_dir = shared_tmp_path / "results"

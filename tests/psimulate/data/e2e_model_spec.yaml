@@ -1,10 +1,15 @@
 # Minimal vivarium model specification for E2E testing.
-# Runs 2 time steps with 10 simulants -- completes in seconds.
-# No components, no data artifact, no results observers.
+# Runs 2 time steps with 10 simulants
+# Includes mortality component and observer for output format verification.
+# Mortality rate is set high (10% per time step) to ensure at least one death is likely.
 components:
     vivarium.examples.disease_model:
         population:
             - BasePopulation()
+        mortality:
+            - Mortality()
+        observer:
+            - DeathsObserver()
 configuration:
   time:
     start:
@@ -20,3 +25,5 @@ configuration:
     population_size: 10
   randomness:
     key_columns: []
+  mortality:
+    mortality_rate: 0.1
