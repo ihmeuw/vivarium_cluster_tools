@@ -38,9 +38,6 @@ def test_logging_level(mocker: MockerFixture, tmp_path: Path, log_level: int) ->
     mocker.patch(
         "vivarium_cluster_tools.psimulate.worker.vivarium_work_horse.get_sim_results"
     )
-    mocker.patch(
-        "vivarium_cluster_tools.psimulate.worker.vivarium_work_horse.format_and_record_details"
-    )
     with patch(
         "vivarium_cluster_tools.psimulate.worker.vivarium_work_horse.ParallelSimulationContext"
     ) as mock_parallel_sim:

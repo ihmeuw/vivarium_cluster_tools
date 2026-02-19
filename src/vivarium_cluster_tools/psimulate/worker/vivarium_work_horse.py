@@ -40,7 +40,7 @@ class ParallelSimulationContext(SimulationContext):
 def work_horse(
     job_parameters: JobParameters,
     task_id: str = "",
-) -> tuple[pd.DataFrame, dict[str, pd.DataFrame]]:
+) -> dict[str, pd.DataFrame]:
     node = f"{ENV_VARIABLES.HOSTNAME.value}"
     job = f"{ENV_VARIABLES.JOB_ID.value}:{ENV_VARIABLES.TASK_ID.value}"
 
@@ -60,10 +60,9 @@ def work_horse(
         results = get_sim_results(
             sim, job_parameters, start_snapshot, event, exec_time, task_id
         )
-        finished_results_metadata = format_and_record_details(job_parameters, results)
         remove_backups(backup_path)
 
-        return finished_results_metadata, results
+        return results
 
     except Exception:
         logger.exception("Unhandled exception in worker")
@@ -252,21 +251,6 @@ def do_sim_epilogue(
         )
     )
     logger.remove(perf_log)
-
-
-def format_and_record_details(
-    job_parameters: JobParameters, results: dict[str, pd.DataFrame]
-) -> pd.DataFrame:
-    """Add finished simulation details to results and metadata."""
-    finished_results_metadata = pd.DataFrame(index=[0])
-    for key, val in collapse_nested_dict(job_parameters.job_specific):
-        col_name = key.split(".")[-1]
-        for df in results.values():
-            # insert the new columns second from the right and use the
-            # last part of the key as the column name
-            df.insert(df.shape[1] - 1, col_name, val)
-        finished_results_metadata[key] = val
-    return finished_results_metadata
 
 
 def remove_backups(backup_path: Path) -> None:

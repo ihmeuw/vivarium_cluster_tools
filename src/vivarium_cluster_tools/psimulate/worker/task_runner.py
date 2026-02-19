@@ -32,10 +32,7 @@ from vivarium_cluster_tools.psimulate.results.writing import write_task_results
 from vivarium_cluster_tools.psimulate.worker.load_test_work_horse import (
     work_horse as load_test_work_horse,
 )
-from vivarium_cluster_tools.psimulate.worker.vivarium_work_horse import (
-    format_and_record_details,
-    work_horse,
-)
+from vivarium_cluster_tools.psimulate.worker.vivarium_work_horse import work_horse
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -91,10 +88,9 @@ def main(argv: list[str] | None = None) -> None:
     logger.info(f"Running task {task_id} with command '{command}'")
 
     if command in (COMMANDS.run, COMMANDS.restart, COMMANDS.expand):
-        metadata_df, results_dict = work_horse(job_parameters, task_id=task_id)
+        results_dict = work_horse(job_parameters, task_id=task_id)
     elif command == COMMANDS.load_test:
         results_df = load_test_work_horse(job_parameters, task_id=task_id)
-        metadata_df = format_and_record_details(job_parameters, {"load_test": results_df})
         results_dict = {"load_test": results_df}
     else:
         raise ValueError(f"Unknown command: {command}")
@@ -104,7 +100,7 @@ def main(argv: list[str] | None = None) -> None:
     write_task_results(
         results_dir=args.results_dir,
         task_id=task_id,
-        metadata_df=metadata_df,
+        job_parameters=job_parameters,
         results_dict=results_dict,
     )
     logger.info(f"Task {task_id} results written successfully.")
