@@ -48,36 +48,6 @@ def _write_job_spec(
         json.dump(spec, f, default=str)
 
 
-def _build_compute_resources(
-    native_specification: NativeSpecification,
-    cluster_logging_root: Path,
-) -> dict[str, Any]:
-    """Build the Jobmon compute resources dict from a NativeSpecification.
-
-    Notes
-    -----
-    * ``memory`` is passed in **GB** because the Jobmon SLURM plugin performs
-      its own GB → MB conversion internally.
-    * ``constraints`` is a pipe-separated string of SLURM feature names
-      (e.g. ``"r650|r650v2"``), included only when hardware is requested.
-    * ``standard_output`` and ``standard_error`` route SLURM stdout/stderr
-      to the cluster logs directory. The Jobmon SLURM plugin appends the
-      task name and SLURM job ID to these paths automatically.
-    """
-    resources: dict[str, Any] = {
-        "queue": native_specification.queue,
-        "project": native_specification.project,
-        "memory": native_specification.peak_memory,  # GB – Jobmon converts to MB
-        "runtime": _runtime_to_seconds(native_specification.max_runtime),
-        "cores": native_specification.NUM_THREADS,
-        "standard_output": str(cluster_logging_root),
-        "standard_error": str(cluster_logging_root),
-    }
-    if native_specification.hardware:
-        resources["constraints"] = "|".join(native_specification.hardware)
-    return resources
-
-
 def build_workflow(
     workflow_name: str,
     command: str,
@@ -128,8 +98,8 @@ def build_workflow(
         task_args=["job_spec_dir", "results_dir", "worker_log_dir"],
         op_args=[],
         default_cluster_name="slurm",
-        default_compute_resources=_build_compute_resources(
-            native_specification, output_paths.cluster_logging_root
+        default_compute_resources=native_specification.to_jobmon_spec(
+            output_paths.cluster_logging_root
         ),
     )
 
@@ -172,26 +142,3 @@ def build_workflow(
         f"(max {max_workers} concurrent)."
     )
     return workflow
-
-
-def _runtime_to_seconds(runtime_str: str) -> int:
-    """Convert HH:MM:SS runtime string to seconds.
-
-    Parameters
-    ----------
-    runtime_str
-        Runtime in HH:MM:SS format.
-
-    Returns
-    -------
-        Runtime in seconds.
-    """
-    parts = runtime_str.split(":")
-    if len(parts) == 3:
-        h, m, s = parts
-        return int(h) * 3600 + int(m) * 60 + int(s)
-    elif len(parts) == 2:
-        m, s = parts
-        return int(m) * 60 + int(s)
-    else:
-        return int(parts[0])
