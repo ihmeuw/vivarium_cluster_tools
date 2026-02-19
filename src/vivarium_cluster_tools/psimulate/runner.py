@@ -75,20 +75,16 @@ def try_run_vipin(output_paths: OutputPaths) -> None:
 
 
 def write_backup_metadata(
-    backup_metadata_path: Path, job_parameters_list: list[dict[str, Any]]
+    backup_metadata_path: Path, job_parameters_list: list[jobs.JobParameters]
 ) -> None:
     lookup_table = []
     for params in job_parameters_list:
-        job_dict = {
-            "input_draw": params["input_draw"],
-            "random_seed": params["random_seed"],
-            "job_id": jobs.generate_task_id(
-                params["input_draw"],
-                params["random_seed"],
-                params["branch_configuration"],
-            ),
+        job_dict: dict[str, Any] = {
+            "input_draw": params.input_draw,
+            "random_seed": params.random_seed,
+            "job_id": params.task_id,
         }
-        branch_config = collapse_nested_dict(params["branch_configuration"])
+        branch_config = collapse_nested_dict(params.branch_configuration)
         for k, v in branch_config:
             job_dict[k] = v
         lookup_table.append(job_dict)

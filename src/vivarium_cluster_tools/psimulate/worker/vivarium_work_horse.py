@@ -38,29 +38,29 @@ class ParallelSimulationContext(SimulationContext):
 
 
 def work_horse(
-    job_parameters: dict[str, Any],
+    job_parameters: JobParameters,
     task_id: str = "",
 ) -> tuple[pd.DataFrame, dict[str, pd.DataFrame]]:
     node = f"{ENV_VARIABLES.HOSTNAME.value}"
     job = f"{ENV_VARIABLES.JOB_ID.value}:{ENV_VARIABLES.TASK_ID.value}"
 
-    job_params = JobParameters(**job_parameters)
-
     logger.info(f"Launching new job {job} on {node}")
-    logger.info(f"Starting job: {job_params}")
+    logger.info(f"Starting job: {job_parameters}")
 
     try:
         start_snapshot = CounterSnapshot()
         event = {"start": time()}  # timestamps of application events
         logger.info("Beginning simulation setup.")
-        backup = get_backup(job_params, task_id)
+        backup = get_backup(job_parameters, task_id)
         if backup:
             sim, exec_time = get_sim_from_backup(event, backup)
         else:
-            sim, exec_time = initialize_new_sim(event, job_params)
-        backup_path = run_simulation(job_params, event, sim, exec_time, task_id)
-        results = get_sim_results(sim, job_params, start_snapshot, event, exec_time, task_id)
-        finished_results_metadata = format_and_record_details(job_params, results)
+            sim, exec_time = initialize_new_sim(event, job_parameters)
+        backup_path = run_simulation(job_parameters, event, sim, exec_time, task_id)
+        results = get_sim_results(
+            sim, job_parameters, start_snapshot, event, exec_time, task_id
+        )
+        finished_results_metadata = format_and_record_details(job_parameters, results)
         remove_backups(backup_path)
 
         return finished_results_metadata, results
@@ -69,7 +69,7 @@ def work_horse(
         logger.exception("Unhandled exception in worker")
         raise
     finally:
-        logger.info(f"Exiting job: {job_params}")
+        logger.info(f"Exiting job: {job_parameters}")
 
 
 def get_backup(

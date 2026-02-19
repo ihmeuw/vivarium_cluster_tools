@@ -26,6 +26,7 @@ from pathlib import Path
 from loguru import logger
 
 from vivarium_cluster_tools.psimulate import COMMANDS
+from vivarium_cluster_tools.psimulate.jobs import JobParameters
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -77,7 +78,7 @@ def main(argv: list[str] | None = None) -> None:
         job_spec = json.load(f)
 
     command = job_spec["command"]
-    job_parameters = job_spec["job_parameters"]
+    job_parameters = JobParameters(**job_spec["job_parameters"])
     task_id = args.task_id
 
     logger.info(f"Running task {task_id} with command '{command}'")
@@ -92,14 +93,12 @@ def main(argv: list[str] | None = None) -> None:
         from vivarium_cluster_tools.psimulate.worker.load_test_work_horse import (
             work_horse as load_test_work_horse,
         )
-        from vivarium_cluster_tools.psimulate.jobs import JobParameters
         from vivarium_cluster_tools.psimulate.worker.vivarium_work_horse import (
             format_and_record_details,
         )
 
         results_df = load_test_work_horse(job_parameters, task_id=task_id)
-        job_params = JobParameters(**job_parameters)
-        metadata_df = format_and_record_details(job_params, {"load_test": results_df})
+        metadata_df = format_and_record_details(job_parameters, {"load_test": results_df})
         results_dict = {"load_test": results_df}
     else:
         raise ValueError(f"Unknown command: {command}")

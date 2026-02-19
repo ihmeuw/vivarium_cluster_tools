@@ -16,15 +16,14 @@ from typing import Any
 from loguru import logger
 
 from vivarium_cluster_tools.psimulate.cluster.interface import NativeSpecification
-from vivarium_cluster_tools.psimulate.jobs import generate_task_id
+from vivarium_cluster_tools.psimulate.jobs import JobParameters
 from vivarium_cluster_tools.psimulate.paths import OutputPaths
 
 
 def _write_job_spec(
     job_spec_dir: Path,
-    task_id: str,
     command: str,
-    job_parameters: dict[str, Any],
+    job_parameters: JobParameters,
 ) -> None:
     """Write a job spec JSON file for a single task.
 
@@ -32,18 +31,16 @@ def _write_job_spec(
     ----------
     job_spec_dir
         Directory to write the job spec file.
-    task_id
-        The deterministic task ID.
     command
         The psimulate command (run, restart, expand, load_test).
     job_parameters
-        The job parameters dictionary.
+        The job parameters for this task.
     """
     spec = {
         "command": command,
-        "job_parameters": job_parameters,
+        "job_parameters": job_parameters.to_dict(),
     }
-    spec_path = job_spec_dir / f"{task_id}.json"
+    spec_path = job_spec_dir / f"{job_parameters.task_id}.json"
     with open(spec_path, "w") as f:
         json.dump(spec, f, default=str)
 
@@ -51,7 +48,7 @@ def _write_job_spec(
 def build_workflow(
     workflow_name: str,
     command: str,
-    job_parameters_list: list[dict[str, Any]],
+    job_parameters_list: list[JobParameters],
     output_paths: OutputPaths,
     native_specification: NativeSpecification,
     max_workers: int,
@@ -68,7 +65,7 @@ def build_workflow(
     command
         The psimulate command (run, restart, expand, load_test).
     job_parameters_list
-        List of job parameter dictionaries (one per task).
+        List of job parameters (one per task).
     output_paths
         The output paths container.
     native_specification
@@ -114,21 +111,15 @@ def build_workflow(
     # Write job specs and create tasks
     tasks = []
     for job_params in job_parameters_list:
-        task_id = generate_task_id(
-            input_draw=job_params["input_draw"],
-            random_seed=job_params["random_seed"],
-            branch_configuration=job_params["branch_configuration"],
-        )
         _write_job_spec(
             job_spec_dir=output_paths.job_spec_dir,
-            task_id=task_id,
             command=command,
             job_parameters=job_params,
         )
 
         task = task_template.create_task(
-            name=f"psim_{task_id[:12]}",
-            task_id=task_id,
+            name=f"psim_{job_params.task_id[:12]}",
+            task_id=job_params.task_id,
             job_spec_dir=str(output_paths.job_spec_dir),
             results_dir=str(output_paths.results_dir),
             worker_log_dir=str(output_paths.worker_logging_root),

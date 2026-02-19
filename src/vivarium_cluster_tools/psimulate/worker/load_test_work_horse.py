@@ -9,7 +9,6 @@ Worker executable for doing load testing.
 
 import time
 from collections.abc import Callable
-from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -22,9 +21,9 @@ from vivarium_cluster_tools.psimulate.jobs import JobParameters
 LOAD_TEST_WORK_HORSE_IMPORT_PATH = f"{__name__}.work_horse"
 
 
-def get_psimulate_test_dict() -> dict[
-    str, dict[str, Callable[[JobParameters], pd.DataFrame] | str | int]
-]:
+def get_psimulate_test_dict() -> (
+    dict[str, dict[str, Callable[[JobParameters], pd.DataFrame] | str | int]]
+):
     return {
         "sleep": {
             "function": sleep_test,
@@ -59,23 +58,21 @@ def large_results_test(job_parameters: JobParameters) -> pd.DataFrame:
     return pd.DataFrame(np.random.random(10_000_000).reshape((1_000_000, 10)))
 
 
-def work_horse(job_parameters: dict[str, Any], task_id: str = "") -> pd.DataFrame:
+def work_horse(job_parameters: JobParameters, task_id: str = "") -> pd.DataFrame:
     node = f"{ENV_VARIABLES.HOSTNAME.value}"
     job = f"{ENV_VARIABLES.JOB_ID.value}:{ENV_VARIABLES.TASK_ID.value}"
 
-    job_params = JobParameters(**job_parameters)
-
-    test_type = job_params.extras["test_type"]
+    test_type = job_parameters.extras["test_type"]
     test_runner = get_psimulate_test_dict()[test_type]["function"]
 
     logger.info(f"Launching new job {job} on {node}")
-    logger.info(f"Starting job: {job_params}")
+    logger.info(f"Starting job: {job_parameters}")
     if not callable(test_runner):
         raise ValueError(f"Test runner for {test_type} is not callable: {test_runner}")
     try:
-        return test_runner(job_params)
+        return test_runner(job_parameters)
     except Exception:
         logger.exception("Unhandled exception in worker")
         raise
     finally:
-        logger.info(f"Exiting job: {job_params}")
+        logger.info(f"Exiting job: {job_parameters}")
