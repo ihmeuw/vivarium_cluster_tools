@@ -20,6 +20,7 @@ Usage::
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -27,6 +28,14 @@ from loguru import logger
 
 from vivarium_cluster_tools.psimulate import COMMANDS
 from vivarium_cluster_tools.psimulate.jobs import JobParameters
+from vivarium_cluster_tools.psimulate.results.writing import write_task_results
+from vivarium_cluster_tools.psimulate.worker.load_test_work_horse import (
+    work_horse as load_test_work_horse,
+)
+from vivarium_cluster_tools.psimulate.worker.vivarium_work_horse import (
+    format_and_record_details,
+    work_horse,
+)
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -68,8 +77,6 @@ def main(argv: list[str] | None = None) -> None:
     logger.add(log_file, level="DEBUG")
 
     # Set VIVARIUM_LOGGING_DIRECTORY for performance logging inside work horses
-    import os
-
     os.environ["VIVARIUM_LOGGING_DIRECTORY"] = str(args.worker_log_dir)
 
     job_spec_path = args.job_spec_dir / f"{args.task_id}.json"
@@ -84,17 +91,8 @@ def main(argv: list[str] | None = None) -> None:
     logger.info(f"Running task {task_id} with command '{command}'")
 
     if command in (COMMANDS.run, COMMANDS.restart, COMMANDS.expand):
-        from vivarium_cluster_tools.psimulate.worker.vivarium_work_horse import work_horse
-
         metadata_df, results_dict = work_horse(job_parameters, task_id=task_id)
     elif command == COMMANDS.load_test:
-        from vivarium_cluster_tools.psimulate.worker.load_test_work_horse import (
-            work_horse as load_test_work_horse,
-        )
-        from vivarium_cluster_tools.psimulate.worker.vivarium_work_horse import (
-            format_and_record_details,
-        )
-
         results_df = load_test_work_horse(job_parameters, task_id=task_id)
         metadata_df = format_and_record_details(job_parameters, {"load_test": results_df})
         results_dict = {"load_test": results_df}
@@ -102,8 +100,6 @@ def main(argv: list[str] | None = None) -> None:
         raise ValueError(f"Unknown command: {command}")
 
     logger.info(f"Task {task_id} completed, writing results.")
-
-    from vivarium_cluster_tools.psimulate.results.writing import write_task_results
 
     write_task_results(
         results_dir=args.results_dir,

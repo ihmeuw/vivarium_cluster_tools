@@ -22,7 +22,6 @@ which automatically combines all parquet files in the directory.
 from pathlib import Path
 
 import pandas as pd
-from loguru import logger
 
 
 def write_task_results(
