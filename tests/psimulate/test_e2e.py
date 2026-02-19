@@ -219,7 +219,7 @@ class TestPsimulateRun:
         assert not deaths_df.empty
 
     def test_run_with_max_workers(self, shared_tmp_path: Path, slurm_project: str) -> None:
-        """Verify that --max-workers is accepted and all jobs still complete."""
+        """Verify that --max-workers (-w) is accepted and all jobs still complete."""
         result_dir = shared_tmp_path / "results"
         result_dir.mkdir()
 
