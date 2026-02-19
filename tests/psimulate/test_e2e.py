@@ -216,7 +216,7 @@ class TestPsimulateRun:
         assert deaths_dir.exists()
 
         deaths_df = pd.read_parquet(deaths_dir)
-        assert not deaths_df.empty, "Deaths dataframe should not be empty"
+        assert not deaths_df.empty
 
     def test_run_with_max_workers(self, shared_tmp_path: Path, slurm_project: str) -> None:
         """Verify that --max-workers is accepted and all jobs still complete."""
