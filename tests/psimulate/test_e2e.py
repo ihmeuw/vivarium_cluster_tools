@@ -49,6 +49,26 @@ RESULTS_DIR = "/mnt/team/simulation_science/priv/engineering/tests/output/"
 pytestmark = [pytest.mark.cluster, pytest.mark.slow]
 
 
+def _make_shared_tmp_dir() -> Path:
+    """Create a temporary directory on the shared filesystem."""
+    dir_str = tempfile.mkdtemp(dir=RESULTS_DIR)
+    os.chmod(dir_str, os.stat(RESULTS_DIR).st_mode)
+    return Path(dir_str)
+
+
+def _cleanup_dir(path: Path) -> None:
+    """Try up to 10 times to remove a directory tree.
+
+    NOTE: There are times where the directory is not removed even after
+    several attempts with a rest between them.  Typically the dir is empty.
+    """
+    for _ in range(10):
+        if not path.exists():
+            break
+        time.sleep(1)
+        shutil.rmtree(path, ignore_errors=True)
+
+
 @pytest.fixture
 def shared_tmp_path() -> Iterator[Path]:
     """Temporary directory on a shared filesystem visible to all cluster nodes.
@@ -59,22 +79,40 @@ def shared_tmp_path() -> Iterator[Path]:
     a temporary directory under the user's home directory (which lives
     on the shared ``/ihme`` filesystem) and cleans it up after the test.
     """
-    results_dir_str = tempfile.mkdtemp(dir=RESULTS_DIR)
-    # give the dir the same permissions as the parent directory so that cluster jobs
-    # can write to it
-    os.chmod(results_dir_str, os.stat(RESULTS_DIR).st_mode)
-    results_dir = Path(results_dir_str)
+    results_dir = _make_shared_tmp_dir()
     yield results_dir
+    _cleanup_dir(results_dir)
 
-    # Try 10 times to delete the dir.
-    # NOTE: There seems to be times where the directory is not removed (even after
-    # the several attempts with a rest between them). Typically the dir is empty.
-    for _ in range(10):
-        if not results_dir.exists():
-            break  # the dir has been removed
-        # Take a quick nap to ensure processes are finished with the directory
-        time.sleep(1)
-        shutil.rmtree(results_dir)
+
+@pytest.fixture(scope="module")
+def completed_sim_output(request: pytest.FixtureRequest) -> Iterator[Path]:
+    """Run the basic simulation once for the entire test module.
+
+    This avoids duplicating the expensive ``psimulate run`` for every test
+    that needs a completed simulation as a prerequisite (restart, expand, etc.).
+    The yielded path is the timestamped output directory and should be treated
+    as **read-only** by consumers.
+    """
+    slurm_project = str(request.config.getoption("--slurm-project"))
+    tmp_path = _make_shared_tmp_dir()
+    _, output_dir = _run_basic_simulation(tmp_path, slurm_project)
+    yield output_dir
+    _cleanup_dir(tmp_path)
+
+
+@pytest.fixture
+def completed_sim_copy(completed_sim_output: Path) -> Iterator[Path]:
+    """Provide an isolated deep-copy of a completed simulation run.
+
+    Tests that mutate the output directory (restart deletes files, expand adds
+    jobs) should use this fixture instead of ``completed_sim_output`` directly
+    so that each test starts from a pristine completed state.
+    """
+    copy_root = _make_shared_tmp_dir()
+    copy_dir = copy_root / "output"
+    shutil.copytree(completed_sim_output, copy_dir)
+    yield copy_dir
+    _cleanup_dir(copy_root)
 
 
 @pytest.fixture
@@ -171,9 +209,9 @@ def _run_basic_simulation(
 class TestPsimulateRun:
     """E2E tests for ``psimulate run``."""
 
-    def test_basic_run(self, shared_tmp_path: Path, slurm_project: str) -> None:
+    def test_basic_run(self, completed_sim_output: Path) -> None:
         """Run a minimal simulation and verify output files are created."""
-        proc, output_dir = _run_basic_simulation(shared_tmp_path, slurm_project)
+        output_dir = completed_sim_output
 
         # Verify metadata file
         metadata = _read_metadata(output_dir)
@@ -253,10 +291,10 @@ class TestPsimulateRestart:
     """E2E tests for ``psimulate restart``."""
 
     def test_restart_completes_remaining(
-        self, shared_tmp_path: Path, slurm_project: str
+        self, completed_sim_copy: Path, slurm_project: str
     ) -> None:
         """Delete partial outputs, restart, and verify only missing jobs re-run."""
-        _, output_dir = _run_basic_simulation(shared_tmp_path, slurm_project)
+        output_dir = completed_sim_copy
 
         # Verify initial completion
         metadata = _read_metadata(output_dir)
@@ -305,10 +343,10 @@ class TestPsimulateExpand:
     """E2E tests for ``psimulate expand``."""
 
     def test_expand_adds_draws_and_seeds(
-        self, shared_tmp_path: Path, slurm_project: str
+        self, completed_sim_copy: Path, slurm_project: str
     ) -> None:
         """Expand a completed run by adding draws and seeds, verify new jobs complete."""
-        _, output_dir = _run_basic_simulation(shared_tmp_path, slurm_project)
+        output_dir = completed_sim_copy
 
         # Verify initial completion: 2 draws x 2 seeds = 4 jobs
         metadata = _read_metadata(output_dir)
@@ -371,10 +409,8 @@ class TestPsimulateExpand:
 class TestPsimulateLoadTest:
     """E2E tests for ``psimulate test``."""
 
-    # Number of workers to use for the load test (keep small for speed)
+    # Number of workers to use for the load test
     _NUM_WORKERS = 2
-    # large_results_test sleeps for 30s per worker, so allow generous timeout
-    _LOAD_TEST_TIMEOUT = _TIMEOUT
 
     @pytest.mark.xfail(reason="large_results load test currently failing")
     def test_large_results(self, shared_tmp_path: Path, slurm_project: str) -> None:
@@ -395,7 +431,7 @@ class TestPsimulateLoadTest:
                 "-w",
                 str(self._NUM_WORKERS),
             ],
-            timeout=self._LOAD_TEST_TIMEOUT,
+            timeout=_TIMEOUT,
         )
         assert proc.returncode == 0, (
             f"psimulate test large_results failed.\n"
