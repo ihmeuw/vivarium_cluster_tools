@@ -26,7 +26,7 @@ import subprocess
 import tempfile
 import time
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Iterator
 
 import pandas as pd
 import pytest
@@ -59,11 +59,11 @@ def shared_tmp_path() -> Iterator[Path]:
     a temporary directory under the user's home directory (which lives
     on the shared ``/ihme`` filesystem) and cleans it up after the test.
     """
-    results_dir = tempfile.mkdtemp(dir=RESULTS_DIR)
+    results_dir_str = tempfile.mkdtemp(dir=RESULTS_DIR)
     # give the dir the same permissions as the parent directory so that cluster jobs
     # can write to it
-    os.chmod(results_dir, os.stat(RESULTS_DIR).st_mode)
-    results_dir = Path(results_dir)
+    os.chmod(results_dir_str, os.stat(RESULTS_DIR).st_mode)
+    results_dir = Path(results_dir_str)
     yield results_dir
 
     # Try 10 times to delete the dir.
@@ -78,9 +78,9 @@ def shared_tmp_path() -> Iterator[Path]:
 
 
 @pytest.fixture
-def slurm_project(request: Any) -> str:
+def slurm_project(request: pytest.FixtureRequest) -> str:
     """SLURM project for cluster tests, from --slurm-project CLI option."""
-    return request.config.getoption("--slurm-project")
+    return str(request.config.getoption("--slurm-project"))
 
 
 def _run_psimulate(
