@@ -26,6 +26,9 @@ def _write_metadata(
 ) -> None:
     """Write a metadata JSON file for a single task.
 
+    The metadata file serializes the job parameters for the workhorse script to pick up,
+    and also serves as the reference for restart and expand metadata.
+
     Parameters
     ----------
     metadata_dir
@@ -52,7 +55,7 @@ def build_workflow(
     native_specification: NativeSpecification,
     max_workers: int,
 ) -> Any:
-    """Build a Jobmon workflow for a psimulate run.
+    """Build a Jobmon workflow for a psimulate command.
 
     Creates a Jobmon Tool, TaskTemplate, and one Task per job. Also writes
     metadata JSON files to ``output_paths.metadata_dir``.
