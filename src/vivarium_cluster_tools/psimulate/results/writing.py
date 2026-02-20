@@ -78,10 +78,10 @@ def write_task_results(
     results_dict
         Dictionary mapping metric names to results DataFrames.
     """
-    # Write one parquet per metric, injecting job-specific columns
     for metric, df in results_dict.items():
         metric_dir = results_dir / metric
         metric_dir.mkdir(parents=True, exist_ok=True)
+        # inject job-specific columns
         for key, val in collapse_nested_dict(job_parameters.job_specific):
             col_name = key.split(".")[-1]
             df.insert(df.shape[1] - 1, col_name, val)
@@ -160,18 +160,3 @@ def collect_metadata(metadata_dir: Path, results_dir: Path) -> pd.DataFrame:
             row[key] = val
         rows.append(row)
     return pd.DataFrame(rows)
-
-
-def count_completed_tasks(results_dir: Path) -> int:
-    """Count completed tasks by counting unique task IDs with result parquet files.
-
-    Parameters
-    ----------
-    results_dir
-        The results directory.
-
-    Returns
-    -------
-        Number of completed tasks.
-    """
-    return len(_get_completed_task_ids(results_dir))

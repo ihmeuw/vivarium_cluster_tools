@@ -11,6 +11,7 @@ from vivarium_cluster_tools.psimulate.results.writing import (
     collect_metadata,
     count_completed_tasks,
     write_task_results,
+    write_metadata,
 )
 
 
@@ -26,17 +27,6 @@ def _make_job_parameters(
         backup_configuration={},
         extras={},
     )
-
-
-def _write_metadata_json(metadata_dir: Path, task_id: str, job_params: JobParameters) -> None:
-    """Helper to write a metadata JSON file as the workflow builder would."""
-    metadata_dir.mkdir(parents=True, exist_ok=True)
-    spec = {
-        "command": "run",
-        "job_parameters": job_params.to_dict(),
-    }
-    with open(metadata_dir / f"{task_id}.json", "w") as f:
-        json.dump(spec, f, default=str)
 
 
 @pytest.fixture
@@ -126,7 +116,7 @@ class TestCollectMetadata:
         # Create metadata JSONs for 3 tasks
         for i, tid in enumerate(["task_a", "task_b", "task_c"]):
             params = _make_job_parameters(input_draw=i, random_seed=i * 10)
-            _write_metadata_json(metadata_dir, tid, params)
+            write_metadata(metadata_dir, tid, params)
 
         # Only task_a and task_c have result parquets
         metric_dir = results_dir / "deaths"
@@ -145,7 +135,7 @@ class TestCollectMetadata:
             random_seed=99,
             branch_configuration={"scenario": {"treatment": "A"}},
         )
-        _write_metadata_json(metadata_dir, "branch_task", params)
+        write_metadata(metadata_dir, "branch_task", params)
 
         metric_dir = results_dir / "metric"
         metric_dir.mkdir(parents=True)
@@ -167,23 +157,3 @@ class TestCollectMetadata:
 
         result = collect_metadata(metadata_dir, results_dir)
         assert result.empty
-
-
-class TestCountCompletedTasks:
-    def test_no_tasks(self, results_dir: Path) -> None:
-        assert count_completed_tasks(results_dir) == 0
-
-    def test_counts_unique_task_ids(self, results_dir: Path) -> None:
-        """Count is based on unique task IDs across all metric directories."""
-        # task_a has results in two metrics, task_b in one
-        for metric in ["deaths", "ylls"]:
-            metric_dir = results_dir / metric
-            metric_dir.mkdir(parents=True)
-            pd.DataFrame({"v": [1]}).to_parquet(metric_dir / "task_a.parquet")
-        pd.DataFrame({"v": [1]}).to_parquet(results_dir / "deaths" / "task_b.parquet")
-
-        # Should count 2 unique tasks, not 3 files
-        assert count_completed_tasks(results_dir) == 2
-
-    def test_nonexistent_results_dir(self, tmp_path: Path) -> None:
-        assert count_completed_tasks(tmp_path / "nonexistent") == 0
