@@ -45,7 +45,9 @@ def metadata_dir(tmp_path: Path) -> Path:
 class TestWriteMetadata:
     def test_creates_json_file(self, metadata_dir: Path) -> None:
         """write_metadata creates a JSON file named after the task_id."""
-        job_params = _make_job_parameters(input_draw=3, random_seed=7)
+        job_params = _make_job_parameters(
+            input_draw=3, random_seed=7, branch_configuration={"scenario": "baseline"}
+        )
         write_metadata(metadata_dir, job_params)
 
         expected_path = metadata_dir / f"{job_params.task_id}.json"
@@ -55,8 +57,8 @@ class TestWriteMetadata:
             spec = json.load(f)
 
         assert spec["model_specification"] == "test_model_spec.yaml"
-        assert spec["input_draw"] == 1
-        assert spec["random_seed"] == 42
+        assert spec["input_draw"] == 3
+        assert spec["random_seed"] == 7
         assert spec["branch_configuration"] == {"scenario": "baseline"}
         assert spec["results_path"] == "~/tmp"
 
