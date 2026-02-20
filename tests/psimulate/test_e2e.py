@@ -233,8 +233,8 @@ class TestPsimulateRun:
         assert pd.api.types.is_numeric_dtype(metadata["random_seed"])
 
         # Verify all draw/seed combinations are unique
-        draw_seed_pairs = metadata[["input_draw", "random_seed"]].drop_duplicates()
-        assert len(draw_seed_pairs) == _EXPECTED_TOTAL_JOBS
+        metadata_draw_seed_pairs = metadata[["input_draw", "random_seed"]].drop_duplicates()
+        assert len(metadata_draw_seed_pairs) == _EXPECTED_TOTAL_JOBS
 
         # Verify supporting output files exist
         assert (output_dir / "model_specification.yaml").exists()
@@ -261,7 +261,26 @@ class TestPsimulateRun:
         assert deaths_dir.exists()
 
         deaths_df = pd.read_parquet(deaths_dir)
-        assert not deaths_df.empty
+
+        assert "input_draw" in deaths_df.columns
+        assert "random_seed" in deaths_df.columns
+
+        deaths_combinations = deaths_df[["input_draw", "random_seed"]].drop_duplicates()
+
+        assert len(deaths_combinations) == _EXPECTED_TOTAL_JOBS, (
+            f"Expected results for {_EXPECTED_TOTAL_JOBS} draw/seed combinations, "
+            f"got {len(deaths_combinations)}"
+        )
+
+        # Verify the specific combinations match the metadata
+        pd.testing.assert_frame_equal(
+            deaths_combinations.sort_values(["input_draw", "random_seed"]).reset_index(
+                drop=True
+            ),
+            metadata_draw_seed_pairs.sort_values(["input_draw", "random_seed"]).reset_index(
+                drop=True
+            ),
+        )
 
     def test_run_with_max_workers(self, shared_tmp_path: Path, slurm_project: str) -> None:
         """Verify that --max-workers (-w) is accepted and all jobs still complete."""
