@@ -3,12 +3,14 @@
 Results Writing
 ================
 
-Simple per-task result writing. Each worker writes one parquet file per metric
-directly to the results directory.
+Simple per-task result writing. The workflow script serializes metadata JSON files for the worker to pick up.
+Each worker writes one parquet file per metric directly to the results directory.
 
 Directory structure::
 
     results/
+        metadata/
+            {task_id}.json
         {metric_name}/
             {task_id}.parquet
 
@@ -16,7 +18,7 @@ Reading all results for a metric is simply ``pd.read_parquet(results_dir / metri
 which automatically combines all parquet files in the directory.
 
 Task completion is determined by the existence of result parquet files.
-Metadata for completed tasks is read from the pre-written metadata JSON
+Metadata for completed tasks is read from the metadata JSON
 files in the metadata directory.
 
 """
@@ -33,7 +35,6 @@ from vivarium_cluster_tools.psimulate.jobs import JobParameters
 
 def write_metadata(
     metadata_dir: Path,
-    command: str,
     job_parameters: JobParameters,
 ) -> None:
     """Write a metadata JSON file for a single task.
@@ -45,18 +46,12 @@ def write_metadata(
     ----------
     metadata_dir
         Directory to write the metadata file.
-    command
-        The psimulate command (run, restart, expand, load_test).
     job_parameters
         The job parameters for this task.
     """
-    spec = {
-        "command": command,
-        "job_parameters": job_parameters.to_dict(),
-    }
     spec_path = metadata_dir / f"{job_parameters.task_id}.json"
     with open(spec_path, "w") as f:
-        json.dump(spec, f, default=str)
+        json.dump(job_parameters.to_dict(), f, default=str)
 
 
 def write_task_results(
@@ -147,8 +142,7 @@ def collect_metadata(metadata_dir: Path, results_dir: Path) -> pd.DataFrame:
             )
             continue
         with open(metadata_path) as f:
-            metadata = json.load(f)
-        job_params = metadata["job_parameters"]
+            job_params = json.load(f)
         # Build flattened job_specific dict matching what already_complete() expects
         job_specific = {
             **job_params.get("branch_configuration", {}),
