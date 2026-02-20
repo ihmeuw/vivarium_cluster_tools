@@ -80,6 +80,7 @@ def build_workflow(
     task_template = tool.get_task_template(
         template_name="psimulate_task",
         command_template=(
+            # task runner to come as workhorse wrapper
             f"python -m vivarium_cluster_tools.psimulate.worker.task_runner "
             "--metadata-dir {metadata_dir} "
             "--task-id {task_id} "
