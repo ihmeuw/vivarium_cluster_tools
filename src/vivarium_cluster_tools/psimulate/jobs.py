@@ -40,7 +40,7 @@ def generate_task_id(
 
     Returns
     -------
-        A hex string of the first 16 bytes (32 hex chars) of the SHA-256 hash.
+        A hex string of the first 8 bytes (16 hex chars) of the SHA-256 hash.
     """
     canonical = json.dumps(
         {
@@ -51,7 +51,7 @@ def generate_task_id(
         sort_keys=True,
         separators=(",", ":"),
     )
-    return hashlib.sha256(canonical.encode()).hexdigest()[:32]
+    return hashlib.sha256(canonical.encode()).hexdigest()[:16]
 
 
 class JobParameters(NamedTuple):

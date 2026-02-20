@@ -51,9 +51,9 @@ class TestGenerateTaskId:
         assert id1 != id2
 
     def test_length(self) -> None:
-        """Task ID is 32 hex characters."""
+        """Task ID is 16 hex characters."""
         task_id = generate_task_id(0, 0, {})
-        assert len(task_id) == 32
+        assert len(task_id) == 16
         assert all(c in "0123456789abcdef" for c in task_id)
 
     def test_key_order_insensitive(self) -> None:
