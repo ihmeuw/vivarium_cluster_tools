@@ -25,9 +25,7 @@ def generate_task_id(
     """Generate a deterministic task ID from job-specific parameters.
 
     Uses SHA-256 hash of canonical JSON serialization of the job-specific
-    parameters (input_draw, random_seed, branch_configuration). This ensures
-    that the same job always gets the same task ID across restarts, enabling
-    Jobmon to skip already-completed tasks.
+    parameters (input_draw, random_seed, branch_configuration).
 
     Parameters
     ----------
