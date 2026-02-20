@@ -19,17 +19,17 @@ from vivarium_cluster_tools.psimulate.jobs import JobParameters
 from vivarium_cluster_tools.psimulate.paths import OutputPaths
 
 
-def _write_job_spec(
-    job_spec_dir: Path,
+def _write_metadata(
+    metadata_dir: Path,
     command: str,
     job_parameters: JobParameters,
 ) -> None:
-    """Write a job spec JSON file for a single task.
+    """Write a metadata JSON file for a single task.
 
     Parameters
     ----------
-    job_spec_dir
-        Directory to write the job spec file.
+    metadata_dir
+        Directory to write the metadata file.
     command
         The psimulate command (run, restart, expand, load_test).
     job_parameters
@@ -39,7 +39,7 @@ def _write_job_spec(
         "command": command,
         "job_parameters": job_parameters.to_dict(),
     }
-    spec_path = job_spec_dir / f"{job_parameters.task_id}.json"
+    spec_path = metadata_dir / f"{job_parameters.task_id}.json"
     with open(spec_path, "w") as f:
         json.dump(spec, f, default=str)
 
@@ -55,7 +55,7 @@ def build_workflow(
     """Build a Jobmon workflow for a psimulate run.
 
     Creates a Jobmon Tool, TaskTemplate, and one Task per job. Also writes
-    job spec JSON files to ``output_paths.job_spec_dir``.
+    metadata JSON files to ``output_paths.metadata_dir``.
 
     Parameters
     ----------
@@ -80,15 +80,14 @@ def build_workflow(
     task_template = tool.get_task_template(
         template_name="psimulate_task",
         command_template=(
-            # task runner to come
             f"python -m vivarium_cluster_tools.psimulate.worker.task_runner "
-            "--job-spec-dir {job_spec_dir} "
+            "--metadata-dir {metadata_dir} "
             "--task-id {task_id} "
             "--results-dir {results_dir} "
             "--worker-log-dir {worker_log_dir}"
         ),
         node_args=["task_id"],
-        task_args=["job_spec_dir", "results_dir", "worker_log_dir"],
+        task_args=["metadata_dir", "results_dir", "worker_log_dir"],
         op_args=[],
         default_cluster_name="slurm",
         default_compute_resources=native_specification.to_jobmon_spec(
@@ -104,11 +103,11 @@ def build_workflow(
         default_max_attempts=3,
     )
 
-    # Write job specs and create tasks
+    # Write job spec metadata and create tasks
     tasks = []
     for job_params in job_parameters_list:
-        _write_job_spec(
-            job_spec_dir=output_paths.job_spec_dir,
+        _write_metadata(
+            metadata_dir=output_paths.metadata_dir,
             command=command,
             job_parameters=job_params,
         )
@@ -116,7 +115,7 @@ def build_workflow(
         task = task_template.create_task(
             name=f"psim_{job_params.task_id[:12]}",
             task_id=job_params.task_id,
-            job_spec_dir=str(output_paths.job_spec_dir),
+            metadata_dir=str(output_paths.metadata_dir),
             results_dir=str(output_paths.results_dir),
             worker_log_dir=str(output_paths.worker_logging_root),
         )
