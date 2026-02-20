@@ -70,12 +70,11 @@ def get_output_paths_from_output_directory(output_directory: Path) -> OutputPath
     output_paths = OutputPaths(
         root=output_directory,
         **logging_dirs,
-        job_spec_dir=output_directory / "job_specs",
+        metadata_dir=output_directory / "metadata",
         environment_file=output_directory / "requirements.txt",
         model_specification=output_directory / "model_specification.yaml",
         keyspace=output_directory / "keyspace.yaml",
         branches=output_directory / "branches.yaml",
-        finished_sim_metadata=output_directory / "finished_sim_metadata.csv",
         results_dir=output_directory / "results",
         backup_dir=output_directory / "sim_backups",
         backup_metadata_path=output_directory / "sim_backups" / "backup_metadata.csv",

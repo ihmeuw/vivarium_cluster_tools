@@ -4,26 +4,28 @@ Results Writing
 ================
 
 Simple per-task result writing. Each worker writes one parquet file per metric
-and one metadata JSON file directly to the results directory.
+directly to the results directory.
 
 Directory structure::
 
     results/
-        metadata/
-            {task_id}_metadata.json
         {metric_name}/
             {task_id}.parquet
 
 Reading all results for a metric is simply ``pd.read_parquet(results_dir / metric_name)``,
 which automatically combines all parquet files in the directory.
 
+Task completion is determined by the existence of result parquet files.
+Metadata for completed tasks is read from the pre-written metadata JSON
+files in the metadata directory.
+
 """
 
 import json
 from pathlib import Path
-from typing import Any
 
 import pandas as pd
+from loguru import logger
 from vivarium.framework.utilities import collapse_nested_dict
 
 from vivarium_cluster_tools.psimulate.jobs import JobParameters
@@ -48,15 +50,6 @@ def write_task_results(
     results_dict
         Dictionary mapping metric names to results DataFrames.
     """
-    # Write metadata as JSON from job-specific parameters
-    metadata_dir = results_dir / "metadata"
-    metadata_dir.mkdir(parents=True, exist_ok=True)
-    metadata: dict[str, Any] = {}
-    for key, val in collapse_nested_dict(job_parameters.job_specific):
-        metadata[key] = val
-    with open(metadata_dir / f"{task_id}_metadata.json", "w") as f:
-        json.dump(metadata, f)
-
     # Write one parquet per metric, injecting job-specific columns
     for metric, df in results_dict.items():
         metric_dir = results_dir / metric
@@ -67,46 +60,90 @@ def write_task_results(
         df.to_parquet(metric_dir / f"{task_id}.parquet")
 
 
-def collect_metadata(results_dir: Path) -> pd.DataFrame:
-    """Collect all per-task metadata JSON files into a single DataFrame.
+def _get_completed_task_ids(results_dir: Path) -> set[str]:
+    """Get task IDs that have result parquet files.
+
+    Scans all subdirectories of ``results_dir`` for ``.parquet`` files
+    and extracts the task IDs from their filenames (stems).
 
     Parameters
     ----------
     results_dir
-        The results directory containing a ``metadata/`` subdirectory.
+        The results directory.
 
     Returns
     -------
-        Combined metadata DataFrame, or an empty DataFrame if no metadata exists.
+        Set of task IDs with at least one result parquet file.
     """
-    metadata_dir = results_dir / "metadata"
-    if not metadata_dir.exists():
-        return pd.DataFrame()
+    if not results_dir.exists():
+        return set()
+    task_ids: set[str] = set()
+    for subdir in results_dir.iterdir():
+        if subdir.is_dir():
+            for parquet_file in subdir.glob("*.parquet"):
+                task_ids.add(parquet_file.stem)
+    return task_ids
 
-    json_files = sorted(metadata_dir.glob("*_metadata.json"))
-    if not json_files:
+
+def collect_metadata(metadata_dir: Path, results_dir: Path) -> pd.DataFrame:
+    """Collect metadata for completed tasks.
+
+    Determines which tasks completed by scanning for result parquet files
+    in ``results_dir``, then reads the corresponding metadata JSON files
+    from ``metadata_dir`` to build the metadata DataFrame.
+
+    Parameters
+    ----------
+    metadata_dir
+        The directory containing pre-written metadata JSON files
+        (one per task, written by the workflow builder).
+    results_dir
+        The results directory containing metric subdirectories with
+        parquet files.
+
+    Returns
+    -------
+        Combined metadata DataFrame with flattened job-specific parameters,
+        or an empty DataFrame if no completed tasks exist.
+    """
+    completed_task_ids = _get_completed_task_ids(results_dir)
+    if not completed_task_ids:
         return pd.DataFrame()
 
     rows = []
-    for f in json_files:
-        with open(f) as fh:
-            rows.append(json.load(fh))
+    for task_id in sorted(completed_task_ids):
+        metadata_path = metadata_dir / f"{task_id}.json"
+        if not metadata_path.exists():
+            logger.warning(
+                f"Metadata JSON for completed task {task_id} not found at {metadata_path}"
+            )
+            continue
+        with open(metadata_path) as f:
+            metadata = json.load(f)
+        job_params = metadata["job_parameters"]
+        # Build flattened job_specific dict matching what already_complete() expects
+        job_specific = {
+            **job_params.get("branch_configuration", {}),
+            "input_draw": job_params["input_draw"],
+            "random_seed": job_params["random_seed"],
+        }
+        row: dict = {}
+        for key, val in collapse_nested_dict(job_specific):
+            row[key] = val
+        rows.append(row)
     return pd.DataFrame(rows)
 
 
 def count_completed_tasks(results_dir: Path) -> int:
-    """Count completed tasks by counting metadata files.
+    """Count completed tasks by counting unique task IDs with result parquet files.
 
     Parameters
     ----------
     results_dir
-        The results directory containing a ``metadata/`` subdirectory.
+        The results directory.
 
     Returns
     -------
         Number of completed tasks.
     """
-    metadata_dir = results_dir / "metadata"
-    if not metadata_dir.exists():
-        return 0
-    return len(list(metadata_dir.glob("*_metadata.json")))
+    return len(_get_completed_task_ids(results_dir))

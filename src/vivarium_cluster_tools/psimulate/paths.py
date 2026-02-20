@@ -104,8 +104,8 @@ class OutputPaths(NamedTuple):
     worker_logging_root: Path
     """The root directory for worker logs."""
 
-    job_spec_dir: Path
-    """The directory for Jobmon task spec JSON files."""
+    metadata_dir: Path
+    """The directory for task metadata JSON files."""
 
     # Files
     # Environment configuration
@@ -121,8 +121,6 @@ class OutputPaths(NamedTuple):
     """The path to the simulation branches file."""
 
     # outputs
-    finished_sim_metadata: Path
-    """The path to the finished simulation metadata file."""
     results_dir: Path
     """The path to the results directory."""
     backup_dir: Path
@@ -225,12 +223,11 @@ class OutputPaths(NamedTuple):
         output_paths = OutputPaths(
             root=output_directory,
             **logging_dirs,
-            job_spec_dir=output_directory / "job_specs",
+            metadata_dir=output_directory / "metadata",
             environment_file=output_directory / "requirements.txt",
             model_specification=output_directory / "model_specification.yaml",
             keyspace=output_directory / "keyspace.yaml",
             branches=output_directory / "branches.yaml",
-            finished_sim_metadata=output_directory / "finished_sim_metadata.csv",
             results_dir=output_directory / "results",
             backup_dir=output_directory / "sim_backups",
             backup_metadata_path=output_directory / "sim_backups" / "backup_metadata.csv",
@@ -243,7 +240,7 @@ class OutputPaths(NamedTuple):
             self.root,
             self.results_dir,
             self.backup_dir,
-            self.job_spec_dir,
+            self.metadata_dir,
         ]:
             vct_utils.mkdir(dir, exists_ok=True, parents=True)
         for dir in [self.logging_root, self.cluster_logging_root, self.worker_logging_root]:

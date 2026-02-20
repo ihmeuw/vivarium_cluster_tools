@@ -158,7 +158,9 @@ def main(
 
     logger.info("Loading existing outputs if present.")
     # Collect existing metadata from per-task CSV files in results/metadata/
-    finished_sim_metadata = collect_metadata(output_paths.results_dir)
+    finished_sim_metadata = collect_metadata(
+        output_paths.metadata_dir, output_paths.results_dir
+    )
     if not finished_sim_metadata.empty:
         assert command in [
             COMMANDS.restart,

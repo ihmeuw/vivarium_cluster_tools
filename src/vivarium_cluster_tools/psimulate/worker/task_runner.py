@@ -3,15 +3,14 @@
 Jobmon Task Runner
 ========================
 
-CLI entry point for individual Jobmon tasks. Each task loads its job spec
+CLI entry point for individual Jobmon tasks. Each task loads its metadata
 JSON file, runs the appropriate work horse, and writes results directly
-to the results directory (one parquet per metric per task, one metadata
-CSV per task).
+to the results directory (one parquet per metric per task).
 
 Usage::
 
     python -m vivarium_cluster_tools.psimulate.worker.task_runner \
-        --job-spec-dir /path/to/job_specs \
+        --metadata-dir /path/to/metadata \
         --task-id <task_id> \
         --results-dir /path/to/results \
         --worker-log-dir /path/to/worker_logs
@@ -38,10 +37,10 @@ from vivarium_cluster_tools.psimulate.worker.vivarium_work_horse import work_hor
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run a single Jobmon task for psimulate.")
     parser.add_argument(
-        "--job-spec-dir",
+        "--metadata-dir",
         type=Path,
         required=True,
-        help="Directory containing job spec JSON files.",
+        help="Directory containing task metadata JSON files.",
     )
     parser.add_argument(
         "--task-id",
@@ -76,13 +75,13 @@ def main(argv: list[str] | None = None) -> None:
     # Set VIVARIUM_LOGGING_DIRECTORY for performance logging inside work horses
     os.environ["VIVARIUM_LOGGING_DIRECTORY"] = str(args.worker_log_dir)
 
-    job_spec_path = args.job_spec_dir / f"{args.task_id}.json"
-    logger.info(f"Loading job spec from {job_spec_path}")
-    with open(job_spec_path) as f:
-        job_spec = json.load(f)
+    metadata_path = args.metadata_dir / f"{args.task_id}.json"
+    logger.info(f"Loading task metadata from {metadata_path}")
+    with open(metadata_path) as f:
+        task_metadata = json.load(f)
 
-    command = job_spec["command"]
-    job_parameters = JobParameters(**job_spec["job_parameters"])
+    command = task_metadata["command"]
+    job_parameters = JobParameters(**task_metadata["job_parameters"])
     task_id = args.task_id
 
     logger.info(f"Running task {task_id} with command '{command}'")
