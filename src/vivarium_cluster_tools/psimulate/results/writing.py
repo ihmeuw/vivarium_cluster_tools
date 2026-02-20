@@ -31,6 +31,34 @@ from vivarium.framework.utilities import collapse_nested_dict
 from vivarium_cluster_tools.psimulate.jobs import JobParameters
 
 
+def write_metadata(
+    metadata_dir: Path,
+    command: str,
+    job_parameters: JobParameters,
+) -> None:
+    """Write a metadata JSON file for a single task.
+
+    The metadata file serializes the job parameters for the workhorse script to pick up,
+    and also serves as the reference for restart and expand metadata.
+
+    Parameters
+    ----------
+    metadata_dir
+        Directory to write the metadata file.
+    command
+        The psimulate command (run, restart, expand, load_test).
+    job_parameters
+        The job parameters for this task.
+    """
+    spec = {
+        "command": command,
+        "job_parameters": job_parameters.to_dict(),
+    }
+    spec_path = metadata_dir / f"{job_parameters.task_id}.json"
+    with open(spec_path, "w") as f:
+        json.dump(spec, f, default=str)
+
+
 def write_task_results(
     results_dir: Path,
     task_id: str,
