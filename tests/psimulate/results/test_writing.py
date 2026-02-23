@@ -2,6 +2,7 @@
 
 import json
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 import pytest
@@ -15,7 +16,9 @@ from vivarium_cluster_tools.psimulate.results.writing import (
 
 
 def _make_job_parameters(
-    input_draw: int = 1, random_seed: int = 42, branch_configuration: dict | None = None
+    input_draw: int = 1,
+    random_seed: int = 42,
+    branch_configuration: dict[str, Any] | None = None,
 ) -> JobParameters:
     return JobParameters(
         model_specification="test_model_spec.yaml",
