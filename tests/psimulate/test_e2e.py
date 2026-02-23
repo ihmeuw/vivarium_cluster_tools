@@ -215,6 +215,7 @@ def _run_basic_simulation(
 class TestPsimulateRun:
     """E2E tests for ``psimulate run``."""
 
+    @pytest.mark.xfail(reason="psimulate jobs on jenkins are not configured")
     def test_basic_run(self, completed_sim_output: Path) -> None:
         """Run a minimal simulation and verify output files are created."""
         output_dir = completed_sim_output
@@ -281,6 +282,7 @@ class TestPsimulateRun:
             ),
         )
 
+    @pytest.mark.xfail(reason="psimulate jobs on jenkins are not configured")
     def test_run_with_max_workers(self, shared_tmp_path: Path, slurm_project: str) -> None:
         """Verify that --max-workers (-w) is accepted and all jobs still complete."""
         result_dir = shared_tmp_path / "results"
@@ -310,6 +312,7 @@ class TestPsimulateRun:
 class TestPsimulateRestart:
     """E2E tests for ``psimulate restart``."""
 
+    @pytest.mark.xfail(reason="psimulate jobs on jenkins are not configured")
     def test_restart_completes_remaining(
         self, completed_sim_copy: Path, slurm_project: str
     ) -> None:
@@ -357,6 +360,7 @@ class TestPsimulateRestart:
 class TestPsimulateExpand:
     """E2E tests for ``psimulate expand``."""
 
+    @pytest.mark.xfail(reason="psimulate jobs on jenkins are not configured")
     def test_expand_adds_draws_and_seeds(
         self, completed_sim_copy: Path, slurm_project: str
     ) -> None:
