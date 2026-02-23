@@ -81,6 +81,7 @@ build-env: # Create a new environment with installed packages
 # 	Bootstrap vivarium_build_utils into the new environment
 	conda run -n $(name) pip install vivarium_build_utils
 	conda run -n $(name) make install
+	conda install redis -y
 
 	@echo
 	@echo "Finished building environment"
