@@ -20,7 +20,6 @@ def test_branch_config_immutable() -> None:
 
 
 class TestGenerateTaskId:
-
     @property
     def branch_config(self) -> dict:
         return {"scenario": {"treatment": "A"}}
