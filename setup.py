@@ -48,9 +48,7 @@ if __name__ == "__main__":
         "dill",
         "redis",
         "rq",
-        # FIXME: Uncomment once Vivarium 4.0.0 is released
-        # "vivarium>=4.0.0",
-        "vivarium @ git+https://github.com/ihmeuw/vivarium.git@release_candidate/v4.0.0",
+        "vivarium>=3.0.0",
         "psutil",
         "layered_config_tree",
         "jobmon_client",
@@ -67,7 +65,7 @@ if __name__ == "__main__":
 
     test_requirements = [
         "vivarium_dependencies[pytest]",
-        "vivarium_testing_utils @ git+https://github.com/ihmeuw/vivarium_testing_utils.git@pnast/feature/mic-6827-plugin-updates",
+        "vivarium_testing_utils>=0.3.4",
     ]
 
     doc_requirements = [

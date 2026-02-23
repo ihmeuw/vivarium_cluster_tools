@@ -21,7 +21,7 @@ def test_branch_config_immutable() -> None:
 
 class TestGenerateTaskId:
     @property
-    def branch_config(self) -> dict:
+    def branch_config(self) -> dict[str, dict[str, str]]:
         return {"scenario": {"treatment": "A"}}
 
     def test_deterministic(self) -> None:
