@@ -257,7 +257,7 @@ class TestPsimulateRun:
         results_dir = output_dir / "results"
         assert results_dir.exists()
 
-        deaths_dir = results_dir / "deaths"
+        deaths_dir = results_dir / "dead"
         assert deaths_dir.exists()
 
         deaths_df = pd.read_parquet(deaths_dir)
