@@ -83,7 +83,6 @@ def build_workflow(
     for job_params in job_parameters_list:
         write_metadata(
             metadata_dir=output_paths.metadata_dir,
-            command=command,
             job_parameters=job_params,
         )
 
