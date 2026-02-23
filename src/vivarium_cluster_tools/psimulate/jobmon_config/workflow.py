@@ -7,44 +7,15 @@ Build and configure Jobmon workflows for psimulate runs.
 
 """
 
-import json
-from pathlib import Path
 from typing import Any
 
 from jobmon.client.api import Tool
 from loguru import logger
 
 from vivarium_cluster_tools.psimulate.cluster.interface import NativeSpecification
+from vivarium_cluster_tools.psimulate.results.writing import write_metadata
 from vivarium_cluster_tools.psimulate.jobs import JobParameters
 from vivarium_cluster_tools.psimulate.paths import OutputPaths
-
-
-def _write_metadata(
-    metadata_dir: Path,
-    command: str,
-    job_parameters: JobParameters,
-) -> None:
-    """Write a metadata JSON file for a single task.
-
-    The metadata file serializes the job parameters for the workhorse script to pick up,
-    and also serves as the reference for restart and expand metadata.
-
-    Parameters
-    ----------
-    metadata_dir
-        Directory to write the metadata file.
-    command
-        The psimulate command (run, restart, expand, load_test).
-    job_parameters
-        The job parameters for this task.
-    """
-    spec = {
-        "command": command,
-        "job_parameters": job_parameters.to_dict(),
-    }
-    spec_path = metadata_dir / f"{job_parameters.task_id}.json"
-    with open(spec_path, "w") as f:
-        json.dump(spec, f, default=str)
 
 
 def build_workflow(
@@ -110,7 +81,7 @@ def build_workflow(
     # Write job spec metadata and create tasks
     tasks = []
     for job_params in job_parameters_list:
-        _write_metadata(
+        write_metadata(
             metadata_dir=output_paths.metadata_dir,
             command=command,
             job_parameters=job_params,
