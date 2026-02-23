@@ -13,9 +13,9 @@ from jobmon.client.api import Tool
 from loguru import logger
 
 from vivarium_cluster_tools.psimulate.cluster.interface import NativeSpecification
-from vivarium_cluster_tools.psimulate.results.writing import write_metadata
 from vivarium_cluster_tools.psimulate.jobs import JobParameters
 from vivarium_cluster_tools.psimulate.paths import OutputPaths
+from vivarium_cluster_tools.psimulate.results.writing import write_metadata
 
 
 def build_workflow(

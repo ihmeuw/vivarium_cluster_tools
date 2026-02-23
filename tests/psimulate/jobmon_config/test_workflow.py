@@ -94,9 +94,7 @@ class TestBuildWorkflow:
         max_workers: int = 10,
     ):
         """Import and call ``build_workflow`` with standard test args."""
-        from vivarium_cluster_tools.psimulate.jobmon_config.workflow import (
-            build_workflow,
-        )
+        from vivarium_cluster_tools.psimulate.jobmon_config.workflow import build_workflow
 
         return build_workflow(
             workflow_name=workflow_name,
