@@ -1,19 +1,24 @@
 """Unit tests for the Jobmon workflow builder."""
 
+from datetime import datetime
 from pathlib import Path
-from types import SimpleNamespace
-from unittest.mock import MagicMock, call
+from unittest.mock import MagicMock, call, patch
+from typing import Any, TYPE_CHECKING
 
 import pytest
 from pytest_mock import MockerFixture
 
 from vivarium_cluster_tools.psimulate.jobs import JobParameters
+from vivarium_cluster_tools.psimulate.paths import OutputPaths
+
+if TYPE_CHECKING:
+    from jobmon.client.workflow import Workflow
 
 
 def _make_job_parameters(
     input_draw: int = 0,
     random_seed: int = 0,
-    branch_configuration: dict | None = None,
+    branch_configuration: dict[str, Any] | None = None,
 ) -> JobParameters:
     return JobParameters(
         model_specification="/path/to/model_spec.yaml",
@@ -26,14 +31,7 @@ def _make_job_parameters(
     )
 
 
-def _make_output_paths(tmp_path: Path) -> SimpleNamespace:
-    """Return a lightweight stand-in for ``OutputPaths``."""
-    return SimpleNamespace(
-        metadata_dir=tmp_path / "metadata",
-        results_dir=tmp_path / "results",
-        worker_logging_root=tmp_path / "worker_logs",
-        cluster_logging_root=tmp_path / "cluster_logs",
-    )
+FROZEN_TIME = datetime(2025, 1, 1)
 
 
 @pytest.fixture()
@@ -51,8 +49,16 @@ def mock_write_metadata(mocker: MockerFixture) -> MagicMock:
 
 
 @pytest.fixture()
-def output_paths(tmp_path: Path) -> SimpleNamespace:
-    return _make_output_paths(tmp_path)
+def output_paths(tmp_path: Path) -> OutputPaths:
+    """Return an ``OutputPaths`` rooted under ``tmp_path``."""
+    with patch("vivarium_cluster_tools.psimulate.paths.datetime") as mock_dt:
+        mock_dt.now.return_value = FROZEN_TIME
+        return OutputPaths.from_entry_point_args(
+            command="restart",
+            input_artifact_path=None,
+            result_directory=tmp_path,
+            input_model_spec_path=None,
+        )
 
 
 @pytest.fixture()
@@ -83,13 +89,13 @@ class TestBuildWorkflow:
     def _call_build_workflow(
         mock_tool_cls: MagicMock,
         mock_write_metadata: MagicMock,
-        output_paths: SimpleNamespace,
+        output_paths: OutputPaths,
         native_spec: MagicMock,
         job_parameters_list: list[JobParameters],
         workflow_name: str = "test_workflow",
         command: str = "run",
         max_workers: int = 10,
-    ):
+    ) -> Workflow:
         """Import and call ``build_workflow`` with standard test args."""
         from vivarium_cluster_tools.psimulate.jobmon_config.workflow import build_workflow
 
@@ -106,7 +112,7 @@ class TestBuildWorkflow:
         self,
         mock_tool_cls: MagicMock,
         mock_write_metadata: MagicMock,
-        output_paths: SimpleNamespace,
+        output_paths: OutputPaths,
         native_spec: MagicMock,
         two_jobs: list[JobParameters],
     ) -> None:
@@ -120,7 +126,7 @@ class TestBuildWorkflow:
         self,
         mock_tool_cls: MagicMock,
         mock_write_metadata: MagicMock,
-        output_paths: SimpleNamespace,
+        output_paths: OutputPaths,
         native_spec: MagicMock,
         two_jobs: list[JobParameters],
     ) -> None:
@@ -142,7 +148,7 @@ class TestBuildWorkflow:
         self,
         mock_tool_cls: MagicMock,
         mock_write_metadata: MagicMock,
-        output_paths: SimpleNamespace,
+        output_paths: OutputPaths,
         native_spec: MagicMock,
         two_jobs: list[JobParameters],
     ) -> None:
@@ -165,7 +171,7 @@ class TestBuildWorkflow:
         self,
         mock_tool_cls: MagicMock,
         mock_write_metadata: MagicMock,
-        output_paths: SimpleNamespace,
+        output_paths: OutputPaths,
         native_spec: MagicMock,
         two_jobs: list[JobParameters],
     ) -> None:

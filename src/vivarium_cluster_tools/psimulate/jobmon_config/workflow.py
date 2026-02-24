@@ -7,7 +7,7 @@ Build and configure Jobmon workflows for psimulate runs.
 
 """
 
-from typing import Any
+from typing import TYPE_CHECKING
 
 from jobmon.client.api import Tool
 from loguru import logger
@@ -17,6 +17,9 @@ from vivarium_cluster_tools.psimulate.jobs import JobParameters
 from vivarium_cluster_tools.psimulate.paths import OutputPaths
 from vivarium_cluster_tools.psimulate.results.writing import write_metadata
 
+if TYPE_CHECKING:
+    from jobmon.client.workflow import Workflow
+
 
 def build_workflow(
     workflow_name: str,
@@ -25,7 +28,7 @@ def build_workflow(
     output_paths: OutputPaths,
     native_specification: NativeSpecification,
     max_workers: int,
-) -> Any:
+) -> Workflow:
     """Build a Jobmon workflow for a psimulate command.
 
     Creates a Jobmon Tool, TaskTemplate, and one Task per job. Also writes
