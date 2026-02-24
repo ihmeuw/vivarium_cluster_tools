@@ -149,8 +149,6 @@ def collect_metadata(metadata_dir: Path, results_dir: Path) -> pd.DataFrame:
             "input_draw": job_params["input_draw"],
             "random_seed": job_params["random_seed"],
         }
-        row: dict = {}
-        for key, val in collapse_nested_dict(job_specific):
-            row[key] = val
+        row = dict(collapse_nested_dict(job_specific))
         rows.append(row)
     return pd.DataFrame(rows)
