@@ -2,8 +2,8 @@
 
 from datetime import datetime
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 from unittest.mock import MagicMock, call, patch
-from typing import Any, TYPE_CHECKING
 
 import pytest
 from pytest_mock import MockerFixture
