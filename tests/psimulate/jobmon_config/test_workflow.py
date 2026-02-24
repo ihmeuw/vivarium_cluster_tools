@@ -76,9 +76,6 @@ def two_jobs() -> list[JobParameters]:
     ]
 
 
-# ── Tests ────────────────────────────────────────────────────────────────────
-
-
 class TestBuildWorkflow:
     """Verify that ``build_workflow`` passes its arguments into the Jobmon API correctly."""
 
