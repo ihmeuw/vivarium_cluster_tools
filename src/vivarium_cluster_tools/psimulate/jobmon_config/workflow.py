@@ -7,6 +7,8 @@ Build and configure Jobmon workflows for psimulate runs.
 
 """
 
+from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
 from jobmon.client.api import Tool

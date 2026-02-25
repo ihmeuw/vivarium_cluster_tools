@@ -51,7 +51,7 @@ if __name__ == "__main__":
         "vivarium>=3.0.0",
         "psutil",
         "layered_config_tree",
-        "jobmon_client",
+        "jobmon_installer_ihme",
     ]
 
     setup_requires = ["setuptools_scm"]

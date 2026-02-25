@@ -1,5 +1,7 @@
 """Unit tests for the Jobmon workflow builder."""
 
+from __future__ import annotations
+
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -8,6 +10,7 @@ from unittest.mock import MagicMock, call, patch
 import pytest
 from pytest_mock import MockerFixture
 
+from vivarium_cluster_tools.psimulate.jobmon_config.workflow import build_workflow
 from vivarium_cluster_tools.psimulate.jobs import JobParameters
 from vivarium_cluster_tools.psimulate.paths import OutputPaths
 
@@ -97,7 +100,6 @@ class TestBuildWorkflow:
         max_workers: int = 10,
     ) -> Workflow:
         """Import and call ``build_workflow`` with standard test args."""
-        from vivarium_cluster_tools.psimulate.jobmon_config.workflow import build_workflow
 
         return build_workflow(
             workflow_name=workflow_name,
