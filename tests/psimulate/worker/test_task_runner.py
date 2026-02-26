@@ -108,10 +108,6 @@ class TestParseArgs:
             parse_args(argv)
 
 
-# ---------------------------------------------------------------------------
-# main – command dispatch
-# ---------------------------------------------------------------------------
-
 # Patch targets are the names as imported into task_runner.
 _WORK_HORSE = "vivarium_cluster_tools.psimulate.worker.task_runner.work_horse"
 _LOAD_TEST_WORK_HORSE = (
@@ -135,7 +131,11 @@ class TestMainDispatch:
             patch(_LOAD_TEST_WORK_HORSE) as lt_wh,
             patch(_WRITE_TASK_RESULTS) as write,
         ):
-            main(_build_argv(dirs["metadata"], dirs["results"], dirs["worker_logs"], command=command))
+            main(
+                _build_argv(
+                    dirs["metadata"], dirs["results"], dirs["worker_logs"], command=command
+                )
+            )
 
             wh.assert_called_once()
             lt_wh.assert_not_called()
@@ -164,7 +164,14 @@ class TestMainDispatch:
             patch(_LOAD_TEST_WORK_HORSE, return_value=mock_df) as lt_wh,
             patch(_WRITE_TASK_RESULTS) as write,
         ):
-            main(_build_argv(dirs["metadata"], dirs["results"], dirs["worker_logs"], command=COMMANDS.load_test))
+            main(
+                _build_argv(
+                    dirs["metadata"],
+                    dirs["results"],
+                    dirs["worker_logs"],
+                    command=COMMANDS.load_test,
+                )
+            )
 
             lt_wh.assert_called_once()
             wh.assert_not_called()
@@ -182,7 +189,14 @@ class TestMainDispatch:
             patch(_WRITE_TASK_RESULTS),
         ):
             with pytest.raises(ValueError, match="bogus_command"):
-                main(_build_argv(dirs["metadata"], dirs["results"], dirs["worker_logs"], command="bogus_command"))
+                main(
+                    _build_argv(
+                        dirs["metadata"],
+                        dirs["results"],
+                        dirs["worker_logs"],
+                        command="bogus_command",
+                    )
+                )
 
 
 class TestLoadTestResultWrapping:
@@ -198,7 +212,14 @@ class TestLoadTestResultWrapping:
             patch(_LOAD_TEST_WORK_HORSE, return_value=mock_df),
             patch(_WRITE_TASK_RESULTS) as write,
         ):
-            main(_build_argv(dirs["metadata"], dirs["results"], dirs["worker_logs"], command=COMMANDS.load_test))
+            main(
+                _build_argv(
+                    dirs["metadata"],
+                    dirs["results"],
+                    dirs["worker_logs"],
+                    command=COMMANDS.load_test,
+                )
+            )
 
             _, call_kwargs = write.call_args
             results_dict = call_kwargs["results_dict"]
@@ -215,7 +236,14 @@ class TestMainLoggingSetup:
             patch(_WORK_HORSE, return_value={}),
             patch(_WRITE_TASK_RESULTS),
         ):
-            main(_build_argv(dirs["metadata"], dirs["results"], dirs["worker_logs"], command=COMMANDS.run))
+            main(
+                _build_argv(
+                    dirs["metadata"],
+                    dirs["results"],
+                    dirs["worker_logs"],
+                    command=COMMANDS.run,
+                )
+            )
 
         assert os.environ["VIVARIUM_LOGGING_DIRECTORY"] == str(dirs["worker_logs"])
 
@@ -227,7 +255,14 @@ class TestMainLoggingSetup:
             patch(_WORK_HORSE, return_value={}),
             patch(_WRITE_TASK_RESULTS),
         ):
-            main(_build_argv(dirs["metadata"], dirs["results"], dirs["worker_logs"], command=COMMANDS.run))
+            main(
+                _build_argv(
+                    dirs["metadata"],
+                    dirs["results"],
+                    dirs["worker_logs"],
+                    command=COMMANDS.run,
+                )
+            )
 
         log_file = dirs["worker_logs"] / f"{_TASK_ID}.log"
         assert log_file.exists()
