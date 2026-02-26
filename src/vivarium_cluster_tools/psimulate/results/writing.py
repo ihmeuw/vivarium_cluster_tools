@@ -56,7 +56,6 @@ def write_metadata(
 
 def write_task_results(
     results_dir: Path,
-    task_id: str,
     job_parameters: JobParameters,
     results_dict: dict[str, pd.DataFrame],
 ) -> None:
@@ -66,21 +65,19 @@ def write_task_results(
     ----------
     results_dir
         The results directory (e.g., ``output_root/results``).
-    task_id
-        The deterministic task ID.
     job_parameters
         The job parameters for this task.
     results_dict
         Dictionary mapping metric names to results DataFrames.
     """
+    # Write one parquet per metric, injecting job-specific columns
     for metric, df in results_dict.items():
         metric_dir = results_dir / metric
         metric_dir.mkdir(parents=True, exist_ok=True)
-        # inject job-specific columns
         for key, val in collapse_nested_dict(job_parameters.job_specific):
             col_name = key.split(".")[-1]
             df.insert(df.shape[1] - 1, col_name, val)
-        df.to_parquet(metric_dir / f"{task_id}.parquet")
+        df.to_parquet(metric_dir / f"{job_parameters.task_id}.parquet")
 
 
 def _get_completed_task_ids(results_dir: Path) -> set[str]:
