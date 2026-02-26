@@ -129,12 +129,10 @@ class TestMainDispatch:
             assert isinstance(args[0], JobParameters)
             assert args[0].input_draw == _JOB_PARAMS.input_draw
             assert args[0].random_seed == _JOB_PARAMS.random_seed
-            assert kwargs["task_id"] == _TASK_ID
 
             # Verify write_task_results receives the work_horse return value
             write.assert_called_once_with(
                 results_dir=dirs["results"],
-                task_id=_TASK_ID,
                 job_parameters=args[0],
                 results_dict=mock_results,
             )
@@ -162,7 +160,6 @@ class TestMainDispatch:
 
             args, kwargs = load_test_work_horse.call_args
             assert isinstance(args[0], JobParameters)
-            assert kwargs["task_id"] == _TASK_ID
 
     def test_unknown_command_raises_value_error(self, dirs: dict[str, Path]) -> None:
         write_metadata(dirs["metadata"], _JOB_PARAMS)
