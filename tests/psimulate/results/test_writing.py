@@ -49,19 +49,19 @@ class TestWriteMetadata:
 class TestWriteTaskResults:
     def test_writes_metric_parquets(self, results_dir: Path) -> None:
         """Write task results and verify parquet files are created correctly."""
-        for i, task_id in enumerate(["task_a", "task_b", "task_c"]):
-            job_params = make_job_parameters(input_draw=i, random_seed=i * 10)
+        for i in range(3):
+            job_params = _make_job_parameters(input_draw=i, random_seed=i * 10)
             results_dict = {
                 "deaths": pd.DataFrame({"value": [i * 100], "year": [2020]}),
             }
-            write_task_results(results_dir, task_id, job_params, results_dict)
+            write_task_results(results_dir, job_params, results_dict)
 
         # pd.read_parquet on the directory combines all files
         all_deaths = pd.read_parquet(results_dir / "deaths")
         assert len(all_deaths) == 3
         assert set(all_deaths["value"].tolist()) == {0, 100, 200}
-        assert all_deaths["input_draw"].tolist() == [0, 1, 2]
-        assert all_deaths["random_seed"].tolist() == [0, 10, 20]
+        assert set(all_deaths["input_draw"].tolist()) == {0, 1, 2}
+        assert set(all_deaths["random_seed"].tolist()) == {0, 10, 20}
 
 
 class TestCollectMetadata:
@@ -84,7 +84,7 @@ class TestCollectMetadata:
         # Only tasks 0 and 2 have result parquets
         metric_dir = results_dir / "deaths"
         metric_dir.mkdir(parents=True)
-        pd.DataFrame({"valuy": [1]}).to_parquet(
+        pd.DataFrame({"value": [1]}).to_parquet(
             metric_dir / f"{all_params[0].task_id}.parquet"
         )
         pd.DataFrame({"value": [2]}).to_parquet(
