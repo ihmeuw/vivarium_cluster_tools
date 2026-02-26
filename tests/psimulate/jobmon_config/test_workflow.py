@@ -141,7 +141,12 @@ class TestBuildWorkflow:
         kwargs = tool_instance.get_task_template.call_args.kwargs
         assert kwargs["template_name"] == "psimulate_task"
         assert kwargs["node_args"] == ["task_id"]
-        assert kwargs["task_args"] == ["metadata_dir", "results_dir", "worker_log_dir"]
+        assert kwargs["task_args"] == [
+            "metadata_dir",
+            "results_dir",
+            "worker_log_dir",
+            "command",
+        ]
         assert kwargs["op_args"] == []
         assert kwargs["default_cluster_name"] == "slurm"
         assert kwargs["default_compute_resources"] == native_spec.to_jobmon_spec.return_value
