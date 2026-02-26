@@ -56,43 +56,40 @@ def metadata_dir(tmp_path: Path) -> Path:
 class TestWriteTaskResults:
     def test_writes_metric_parquets(self, results_dir: Path) -> None:
         """Write task results and verify parquet files are created correctly."""
-        task_id = "abc123"
         job_params = _make_job_parameters()
         results_dict = {
             "deaths": pd.DataFrame({"value": [10, 20], "year": [2020, 2021]}),
             "ylls": pd.DataFrame({"value": [100], "year": [2020]}),
         }
 
-        write_task_results(results_dir, task_id, job_params, results_dict)
+        write_task_results(results_dir, job_params, results_dict)
 
         # Check metric parquets written
-        assert (results_dir / "deaths" / f"{task_id}.parquet").exists()
-        assert (results_dir / "ylls" / f"{task_id}.parquet").exists()
+        assert (results_dir / "deaths" / f"{job_params.task_id}.parquet").exists()
+        assert (results_dir / "ylls" / f"{job_params.task_id}.parquet").exists()
         pd.testing.assert_frame_equal(
-            pd.read_parquet(results_dir / "deaths" / f"{task_id}.parquet"),
+            pd.read_parquet(results_dir / "deaths" / f"{job_params.task_id}.parquet"),
             results_dict["deaths"],
         )
         pd.testing.assert_frame_equal(
-            pd.read_parquet(results_dir / "ylls" / f"{task_id}.parquet"),
+            pd.read_parquet(results_dir / "ylls" / f"{job_params.task_id}.parquet"),
             results_dict["ylls"],
         )
 
     def test_no_metadata_written(self, results_dir: Path) -> None:
         """write_task_results should NOT write metadata JSON (that's the workflow builder's job)."""
-        task_id = "no_meta"
         job_params = _make_job_parameters()
-        write_task_results(results_dir, task_id, job_params, {"m": pd.DataFrame({"x": [1]})})
+        write_task_results(results_dir, job_params, {"m": pd.DataFrame({"x": [1]})})
 
         # No metadata subdirectory should exist
         assert not (results_dir / "metadata").exists()
 
     def test_empty_results(self, results_dir: Path) -> None:
         """Write task results with no metric DataFrames."""
-        task_id = "empty_task"
         job_params = _make_job_parameters()
         results_dict: dict[str, pd.DataFrame] = {}
 
-        write_task_results(results_dir, task_id, job_params, results_dict)
+        write_task_results(results_dir, job_params, results_dict)
 
         # No directories created
         dirs = [d for d in results_dir.iterdir() if d.is_dir()]
@@ -100,12 +97,12 @@ class TestWriteTaskResults:
 
     def test_multiple_tasks_same_metric(self, results_dir: Path) -> None:
         """Multiple tasks writing to the same metric directory."""
-        for i, task_id in enumerate(["task_a", "task_b", "task_c"]):
+        for i in range(3):
             job_params = _make_job_parameters(input_draw=i, random_seed=i * 10)
             results_dict = {
                 "deaths": pd.DataFrame({"value": [i * 100], "year": [2020]}),
             }
-            write_task_results(results_dir, task_id, job_params, results_dict)
+            write_task_results(results_dir, job_params, results_dict)
 
         # pd.read_parquet on the directory combines all files
         all_deaths = pd.read_parquet(results_dir / "deaths")

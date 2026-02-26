@@ -33,7 +33,6 @@ from vivarium_cluster_tools.psimulate.jobs import JobParameters
 
 def write_task_results(
     results_dir: Path,
-    task_id: str,
     job_parameters: JobParameters,
     results_dict: dict[str, pd.DataFrame],
 ) -> None:
@@ -43,8 +42,6 @@ def write_task_results(
     ----------
     results_dir
         The results directory (e.g., ``output_root/results``).
-    task_id
-        The deterministic task ID.
     job_parameters
         The job parameters for this task.
     results_dict
@@ -57,7 +54,7 @@ def write_task_results(
         for key, val in collapse_nested_dict(job_parameters.job_specific):
             col_name = key.split(".")[-1]
             df.insert(df.shape[1] - 1, col_name, val)
-        df.to_parquet(metric_dir / f"{task_id}.parquet")
+        df.to_parquet(metric_dir / f"{job_parameters.task_id}.parquet")
 
 
 def _get_completed_task_ids(results_dir: Path) -> set[str]:

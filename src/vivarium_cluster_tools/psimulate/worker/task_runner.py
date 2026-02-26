@@ -87,9 +87,9 @@ def main(argv: list[str] | None = None) -> None:
     logger.info(f"Running task {task_id} with command '{command}'")
 
     if command in (COMMANDS.run, COMMANDS.restart, COMMANDS.expand):
-        results_dict = work_horse(job_parameters, task_id=task_id)
+        results_dict = work_horse(job_parameters)
     elif command == COMMANDS.load_test:
-        results_df = load_test_work_horse(job_parameters, task_id=task_id)
+        results_df = load_test_work_horse(job_parameters)
         results_dict = {"load_test": results_df}
     else:
         raise ValueError(f"Unknown command: {command}")
@@ -98,7 +98,6 @@ def main(argv: list[str] | None = None) -> None:
 
     write_task_results(
         results_dir=args.results_dir,
-        task_id=task_id,
         job_parameters=job_parameters,
         results_dict=results_dict,
     )

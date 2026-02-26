@@ -95,15 +95,15 @@ def test_get_backup(
         correct_pickle = [1, 2, 3, 4, 5]
         write_pickle(job_id, correct_pickle)
 
-        backup = cast(list[int], get_backup(job_parameters, task_id))
+        backup = cast(list[int], get_backup(job_parameters))
         assert backup == correct_pickle
         assert not (tmp_path / "backups" / "stale_job.pkl").exists()
         assert not (tmp_path / "backups" / f"{job_id}.pkl").exists()
-        assert (tmp_path / "backups" / f"{task_id}.pkl").exists()
+        assert (tmp_path / "backups" / f"{job_parameters.task_id}.pkl").exists()
         assert (tmp_path / "backups" / "different_job.pkl").exists()
 
     else:
-        backup = cast(list[int], get_backup(job_parameters, task_id))
+        backup = cast(list[int], get_backup(job_parameters))
         assert not backup
 
 

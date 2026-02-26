@@ -39,7 +39,6 @@ class ParallelSimulationContext(SimulationContext):
 
 def work_horse(
     job_parameters: JobParameters,
-    task_id: str = "",
 ) -> dict[str, pd.DataFrame]:
     node = f"{ENV_VARIABLES.HOSTNAME.value}"
     job = f"{ENV_VARIABLES.JOB_ID.value}:{ENV_VARIABLES.TASK_ID.value}"
@@ -51,15 +50,13 @@ def work_horse(
         start_snapshot = CounterSnapshot()
         event = {"start": time()}  # timestamps of application events
         logger.info("Beginning simulation setup.")
-        backup = get_backup(job_parameters, task_id)
+        backup = get_backup(job_parameters)
         if backup:
             sim, exec_time = get_sim_from_backup(event, backup)
         else:
             sim, exec_time = initialize_new_sim(event, job_parameters)
-        backup_path = run_simulation(job_parameters, event, sim, exec_time, task_id)
-        results = get_sim_results(
-            sim, job_parameters, start_snapshot, event, exec_time, task_id
-        )
+        backup_path = run_simulation(job_parameters, event, sim, exec_time)
+        results = get_sim_results(sim, job_parameters, start_snapshot, event, exec_time)
         remove_backups(backup_path)
 
         return results
@@ -72,7 +69,7 @@ def work_horse(
 
 
 def get_backup(
-    job_parameters: JobParameters, task_id: str
+    job_parameters: JobParameters,
 ) -> ParallelSimulationContext | None:
     backup_dir = Path(job_parameters.backup_configuration["backup_dir"])
     metadata_path = Path(job_parameters.backup_configuration["backup_metadata_path"])
@@ -107,11 +104,13 @@ def get_backup(
                     os.remove(stale_file)
             with open(last_pickle, "rb") as backup_file:
                 sim = cast(ParallelSimulationContext, dill.load(backup_file))
-            logger.info(f"Renaming backup file {last_pickle} to {task_id}.pkl")
+            logger.info(f"Renaming backup file {last_pickle} to {job_parameters.task_id}.pkl")
             if job_parameters.backup_configuration["backup_freq"] is not None:
                 # Sleep to prevent FS latency when loading the pickle
                 sleep(5)
-                os.rename(last_pickle, (backup_dir / task_id).with_suffix(".pkl"))
+                os.rename(
+                    last_pickle, (backup_dir / job_parameters.task_id).with_suffix(".pkl")
+                )
             return sim
         return None
 
@@ -173,12 +172,11 @@ def run_simulation(
     event: dict[str, float],
     sim: ParallelSimulationContext,
     exec_time: dict[str, float],
-    task_id: str = "",
 ) -> Path:
     num_steps = sim.get_number_of_steps_remaining()
     logger.info(f"Starting main simulation loop with {num_steps} time steps")
     backup_path = (
-        Path(job_parameters.backup_configuration["backup_dir"]) / task_id
+        Path(job_parameters.backup_configuration["backup_dir"]) / job_parameters.task_id
     ).with_suffix(".pkl")
     sim.run(
         backup_freq=job_parameters.backup_configuration["backup_freq"],
@@ -205,12 +203,9 @@ def get_sim_results(
     start_snapshot: CounterSnapshot,
     event: dict[str, float],
     exec_time: dict[str, float],
-    task_id: str = "",
 ) -> dict[str, pd.DataFrame]:
     event["end"] = time()
-    do_sim_epilogue(
-        start_snapshot, CounterSnapshot(), event, exec_time, job_parameters, task_id
-    )
+    do_sim_epilogue(start_snapshot, CounterSnapshot(), event, exec_time, job_parameters)
     return sim.get_results()  # Dict[measure, results dataframe]
 
 
@@ -220,7 +215,6 @@ def do_sim_epilogue(
     event: dict[str, float],
     exec_time: dict[str, float],
     parameters: JobParameters,
-    task_id: str = "",
 ) -> None:
     exec_time["results_minutes"] = (event["end"] - event["results_start"]) / 60
     logger.info(f'Results reporting completed in {exec_time["results_minutes"]:.3f} minutes.')
@@ -240,7 +234,7 @@ def do_sim_epilogue(
                 "host": ENV_VARIABLES.HOSTNAME.value,
                 "job_number": ENV_VARIABLES.JOB_ID.value,
                 "task_number": ENV_VARIABLES.TASK_ID.value,
-                "run_id": task_id,
+                "run_id": parameters.task_id,
                 "draw": parameters.input_draw,
                 "seed": parameters.random_seed,
                 "scenario": parameters.branch_configuration,
