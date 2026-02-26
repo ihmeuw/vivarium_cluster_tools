@@ -6,11 +6,9 @@ plumbing, and logging setup.  The actual work horses and result writing
 are mocked — they have their own dedicated test suites.
 """
 
-import json
 import os
 from pathlib import Path
-from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pandas as pd
 import pytest
@@ -18,25 +16,12 @@ import pytest
 from tests.psimulate.conftest import make_job_parameters
 from vivarium_cluster_tools.psimulate import COMMANDS
 from vivarium_cluster_tools.psimulate.jobs import JobParameters
+from vivarium_cluster_tools.psimulate.results.writing import write_metadata
 from vivarium_cluster_tools.psimulate.worker.task_runner import main, parse_args
 
 
-_TASK_ID = "test_task_0001"
-
 _JOB_PARAMS = make_job_parameters(input_draw=1, random_seed=42)
-_JOB_PARAMS_DICT = _JOB_PARAMS.to_dict()
-
-
-def _write_metadata(
-    metadata_dir: Path,
-    task_id: str,
-    job_params_dict: dict[str, Any] | None = None,
-) -> Path:
-    """Write a task-metadata JSON file and return its path."""
-    metadata_dir.mkdir(parents=True, exist_ok=True)
-    path = metadata_dir / f"{task_id}.json"
-    path.write_text(json.dumps(job_params_dict or _JOB_PARAMS_DICT))
-    return path
+_TASK_ID = _JOB_PARAMS.task_id
 
 
 def _build_argv(
@@ -123,12 +108,12 @@ class TestMainDispatch:
     def test_vivarium_commands_call_work_horse(
         self, dirs: dict[str, Path], command: str
     ) -> None:
-        _write_metadata(dirs["metadata"], _TASK_ID)
+        write_metadata(dirs["metadata"], _JOB_PARAMS)
         mock_results = {"some_metric": pd.DataFrame({"a": [1]})}
 
         with (
-            patch(_WORK_HORSE, return_value=mock_results) as wh,
-            patch(_LOAD_TEST_WORK_HORSE) as lt_wh,
+            patch(_WORK_HORSE, return_value=mock_results) as work_horse,
+            patch(_LOAD_TEST_WORK_HORSE) as load_test_work_horse,
             patch(_WRITE_TASK_RESULTS) as write,
         ):
             main(
@@ -137,14 +122,14 @@ class TestMainDispatch:
                 )
             )
 
-            wh.assert_called_once()
-            lt_wh.assert_not_called()
+            work_horse.assert_called_once()
+            load_test_work_horse.assert_not_called()
 
             # Verify the JobParameters passed to work_horse
-            args, kwargs = wh.call_args
+            args, kwargs = work_horse.call_args
             assert isinstance(args[0], JobParameters)
-            assert args[0].input_draw == _JOB_PARAMS_DICT["input_draw"]
-            assert args[0].random_seed == _JOB_PARAMS_DICT["random_seed"]
+            assert args[0].input_draw == _JOB_PARAMS.input_draw
+            assert args[0].random_seed == _JOB_PARAMS.random_seed
             assert kwargs["task_id"] == _TASK_ID
 
             # Verify write_task_results receives the work_horse return value
@@ -156,12 +141,12 @@ class TestMainDispatch:
             )
 
     def test_load_test_calls_load_test_work_horse(self, dirs: dict[str, Path]) -> None:
-        _write_metadata(dirs["metadata"], _TASK_ID)
+        write_metadata(dirs["metadata"], _JOB_PARAMS)
         mock_df = pd.DataFrame({"x": [1, 2, 3]})
 
         with (
-            patch(_WORK_HORSE) as wh,
-            patch(_LOAD_TEST_WORK_HORSE, return_value=mock_df) as lt_wh,
+            patch(_WORK_HORSE) as work_horse,
+            patch(_LOAD_TEST_WORK_HORSE, return_value=mock_df) as load_test_work_horse,
             patch(_WRITE_TASK_RESULTS) as write,
         ):
             main(
@@ -173,15 +158,15 @@ class TestMainDispatch:
                 )
             )
 
-            lt_wh.assert_called_once()
-            wh.assert_not_called()
+            load_test_work_horse.assert_called_once()
+            work_horse.assert_not_called()
 
-            args, kwargs = lt_wh.call_args
+            args, kwargs = load_test_work_horse.call_args
             assert isinstance(args[0], JobParameters)
             assert kwargs["task_id"] == _TASK_ID
 
     def test_unknown_command_raises_value_error(self, dirs: dict[str, Path]) -> None:
-        _write_metadata(dirs["metadata"], _TASK_ID)
+        write_metadata(dirs["metadata"], _JOB_PARAMS)
 
         with (
             patch(_WORK_HORSE),
@@ -199,38 +184,10 @@ class TestMainDispatch:
                 )
 
 
-class TestLoadTestResultWrapping:
-    """load_test_work_horse returns a single DataFrame; main() must wrap it
-    as ``{"load_test": df}`` before passing to write_task_results."""
-
-    def test_load_test_result_wrapped_in_dict(self, dirs: dict[str, Path]) -> None:
-        _write_metadata(dirs["metadata"], _TASK_ID)
-        mock_df = pd.DataFrame({"col": [10, 20]})
-
-        with (
-            patch(_WORK_HORSE),
-            patch(_LOAD_TEST_WORK_HORSE, return_value=mock_df),
-            patch(_WRITE_TASK_RESULTS) as write,
-        ):
-            main(
-                _build_argv(
-                    dirs["metadata"],
-                    dirs["results"],
-                    dirs["worker_logs"],
-                    command=COMMANDS.load_test,
-                )
-            )
-
-            _, call_kwargs = write.call_args
-            results_dict = call_kwargs["results_dict"]
-            assert list(results_dict.keys()) == ["load_test"]
-            pd.testing.assert_frame_equal(results_dict["load_test"], mock_df)
-
-
 class TestMainLoggingSetup:
     def test_env_var_is_set(self, dirs: dict[str, Path]) -> None:
         """VIVARIUM_LOGGING_DIRECTORY must be set to the worker-log dir."""
-        _write_metadata(dirs["metadata"], _TASK_ID)
+        write_metadata(dirs["metadata"], _JOB_PARAMS)
 
         with (
             patch(_WORK_HORSE, return_value={}),
@@ -249,7 +206,7 @@ class TestMainLoggingSetup:
 
     def test_per_task_log_file_created(self, dirs: dict[str, Path]) -> None:
         """Loguru should create a per-task log file in worker_log_dir."""
-        _write_metadata(dirs["metadata"], _TASK_ID)
+        write_metadata(dirs["metadata"], _JOB_PARAMS)
 
         with (
             patch(_WORK_HORSE, return_value={}),

@@ -86,8 +86,9 @@ def main(argv: list[str] | None = None) -> None:
     with open(metadata_path) as f:
         job_params_dict = json.load(f)
 
-    command = args.command
     job_parameters = JobParameters(**job_params_dict)
+
+    command = args.command
     task_id = args.task_id
 
     logger.info(f"Running task {task_id} with command '{command}'")
