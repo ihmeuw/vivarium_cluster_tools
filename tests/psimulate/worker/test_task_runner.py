@@ -19,7 +19,6 @@ from vivarium_cluster_tools.psimulate.jobs import JobParameters
 from vivarium_cluster_tools.psimulate.results.writing import write_metadata
 from vivarium_cluster_tools.psimulate.worker.task_runner import main, parse_args
 
-
 _JOB_PARAMS = make_job_parameters(input_draw=1, random_seed=42)
 _TASK_ID = _JOB_PARAMS.task_id
 
