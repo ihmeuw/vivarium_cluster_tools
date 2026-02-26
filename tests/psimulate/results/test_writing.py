@@ -50,7 +50,7 @@ class TestWriteTaskResults:
     def test_writes_metric_parquets(self, results_dir: Path) -> None:
         """Write task results and verify parquet files are created correctly."""
         for i in range(3):
-            job_params = _make_job_parameters(input_draw=i, random_seed=i * 10)
+            job_params = make_job_parameters(input_draw=i, random_seed=i * 10)
             results_dict = {
                 "deaths": pd.DataFrame({"value": [i * 100], "year": [2020]}),
             }

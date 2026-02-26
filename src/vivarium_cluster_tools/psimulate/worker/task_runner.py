@@ -60,6 +60,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         required=True,
         help="Directory for worker log files.",
     )
+    parser.add_argument(
+        "--command",
+        type=str,
+        required=True,
+        help="The psimulate command (e.g. run, restart, expand, load_test).",
+    )
     return parser.parse_args(argv)
 
 
@@ -80,14 +86,14 @@ def main(argv: list[str] | None = None) -> None:
     with open(metadata_path) as f:
         task_metadata = json.load(f)
 
-    command = task_metadata["command"]
-    job_parameters = JobParameters(**task_metadata["job_parameters"])
+    command = args.command
+    job_parameters = JobParameters(**task_metadata)
     task_id = args.task_id
 
     logger.info(f"Running task {task_id} with command '{command}'")
 
     if command in (COMMANDS.run, COMMANDS.restart, COMMANDS.expand):
-        results_dict = work_horse(job_parameters)  # type: ignore[arg-type]
+        _, results_dict = work_horse(job_parameters)  # type: ignore[arg-type]
     elif command == COMMANDS.load_test:
         results_df = load_test_work_horse(job_parameters)  # type: ignore[arg-type]
         results_dict = {"load_test": results_df}
