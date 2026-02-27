@@ -13,6 +13,8 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
+from jobmon.core.configuration import JobmonConfig
+from jobmon.core.exceptions import ConfigError as JobmonConfigError
 from loguru import logger
 from vivarium.framework.utilities import collapse_nested_dict
 
@@ -33,7 +35,7 @@ from vivarium_cluster_tools.psimulate.performance_logger import (
 )
 from vivarium_cluster_tools.psimulate.results.writing import (
     collect_metadata,
-    count_completed_tasks,
+    get_completed_task_ids,
 )
 from vivarium_cluster_tools.vipin.perf_report import report_performance
 
@@ -213,11 +215,8 @@ def main(
     workflow.bind()
 
     try:
-        from jobmon.core.configuration import JobmonConfig
-        from jobmon.core.exceptions import ConfigError
-
         gui_url = JobmonConfig().get("http", "gui_url")
-    except (ConfigError, Exception):
+    except (JobmonConfigError, Exception):
         gui_url = ""
 
     monitoring_url = f"{gui_url}/#/workflow/{workflow.workflow_id}" if gui_url else ""
@@ -235,7 +234,7 @@ def main(
 
     # Count results written directly by workers
     num_completed_this_run = (
-        count_completed_tasks(output_paths.results_dir) - num_jobs_completed
+        len(get_completed_task_ids(output_paths.results_dir)) - num_jobs_completed
     )
     num_failed = len(job_parameters) - num_completed_this_run
     num_successful = num_jobs_completed + num_completed_this_run
