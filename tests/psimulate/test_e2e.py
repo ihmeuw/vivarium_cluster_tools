@@ -446,7 +446,6 @@ class TestPsimulateLoadTest:
     # Number of workers to use for the load test
     _NUM_WORKERS = 2
 
-    @pytest.mark.xfail(reason="large_results load test currently failing")
     def test_large_results(self, shared_tmp_path: Path, slurm_project: str) -> None:
         """Run the large_results load test and verify outputs are produced."""
         result_dir = shared_tmp_path / "load_test_results"
