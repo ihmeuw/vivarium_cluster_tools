@@ -9,9 +9,7 @@ The main process loop for `psimulate` runs.
 
 import os
 import shutil
-from collections import defaultdict
 from pathlib import Path
-from time import sleep, time
 from typing import Any
 
 import pandas as pd
@@ -27,93 +25,17 @@ from vivarium_cluster_tools.psimulate import (
     model_specification,
     paths,
     pip_env,
-    redis_dbs,
 )
-from vivarium_cluster_tools.psimulate import results as psim_results
-from vivarium_cluster_tools.psimulate import worker
+from vivarium_cluster_tools.psimulate.jobmon_config.workflow import build_workflow
 from vivarium_cluster_tools.psimulate.paths import OutputPaths
 from vivarium_cluster_tools.psimulate.performance_logger import (
     append_perf_data_to_central_logs,
 )
-from vivarium_cluster_tools.vipin.perf_report import PerformanceSummary, report_performance
-
-
-def process_job_results(
-    registry_manager: redis_dbs.RegistryManager,
-    existing_metadata: pd.DataFrame,
-    output_paths: OutputPaths,
-    batch_size: int,
-    output_file_size: int,
-    no_batch: bool,
-) -> dict[str, int | float]:
-    unwritten_metadata = []
-    unwritten_results = []
-    batch_size = 1 if no_batch else batch_size
-    status: dict[str, int | float] = defaultdict(int)
-
-    # Initialize output file map from any existing results (for restart support)
-    output_file_map = psim_results.OutputFileMap.from_existing_results(
-        output_paths.results_dir, output_file_size
-    )
-
-    logger.info("Entering main processing loop.")
-    start_time = time()
-    try:
-        while registry_manager.jobs_to_finish:
-            sleep(5)
-            for metadata, results in registry_manager.get_results():
-                unwritten_metadata.append(metadata)
-                unwritten_results.append(results)
-
-                if len(unwritten_results) == batch_size:
-                    (
-                        existing_metadata,
-                        unwritten_metadata,
-                        unwritten_results,
-                    ) = psim_results.write_results_batch(
-                        output_paths,
-                        existing_metadata,
-                        unwritten_metadata,
-                        unwritten_results,
-                        batch_size,
-                        output_file_map,
-                        output_file_size,
-                    )
-
-            status = registry_manager.update_and_report()
-            logger.info(f"Unwritten results: {len(unwritten_results)}")
-            logger.info(f"Elapsed time: {(time() - start_time)/60:.1f} minutes.")
-    finally:
-        # Flush all remaining results
-        while unwritten_results:
-            (
-                existing_metadata,
-                unwritten_metadata,
-                unwritten_results,
-            ) = psim_results.write_results_batch(
-                output_paths,
-                existing_metadata,
-                unwritten_metadata,
-                unwritten_results,
-                batch_size=len(unwritten_results),
-                output_file_map=output_file_map,
-                output_file_size=output_file_size,
-            )
-            logger.info(f"Unwritten results: {len(unwritten_results)}")
-            logger.info(f"Elapsed time: {(time() - start_time) / 60:.1f} minutes.")
-
-    return status
-
-
-def load_existing_output_metadata(metadata_path: Path, restart: bool) -> pd.DataFrame:
-    try:
-        existing_output_metadata = pd.read_csv(metadata_path)
-    except FileNotFoundError:
-        existing_output_metadata = pd.DataFrame()
-    assert (
-        existing_output_metadata.empty or restart
-    ), "How do you have existing outputs on an initial run?"
-    return existing_output_metadata
+from vivarium_cluster_tools.psimulate.results.writing import (
+    collect_metadata,
+    count_completed_tasks,
+)
+from vivarium_cluster_tools.vipin.perf_report import report_performance
 
 
 def report_initial_status(
@@ -153,16 +75,16 @@ def try_run_vipin(output_paths: OutputPaths) -> None:
 
 
 def write_backup_metadata(
-    backup_metadata_path: Path, parameters_by_job: dict[str, dict[str, Any]]
+    backup_metadata_path: Path, job_parameters_list: list[jobs.JobParameters]
 ) -> None:
     lookup_table = []
-    for job_id, params in parameters_by_job.items():
-        job_dict = {
-            "input_draw": params["input_draw"],
-            "random_seed": params["random_seed"],
-            "job_id": job_id,
+    for params in job_parameters_list:
+        job_dict: dict[str, Any] = {
+            "input_draw": params.input_draw,
+            "random_seed": params.random_seed,
+            "job_id": params.task_id,
         }
-        branch_config = collapse_nested_dict(params["branch_configuration"])
+        branch_config = collapse_nested_dict(params.branch_configuration)
         for k, v in branch_config:
             job_dict[k] = v
         lookup_table.append(job_dict)
@@ -180,11 +102,7 @@ def main(
     command: str,
     input_paths: paths.InputPaths,
     native_specification: cluster.NativeSpecification,
-    max_workers: int | None,
-    redis_processes: int,
-    batch_size: int,
-    output_file_size: int,
-    no_batch: bool,
+    max_workers: int,
     backup_freq: int | None,
     extra_args: dict[str, Any],
 ) -> None:
@@ -239,11 +157,15 @@ def main(
     model_specification.persist(model_spec, output_paths.model_specification)
 
     logger.info("Loading existing outputs if present.")
-    # Load in any existing partial outputs if present.
-    finished_sim_metadata = load_existing_output_metadata(
-        metadata_path=output_paths.finished_sim_metadata,
-        restart=command in [COMMANDS.restart, COMMANDS.expand],
+    # Collect existing metadata from per-task CSV files in results/metadata/
+    finished_sim_metadata = collect_metadata(
+        output_paths.metadata_dir, output_paths.results_dir
     )
+    if not finished_sim_metadata.empty:
+        assert command in [
+            COMMANDS.restart,
+            COMMANDS.expand,
+        ], "How do you have existing outputs on an initial run?"
 
     logger.info("Parsing arguments into worker job parameters.")
     # Translate the keyspace into the list of jobs to actually run
@@ -268,90 +190,74 @@ def main(
     else:
         logger.info(f"Found {len(job_parameters)} jobs to run.")
 
-    num_workers = len(job_parameters)
-    if max_workers:
-        num_workers = min(max_workers, num_workers)
-
-    logger.info("Spinning up Redis DBs and connecting to main process.")
-    # Spin up the job & result dbs and get back (hostname, port) pairs for all the dbs.
-    redis_ports = redis_dbs.launch(
-        num_processes=redis_processes,
-        num_workers=num_workers,
-        redis_logging_root=output_paths.logging_root,
-    )
-    # Spin up a unified interface to all the redis databases
-    registry_manager = redis_dbs.RegistryManager(redis_ports, num_workers, num_jobs_completed)
-    logger.info("Enqueuing jobs on Redis queues.")
-    # Distribute all the remaining jobs across the job queues
-    # in the redis databases.
-    registry_manager.enqueue(
-        jobs=job_parameters, workhorse_import_path=worker.WORK_HORSE_PATHS[command]
-    )
-
     if backup_freq is not None:
         write_backup_metadata(
             backup_metadata_path=output_paths.backup_metadata_path,
-            parameters_by_job=registry_manager.get_params_by_job(),
+            job_parameters_list=job_parameters,
         )
-    # Generate a worker template that chooses a redis DB at random to connect to.
-    # This should (approximately) evenly distribute the workers over the work.
-    redis_urls = [f"redis://{hostname}:{port}" for hostname, port in redis_ports]
-    worker_template = (
-        f"import random\nredis_urls = {redis_urls}\nREDIS_URL = random.choice(redis_urls)\n\n"
-    )
-    # Dump the worker config to a file we can pass to the workers on startup.
-    output_paths.worker_settings.write_text(worker_template)
-    worker_launch_script = worker.build_launch_script(
-        worker_settings_file=output_paths.worker_settings,
-        worker_log_directory=output_paths.worker_logging_root,
-    )
-    logger.info(f"Submitting redis workers to the cluster.")
-    # Start an rq worker for every job using the cluster scheduler, up to an
-    # optional user-specified limit. The workers will start as soon as they get
-    # scheduled and start looking for work. They run in burst mode which means
-    # they shut down if they can't find anything to do. This means it's
-    # critical that we put the jobs on the queue before the workers land,
-    # otherwise they'll just show up and shut down.
 
-    cluster.submit_worker_jobs(
-        num_workers=num_workers,
-        worker_launch_script=worker_launch_script,
-        cluster_logging_root=output_paths.cluster_logging_root,
+    # Build the Jobmon workflow
+    workflow_name = f"psimulate_{command}_{output_paths.root.name}"
+    logger.info("Building Jobmon workflow.")
+    workflow = build_workflow(
+        workflow_name=workflow_name,
+        command=command,
+        job_parameters_list=job_parameters,
+        output_paths=output_paths,
         native_specification=native_specification,
+        max_workers=max_workers,
     )
+
+    # Bind the workflow to get its ID before running, so we can display the
+    # monitoring URL immediately rather than waiting for run() to finish.
+    workflow.bind()
+
+    try:
+        from jobmon.core.configuration import JobmonConfig
+        from jobmon.core.exceptions import ConfigError
+
+        gui_url = JobmonConfig().get("http", "gui_url")
+    except (ConfigError, Exception):
+        gui_url = ""
+
+    monitoring_url = f"{gui_url}/#/workflow/{workflow.workflow_id}" if gui_url else ""
 
     logger.info(
-        "Entering monitoring and results processing loop. "
-        f"Results will be written to {str(output_paths.root)}"
+        "Submitting Jobmon workflow. " f"Results will be written to {str(output_paths.root)}"
     )
-    # Enter the main monitoring and processing loop, which will check on
-    # all the queues periodically, report status updates, and gather
-    # and write results when they are available.
-    status = process_job_results(
-        registry_manager=registry_manager,
-        existing_metadata=finished_sim_metadata,
-        output_paths=output_paths,
-        batch_size=batch_size,
-        output_file_size=output_file_size,
-        no_batch=no_batch,
-    )
+    if monitoring_url:
+        logger.info(f"Monitor progress at: {monitoring_url}")
+
+    wf_status = workflow.run()
 
     # Spit out a performance report for the workers.
     try_run_vipin(output_paths)
 
-    # Emit warning if any jobs failed
-    if status["failed"] > 0:
+    # Count results written directly by workers
+    num_completed_this_run = (
+        count_completed_tasks(output_paths.results_dir) - num_jobs_completed
+    )
+    num_failed = len(job_parameters) - num_completed_this_run
+    num_successful = num_jobs_completed + num_completed_this_run
+
+    if wf_status != "D":
         logger.warning(
-            f"*** NOTE: There {'was' if status['failed'] == 1 else 'were'} "
-            f"{status['failed']} failed job{'' if status['failed'] == 1 else 's'}. ***"
+            f"Workflow finished with status '{wf_status}' (expected 'D' for DONE)."
+        )
+
+    # Emit warning if any jobs failed
+    if num_failed > 0:
+        logger.warning(
+            f"*** NOTE: There {'was' if num_failed == 1 else 'were'} "
+            f"{num_failed} failed job{'' if num_failed == 1 else 's'}. ***"
         )
     else:
         logger.info(f"Removing sim backup directory {output_paths.backup_dir}")
-        shutil.rmtree(output_paths.backup_dir)
+        shutil.rmtree(output_paths.backup_dir, ignore_errors=True)
 
     logger.info(
-        f"{status['successful'] - num_jobs_completed} of {status['total']} jobs "
+        f"{num_completed_this_run} of {len(job_parameters)} jobs "
         f"completed successfully from this {command}.\n"
-        f"({status['successful']} of {total_num_jobs} total jobs completed successfully overall)\n"
+        f"({num_successful} of {total_num_jobs} total jobs completed successfully overall)\n"
         f"Results written to: {str(output_paths.results_dir)}"
     )
