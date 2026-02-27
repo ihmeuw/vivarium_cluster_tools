@@ -116,8 +116,8 @@ def build_job_list(
     backup_dir: Path,
     backup_metadata_path: Path,
     extras: dict[str, Any],
-) -> tuple[list[dict[str, str | int | dict[str, Any]]], int]:
-    jobs = []
+) -> tuple[list[JobParameters], int]:
+    jobs: list[JobParameters] = []
     number_already_completed = 0
 
     if command in [COMMANDS.run, COMMANDS.restart, COMMANDS.expand]:
@@ -139,7 +139,7 @@ def build_job_list(
             if already_complete(parameters, finished_sim_metadata):
                 number_already_completed += 1
             else:
-                jobs.append(parameters.to_dict())
+                jobs.append(parameters)
     else:
         assert command == COMMANDS.load_test
         for i in range(extras["num_workers"]):
@@ -152,7 +152,7 @@ def build_job_list(
                 backup_configuration={},
                 extras={"test_type": extras["test_type"]},
             )
-            jobs.append(parameters.to_dict())
+            jobs.append(parameters)
 
     np.random.shuffle(jobs)  # type: ignore [arg-type]
     return jobs, number_already_completed
