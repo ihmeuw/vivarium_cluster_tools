@@ -32,6 +32,8 @@ import pandas as pd
 import pytest
 import yaml
 
+from vivarium_cluster_tools.psimulate.results.writing import collect_metadata
+
 _DATA_DIR = Path(__file__).parent / "data"
 _MODEL_SPEC = _DATA_DIR / "e2e_model_spec.yaml"
 _BRANCHES = _DATA_DIR / "e2e_branches.yaml"
@@ -107,9 +109,17 @@ def completed_sim_copy(completed_sim_output: Path) -> Iterator[Path]:
     Tests that mutate the output directory (restart deletes files, expand adds
     jobs) should use this fixture instead of ``completed_sim_output`` directly
     so that each test starts from a pristine completed state.
+
+    The copy directory name includes the original timestamp *and* the unique
+    temp-dir suffix so that Jobmon workflow names (derived from
+    ``output_paths.root.name``) are unique both within a session and across
+    repeated test runs.
     """
     copy_root = _make_shared_tmp_dir()
-    copy_dir = copy_root / "output"
+    # e.g. "2026_02_27_11_01_29_tmp1u9ock2s" — timestamp for readability,
+    # temp suffix for uniqueness across runs.
+    unique_name = f"{completed_sim_output.name}_{copy_root.name}"
+    copy_dir = copy_root / unique_name
     shutil.copytree(completed_sim_output, copy_dir)
     yield copy_dir
     _cleanup_dir(copy_root)
@@ -156,10 +166,16 @@ def _find_output_dir(result_directory: Path) -> Path:
 
 
 def _read_metadata(output_dir: Path) -> pd.DataFrame:
-    """Read the finished simulation metadata CSV from an output directory."""
-    metadata_path = output_dir / "finished_sim_metadata.csv"
-    assert metadata_path.exists(), f"Metadata file not found at {metadata_path}"
-    return pd.read_csv(metadata_path)
+    """Collect metadata for completed tasks from per-task JSON + result parquet files."""
+    metadata_dir = output_dir / "metadata"
+    results_dir = output_dir / "results"
+    assert metadata_dir.exists(), f"Metadata directory not found at {metadata_dir}"
+    assert results_dir.exists(), f"Results directory not found at {results_dir}"
+    metadata = collect_metadata(metadata_dir, results_dir)
+    assert (
+        not metadata.empty
+    ), f"No completed task metadata found in {metadata_dir} / {results_dir}"
+    return metadata
 
 
 def _common_slurm_args(slurm_project: str) -> list[str]:
@@ -257,7 +273,7 @@ class TestPsimulateRun:
         results_dir = output_dir / "results"
         assert results_dir.exists()
 
-        deaths_dir = results_dir / "deaths"
+        deaths_dir = results_dir / "dead"
         assert deaths_dir.exists()
 
         deaths_df = pd.read_parquet(deaths_dir)
@@ -321,18 +337,25 @@ class TestPsimulateRestart:
         metadata = _read_metadata(output_dir)
         assert len(metadata) == _EXPECTED_TOTAL_JOBS
 
-        # Simulate a partial run by removing SOME outputs.
-        # Delete metadata file and half of the result files.
-        metadata_path = output_dir / "finished_sim_metadata.csv"
-        metadata_path.unlink()
-
+        # Simulate a partial run by removing SOME result parquet files.
+        # Task completion is determined by the existence of result parquet files,
+        # so deleting some of them simulates a partial run.
         results_dir = output_dir / "results"
-        if results_dir.exists():
-            result_files = list(results_dir.iterdir())
-            # Delete half of the result files to simulate partial completion
-            files_to_delete = result_files[: len(result_files) // 2]
-            for f in files_to_delete:
-                f.unlink()
+        assert results_dir.exists()
+
+        # Collect all parquet files across metric subdirectories, grouped by task_id
+        task_parquets: dict[str, list[Path]] = {}
+        for metric_dir in results_dir.iterdir():
+            if metric_dir.is_dir():
+                for pf in metric_dir.glob("*.parquet"):
+                    task_parquets.setdefault(pf.stem, []).append(pf)
+
+        # Delete parquet files for half the tasks
+        task_ids = sorted(task_parquets.keys())
+        tasks_to_delete = task_ids[: len(task_ids) // 2]
+        for tid in tasks_to_delete:
+            for pf in task_parquets[tid]:
+                pf.unlink()
 
         # Restart -- should re-run only the missing jobs
         proc = _run_psimulate(
