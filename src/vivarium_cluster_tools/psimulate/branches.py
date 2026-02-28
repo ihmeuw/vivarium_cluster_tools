@@ -59,6 +59,23 @@ class Keyspace:
         return Keyspace(branches, keyspace)
 
     @classmethod
+    def for_load_test(cls, num_workers: int) -> "Keyspace":
+        """Create a keyspace for load testing.
+
+        Parameters
+        ----------
+        num_workers
+            The number of workers (and thus jobs) to create.
+        """
+        return cls(
+            branches=[{}],
+            keyspace={
+                "input_draw": [0],
+                "random_seed": list(range(num_workers)),
+            },
+        )
+
+    @classmethod
     def from_entry_point_args(
         cls,
         input_branch_configuration_path: Path | None,

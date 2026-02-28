@@ -135,12 +135,15 @@ def main(
     )
     # Parse the branches configuration into a parameter space
     # and a flat representation of all parameters to be run.
-    keyspace = branches.Keyspace.from_entry_point_args(
-        input_branch_configuration_path=input_paths.branch_configuration,
-        keyspace_path=output_paths.keyspace,
-        branches_path=output_paths.branches,
-        extras=extra_args,
-    )
+    if command == COMMANDS.load_test:
+        keyspace = branches.Keyspace.for_load_test(extra_args["num_workers"])
+    else:
+        keyspace = branches.Keyspace.from_entry_point_args(
+            input_branch_configuration_path=input_paths.branch_configuration,
+            keyspace_path=output_paths.keyspace,
+            branches_path=output_paths.branches,
+            extras=extra_args,
+        )
     # Throw that into our output directory. The keyspace output is
     # a cartesian product representation of the parameter space and
     # branches is a flat representation with the product expanded out.
@@ -173,7 +176,6 @@ def main(
     # Translate the keyspace into the list of jobs to actually run
     # after accounting for any partially present results.
     job_parameters, num_jobs_completed = jobs.build_job_list(
-        command=command,
         model_specification_path=output_paths.model_specification,
         output_root=output_paths.root,
         keyspace=keyspace,
