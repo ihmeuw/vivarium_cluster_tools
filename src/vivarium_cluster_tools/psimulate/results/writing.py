@@ -28,7 +28,7 @@ from pathlib import Path
 
 import pandas as pd
 from loguru import logger
-from vivarium.framework.utilities import collapse_nested_dict
+from vivarium.framework import utilities
 
 from vivarium_cluster_tools.psimulate.jobs import JobParameters
 
@@ -146,6 +146,6 @@ def collect_metadata(metadata_dir: Path, results_dir: Path) -> pd.DataFrame:
             "input_draw": job_params["input_draw"],
             "random_seed": job_params["random_seed"],
         }
-        row = dict(collapse_nested_dict(job_specific))
+        row = dict(utilities.collapse_nested_dict(job_specific))
         rows.append(row)
     return pd.DataFrame(rows)
