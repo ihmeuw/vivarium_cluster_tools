@@ -223,11 +223,11 @@ def main(
 
     monitoring_url = f"{gui_url}/#/workflow/{workflow.workflow_id}" if gui_url else ""
 
-    logger.info(
+    logger.bind(quiet=True).info(
         "Submitting Jobmon workflow. " f"Results will be written to {str(output_paths.root)}"
     )
     if monitoring_url:
-        logger.info(f"Monitor progress at: {monitoring_url}")
+        logger.bind(quiet=True).info(f"Monitor progress at: {monitoring_url}")
 
     wf_status = workflow.run()
 
@@ -242,13 +242,13 @@ def main(
     num_successful = num_jobs_completed + num_completed_this_run
 
     if wf_status != "D":
-        logger.warning(
+        logger.bind(quiet=True).warning(
             f"Workflow finished with status '{wf_status}' (expected 'D' for DONE)."
         )
 
     # Emit warning if any jobs failed
     if num_failed > 0:
-        logger.warning(
+        logger.bind(quiet=True).warning(
             f"*** NOTE: There {'was' if num_failed == 1 else 'were'} "
             f"{num_failed} failed job{'' if num_failed == 1 else 's'}. ***"
         )
@@ -256,7 +256,7 @@ def main(
         logger.info(f"Removing sim backup directory {output_paths.backup_dir}")
         shutil.rmtree(output_paths.backup_dir, ignore_errors=True)
 
-    logger.info(
+    logger.bind(quiet=True).info(
         f"{num_completed_this_run} of {len(job_parameters)} jobs "
         f"completed successfully from this {command}.\n"
         f"({num_successful} of {total_num_jobs} total jobs completed successfully overall)\n"

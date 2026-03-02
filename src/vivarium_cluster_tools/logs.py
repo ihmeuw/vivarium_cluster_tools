@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from typing import TextIO
+from typing import Any, Mapping, TextIO
 
 from loguru import logger
 
@@ -22,10 +22,27 @@ def add_logging_sink(
         "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> "
         "- <level>{message}</level>"
     )
-    level = "DEBUG" if verbose >= 2 else "INFO"
-    logger.add(
-        sink, colorize=colorize, level=level, format=message_format, serialize=serialize
-    )
+    if verbose == 0:
+
+        def quiet_filter(record: Mapping[str, Any]) -> Any:
+            return record.get("extra", {}).get("quiet", False)
+
+        logger.add(
+            sink,
+            colorize=colorize,
+            level="INFO",
+            format=message_format,
+            filter=quiet_filter,
+            serialize=serialize,
+        )
+    elif verbose == 1:
+        logger.add(
+            sink, colorize=colorize, level="INFO", format=message_format, serialize=serialize
+        )
+    else:
+        logger.add(
+            sink, colorize=colorize, level="DEBUG", format=message_format, serialize=serialize
+        )
 
 
 def configure_main_process_logging_to_terminal(verbose: int) -> None:
