@@ -4,11 +4,12 @@ Logging Utilities
 =================
 
 """
+
 from __future__ import annotations
 
 import sys
 from pathlib import Path
-from typing import Any, Mapping, TextIO
+from typing import TextIO
 
 from loguru import logger
 
@@ -21,36 +22,13 @@ def add_logging_sink(
         "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> "
         "- <level>{message}</level>"
     )
-    if verbose == 0:
-
-        def quiet_filter(record: Mapping[str, Any]) -> Any:
-            return record.get("extra", {}).get("queue", None) == "all"
-
-        logger.add(
-            sink,
-            colorize=colorize,
-            level="INFO",
-            format=message_format,
-            filter=quiet_filter,
-            serialize=serialize,
-        )
-    elif verbose == 1:
-        logger.add(
-            sink, colorize=colorize, level="INFO", format=message_format, serialize=serialize
-        )
-    elif verbose >= 2:
-        logger.add(
-            sink, colorize=colorize, level="DEBUG", format=message_format, serialize=serialize
-        )
+    level = "DEBUG" if verbose >= 2 else "INFO"
+    logger.add(
+        sink, colorize=colorize, level=level, format=message_format, serialize=serialize
+    )
 
 
-def configure_main_process_logging_to_terminal(
-    verbose: int, process_name: str = "psimulate"
-) -> None:
-    if process_name != "psimulate":
-        # We don't have individual queue logs to silence
-        # which is what verbosity 0 does.
-        verbose += 1
+def configure_main_process_logging_to_terminal(verbose: int) -> None:
     logger.remove()  # Clear default configuration
     add_logging_sink(sys.stdout, verbose, colorize=True)
 
