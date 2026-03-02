@@ -30,6 +30,7 @@ def build_workflow(
     output_paths: OutputPaths,
     native_specification: NativeSpecification,
     max_workers: int,
+    max_attempts: int = 3,
 ) -> Workflow:
     """Build a Jobmon workflow for a psimulate command.
 
@@ -81,7 +82,7 @@ def build_workflow(
         name=workflow_name,
         max_concurrently_running=max_workers,
         default_cluster_name="slurm",
-        default_max_attempts=3,
+        default_max_attempts=max_attempts,
     )
 
     # Write job spec metadata and create tasks
