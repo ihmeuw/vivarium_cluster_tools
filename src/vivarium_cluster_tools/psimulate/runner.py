@@ -33,10 +33,7 @@ from vivarium_cluster_tools.psimulate.paths import OutputPaths
 from vivarium_cluster_tools.psimulate.performance_logger import (
     append_perf_data_to_central_logs,
 )
-from vivarium_cluster_tools.psimulate.results.writing import (
-    collect_metadata,
-    get_completed_task_ids,
-)
+from vivarium_cluster_tools.psimulate.results.writing import collect_metadata
 from vivarium_cluster_tools.vipin.perf_report import report_performance
 
 
@@ -235,11 +232,12 @@ def main(
     # Spit out a performance report for the workers.
     # try_run_vipin(output_paths)
 
-    # Count results written directly by workers
-    num_completed_this_run = (
-        len(get_completed_task_ids(output_paths.results_dir)) - num_jobs_completed
-    )
-    num_failed = len(job_parameters) - num_completed_this_run
+    # Count task outcomes from Jobmon's in-memory task statuses
+
+    num_done_total = sum(1 for t in workflow.tasks.values() if t.final_status == "D")
+    num_completed_this_run = num_done_total - num_jobs_completed
+    num_jobs_attempted = len(job_parameters) - num_jobs_completed
+    num_failed = num_jobs_attempted - num_completed_this_run
     num_successful = num_jobs_completed + num_completed_this_run
 
     if wf_status != "D":
