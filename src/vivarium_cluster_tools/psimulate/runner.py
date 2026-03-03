@@ -231,8 +231,9 @@ def main(
 
     wf_status = workflow.run()
 
+    # TODO MIC-6856 Fix Vipin
     # Spit out a performance report for the workers.
-    try_run_vipin(output_paths)
+    # try_run_vipin(output_paths)
 
     # Count results written directly by workers
     num_completed_this_run = (
