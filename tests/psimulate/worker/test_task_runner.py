@@ -19,8 +19,17 @@ from vivarium_cluster_tools.psimulate.jobs import JobParameters
 from vivarium_cluster_tools.psimulate.results.writing import write_metadata
 from vivarium_cluster_tools.psimulate.worker.task_runner import main, parse_args
 
-_JOB_PARAMS = make_job_parameters(input_draw=1, random_seed=42)
-_TASK_ID = _JOB_PARAMS.task_id
+# Patch targets are the names as imported into task_runner.
+_WORK_HORSE = "vivarium_cluster_tools.psimulate.worker.task_runner.work_horse"
+_LOAD_TEST_WORK_HORSE = (
+    "vivarium_cluster_tools.psimulate.worker.task_runner.load_test_work_horse"
+)
+_WRITE_TASK_RESULTS = "vivarium_cluster_tools.psimulate.worker.task_runner.write_task_results"
+
+
+@pytest.fixture(scope="module")
+def job_params() -> JobParameters:
+    return make_job_parameters(input_draw=1, random_seed=42)
 
 
 def _build_argv(
@@ -28,7 +37,7 @@ def _build_argv(
     results_dir: Path,
     worker_log_dir: Path,
     command: str,
-    task_id: str = _TASK_ID,
+    task_id: str,
 ) -> list[str]:
     """Build a CLI argv list for ``main()``."""
     return [
@@ -87,17 +96,11 @@ class TestParseArgs:
             parse_args(["--metadata-dir", str(tmp_path)])
 
     def test_unknown_arg_raises_system_exit(self, tmp_path: Path) -> None:
-        argv = _build_argv(tmp_path, tmp_path, tmp_path, command="run") + ["--bogus"]
+        argv = _build_argv(tmp_path, tmp_path, tmp_path, command="run", task_id="x") + [
+            "--bogus"
+        ]
         with pytest.raises(SystemExit):
             parse_args(argv)
-
-
-# Patch targets are the names as imported into task_runner.
-_WORK_HORSE = "vivarium_cluster_tools.psimulate.worker.task_runner.work_horse"
-_LOAD_TEST_WORK_HORSE = (
-    "vivarium_cluster_tools.psimulate.worker.task_runner.load_test_work_horse"
-)
-_WRITE_TASK_RESULTS = "vivarium_cluster_tools.psimulate.worker.task_runner.write_task_results"
 
 
 class TestMainDispatch:
@@ -105,19 +108,23 @@ class TestMainDispatch:
 
     @pytest.mark.parametrize("command", [COMMANDS.run, COMMANDS.restart, COMMANDS.expand])
     def test_vivarium_commands_call_work_horse(
-        self, dirs: dict[str, Path], command: str
+        self, dirs: dict[str, Path], job_params: JobParameters, command: str
     ) -> None:
-        write_metadata(dirs["metadata"], _JOB_PARAMS)
+        write_metadata(dirs["metadata"], job_params)
         mock_results = {"some_metric": pd.DataFrame({"a": [1]})}
 
         with (
-            patch(_WORK_HORSE, return_value=mock_results) as work_horse,
+            patch(_WORK_HORSE, return_value=(pd.DataFrame(), mock_results)) as work_horse,
             patch(_LOAD_TEST_WORK_HORSE) as load_test_work_horse,
             patch(_WRITE_TASK_RESULTS) as write,
         ):
             main(
                 _build_argv(
-                    dirs["metadata"], dirs["results"], dirs["worker_logs"], command=command
+                    dirs["metadata"],
+                    dirs["results"],
+                    dirs["worker_logs"],
+                    command=command,
+                    task_id=job_params.task_id,
                 )
             )
 
@@ -127,8 +134,8 @@ class TestMainDispatch:
             # Verify the JobParameters passed to work_horse
             args, kwargs = work_horse.call_args
             assert isinstance(args[0], JobParameters)
-            assert args[0].input_draw == _JOB_PARAMS.input_draw
-            assert args[0].random_seed == _JOB_PARAMS.random_seed
+            assert args[0].input_draw == job_params.input_draw
+            assert args[0].random_seed == job_params.random_seed
 
             # Verify write_task_results receives the work_horse return value
             write.assert_called_once_with(
@@ -137,8 +144,10 @@ class TestMainDispatch:
                 results_dict=mock_results,
             )
 
-    def test_load_test_calls_load_test_work_horse(self, dirs: dict[str, Path]) -> None:
-        write_metadata(dirs["metadata"], _JOB_PARAMS)
+    def test_load_test_calls_load_test_work_horse(
+        self, dirs: dict[str, Path], job_params: JobParameters
+    ) -> None:
+        write_metadata(dirs["metadata"], job_params)
         mock_df = pd.DataFrame({"x": [1, 2, 3]})
 
         with (
@@ -152,6 +161,7 @@ class TestMainDispatch:
                     dirs["results"],
                     dirs["worker_logs"],
                     command=COMMANDS.load_test,
+                    task_id=job_params.task_id,
                 )
             )
 
@@ -161,8 +171,10 @@ class TestMainDispatch:
             args, kwargs = load_test_work_horse.call_args
             assert isinstance(args[0], JobParameters)
 
-    def test_unknown_command_raises_value_error(self, dirs: dict[str, Path]) -> None:
-        write_metadata(dirs["metadata"], _JOB_PARAMS)
+    def test_unknown_command_raises_value_error(
+        self, dirs: dict[str, Path], job_params: JobParameters
+    ) -> None:
+        write_metadata(dirs["metadata"], job_params)
 
         with (
             patch(_WORK_HORSE),
@@ -176,17 +188,18 @@ class TestMainDispatch:
                         dirs["results"],
                         dirs["worker_logs"],
                         command="bogus_command",
+                        task_id=job_params.task_id,
                     )
                 )
 
 
 class TestMainLoggingSetup:
-    def test_env_var_is_set(self, dirs: dict[str, Path]) -> None:
+    def test_env_var_is_set(self, dirs: dict[str, Path], job_params: JobParameters) -> None:
         """VIVARIUM_LOGGING_DIRECTORY must be set to the worker-log dir."""
-        write_metadata(dirs["metadata"], _JOB_PARAMS)
+        write_metadata(dirs["metadata"], job_params)
 
         with (
-            patch(_WORK_HORSE, return_value={}),
+            patch(_WORK_HORSE, return_value=(pd.DataFrame(), {})),
             patch(_WRITE_TASK_RESULTS),
         ):
             main(
@@ -195,17 +208,20 @@ class TestMainLoggingSetup:
                     dirs["results"],
                     dirs["worker_logs"],
                     command=COMMANDS.run,
+                    task_id=job_params.task_id,
                 )
             )
 
         assert os.environ["VIVARIUM_LOGGING_DIRECTORY"] == str(dirs["worker_logs"])
 
-    def test_per_task_log_file_created(self, dirs: dict[str, Path]) -> None:
+    def test_per_task_log_file_created(
+        self, dirs: dict[str, Path], job_params: JobParameters
+    ) -> None:
         """Loguru should create a per-task log file in worker_log_dir."""
-        write_metadata(dirs["metadata"], _JOB_PARAMS)
+        write_metadata(dirs["metadata"], job_params)
 
         with (
-            patch(_WORK_HORSE, return_value={}),
+            patch(_WORK_HORSE, return_value=(pd.DataFrame(), {})),
             patch(_WRITE_TASK_RESULTS),
         ):
             main(
@@ -214,10 +230,11 @@ class TestMainLoggingSetup:
                     dirs["results"],
                     dirs["worker_logs"],
                     command=COMMANDS.run,
+                    task_id=job_params.task_id,
                 )
             )
 
-        log_file = dirs["worker_logs"] / f"{_TASK_ID}.log"
+        log_file = dirs["worker_logs"] / f"{job_params.task_id}.log"
         assert log_file.exists()
 
 
