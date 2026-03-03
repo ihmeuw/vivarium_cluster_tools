@@ -102,6 +102,7 @@ def main(
     input_paths: paths.InputPaths,
     native_specification: cluster.NativeSpecification,
     max_workers: int,
+    max_attempts: int,
     backup_freq: int | None,
     extra_args: dict[str, Any],
 ) -> None:
@@ -206,6 +207,7 @@ def main(
         output_paths=output_paths,
         native_specification=native_specification,
         max_workers=max_workers,
+        max_attempts=max_attempts,
     )
 
     # Bind the workflow to get its ID before running, so we can display the
