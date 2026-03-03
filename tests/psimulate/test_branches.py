@@ -5,6 +5,7 @@ from vivarium.framework.utilities import collapse_nested_dict
 
 from vivarium_cluster_tools.psimulate.branches import (
     Keyspace,
+    calculate_input_draws,
     calculate_random_seeds,
     expand_branch_templates,
 )
@@ -76,3 +77,43 @@ def test_keyspace_order() -> None:
 
     for test_key, reference_key in zip(full_keyspace, ordered_keys):
         assert test_key == reference_key
+
+
+@pytest.mark.parametrize("draw_count", [1, 5, 50])
+def test_calculate_input_draws_excludes_existing(draw_count: int) -> None:
+    """New draws never overlap with existing draws."""
+    existing = calculate_input_draws(draw_count)
+    additional = calculate_input_draws(draw_count, existing_draws=existing)
+    assert len(additional) == draw_count
+    assert len(additional) == len(set(additional))
+    assert set(additional).isdisjoint(set(existing))
+
+
+def test_add_draws_produces_distinct_values() -> None:
+    """Keyspace.add_draws appends draws that don't overlap with the originals."""
+    original_draws = calculate_input_draws(5)
+    ks = Keyspace(
+        branches=[{}],
+        keyspace={"input_draw": list(original_draws), "random_seed": [0]},
+    )
+    ks.add_draws(3)
+    all_draws = ks._keyspace["input_draw"]
+    assert len(all_draws) == 8
+    assert len(set(all_draws)) == 8  # all unique
+    # Original draws are preserved at the front
+    assert all_draws[:5] == original_draws
+
+
+def test_add_seeds_produces_distinct_values() -> None:
+    """Keyspace.add_seeds appends seeds that don't overlap with the originals."""
+    original_seeds = calculate_random_seeds(10)
+    ks = Keyspace(
+        branches=[{}],
+        keyspace={"input_draw": [0], "random_seed": list(original_seeds)},
+    )
+    ks.add_seeds(5)
+    all_seeds = ks._keyspace["random_seed"]
+    assert len(all_seeds) == 15
+    assert len(set(all_seeds)) == 15  # all unique
+    # Original seeds are preserved at the front
+    assert all_seeds[:10] == original_seeds
