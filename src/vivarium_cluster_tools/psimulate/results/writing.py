@@ -28,7 +28,7 @@ from pathlib import Path
 
 import pandas as pd
 from loguru import logger
-from vivarium.framework.utilities import collapse_nested_dict
+from vivarium.framework import utilities
 
 from vivarium_cluster_tools.psimulate.jobs import JobParameters
 
@@ -74,7 +74,7 @@ def write_task_results(
     for metric, df in results_dict.items():
         metric_dir = results_dir / metric
         metric_dir.mkdir(parents=True, exist_ok=True)
-        for key, val in collapse_nested_dict(job_parameters.job_specific):
+        for key, val in utilities.collapse_nested_dict(job_parameters.job_specific):
             col_name = key.split(".")[-1]
             df.insert(df.shape[1] - 1, col_name, val)
         df.to_parquet(metric_dir / f"{job_parameters.task_id}.parquet")
@@ -146,6 +146,6 @@ def collect_metadata(metadata_dir: Path, results_dir: Path) -> pd.DataFrame:
             "input_draw": job_params["input_draw"],
             "random_seed": job_params["random_seed"],
         }
-        row = dict(collapse_nested_dict(job_specific))
+        row = dict(utilities.collapse_nested_dict(job_specific))
         rows.append(row)
     return pd.DataFrame(rows)
