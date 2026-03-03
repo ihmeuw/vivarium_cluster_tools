@@ -178,6 +178,43 @@ def _read_metadata(output_dir: Path) -> pd.DataFrame:
     return metadata
 
 
+def _get_result_task_ids(results_dir: Path) -> dict[str, set[str]]:
+    """Return ``{metric_name: {task_id, ...}}`` from parquet files under *results_dir*.
+
+    Each metric subdirectory (e.g. ``results/dead/``) contains chunked parquet
+    files whose stems encode the output file number (``0000``, ``0001``, …).
+    Within each file, individual task contributions are identified by their
+    unique ``(input_draw, random_seed)`` pair.  We read those two columns
+    and return the set of composite task-id strings per metric so callers can
+    compare counts before and after an operation.
+    """
+    result: dict[str, set[str]] = {}
+    for metric_dir in sorted(results_dir.iterdir()):
+        if not metric_dir.is_dir():
+            continue
+        df = pd.read_parquet(metric_dir, columns=["input_draw", "random_seed"])
+        ids = {
+            f"{row.input_draw}_{row.random_seed}"
+            for row in df[["input_draw", "random_seed"]].drop_duplicates().itertuples()
+        }
+        result[metric_dir.name] = ids
+    return result
+
+
+def _assert_result_task_counts(results_dir: Path, expected: int) -> dict[str, set[str]]:
+    """Assert every metric subdir in *results_dir* has exactly *expected* task IDs.
+
+    Returns the ``{metric: {task_id, ...}}`` dict for further inspection.
+    """
+    task_ids = _get_result_task_ids(results_dir)
+    assert task_ids, f"No metric subdirectories found under {results_dir}"
+    for metric, ids in task_ids.items():
+        assert (
+            len(ids) == expected
+        ), f"Metric '{metric}': expected {expected} task results, got {len(ids)}"
+    return task_ids
+
+
 def _common_slurm_args(slurm_project: str) -> list[str]:
     """Return common SLURM-related CLI arguments used across tests."""
     return [
@@ -273,6 +310,9 @@ class TestPsimulateRun:
         results_dir = output_dir / "results"
         assert results_dir.exists()
 
+        # Verify each metric directory has exactly one result per job
+        _assert_result_task_counts(results_dir, _EXPECTED_TOTAL_JOBS)
+
         deaths_dir = results_dir / "dead"
         assert deaths_dir.exists()
 
@@ -337,25 +377,39 @@ class TestPsimulateRestart:
         metadata = _read_metadata(output_dir)
         assert len(metadata) == _EXPECTED_TOTAL_JOBS
 
-        # Simulate a partial run by removing SOME result parquet files.
-        # Task completion is determined by the existence of result parquet files,
-        # so deleting some of them simulates a partial run.
+        # Verify result files before deletion
         results_dir = output_dir / "results"
         assert results_dir.exists()
+        pre_task_ids = _assert_result_task_counts(results_dir, _EXPECTED_TOTAL_JOBS)
 
-        # Collect all parquet files across metric subdirectories, grouped by task_id
-        task_parquets: dict[str, list[Path]] = {}
+        # Pick the same task IDs to delete across all metric directories.
+        # Use the union of all task IDs (they should be identical across metrics).
+        all_task_ids = sorted(set().union(*pre_task_ids.values()))
+        assert len(all_task_ids) == _EXPECTED_TOTAL_JOBS
+        ids_to_delete = set(all_task_ids[: len(all_task_ids) // 2])
+        assert ids_to_delete, "Need at least 2 tasks to delete half"
+        expected_remaining = _EXPECTED_TOTAL_JOBS - len(ids_to_delete)
+
+        # Delete the corresponding rows by rewriting each metric's parquet files
+        # to exclude the targeted task IDs.
         for metric_dir in results_dir.iterdir():
-            if metric_dir.is_dir():
-                for pf in metric_dir.glob("*.parquet"):
-                    task_parquets.setdefault(pf.stem, []).append(pf)
+            if not metric_dir.is_dir():
+                continue
+            for pf in sorted(metric_dir.glob("*.parquet")):
+                df = pd.read_parquet(pf)
+                mask = df.apply(
+                    lambda r: f"{int(r['input_draw'])}_{int(r['random_seed'])}"
+                    in ids_to_delete,
+                    axis=1,
+                )
+                kept = df[~mask]
+                if kept.empty:
+                    pf.unlink()
+                else:
+                    kept.to_parquet(pf, index=False)
 
-        # Delete parquet files for half the tasks
-        task_ids = sorted(task_parquets.keys())
-        tasks_to_delete = task_ids[: len(task_ids) // 2]
-        for tid in tasks_to_delete:
-            for pf in task_parquets[tid]:
-                pf.unlink()
+        # Confirm deletion: each metric dir should now have exactly N/2 tasks
+        _assert_result_task_counts(results_dir, expected_remaining)
 
         # Restart -- should re-run only the missing jobs
         proc = _run_psimulate(
@@ -377,6 +431,9 @@ class TestPsimulateRestart:
         draw_seed_pairs = metadata[["input_draw", "random_seed"]].drop_duplicates()
         assert len(draw_seed_pairs) == _EXPECTED_TOTAL_JOBS
 
+        # Verify result files were restored
+        _assert_result_task_counts(results_dir, _EXPECTED_TOTAL_JOBS)
+
 
 class TestPsimulateExpand:
     """E2E tests for ``psimulate expand``."""
@@ -392,6 +449,10 @@ class TestPsimulateExpand:
         assert len(metadata) == _EXPECTED_TOTAL_JOBS
         initial_draws = set(metadata["input_draw"])
         initial_seeds = set(metadata["random_seed"])
+
+        # Verify initial result files
+        results_dir = output_dir / "results"
+        _assert_result_task_counts(results_dir, _EXPECTED_TOTAL_JOBS)
 
         # Expand by adding 1 draw and 1 seed.
         # New jobs: (1 new draw x 2 old seeds) + (3 total draws x 1 new seed) = 2 + 3 = 5
@@ -438,6 +499,9 @@ class TestPsimulateExpand:
         # Every draw/seed pair should be unique
         draw_seed_pairs = metadata[["input_draw", "random_seed"]].drop_duplicates()
         assert len(draw_seed_pairs) == expected_total
+
+        # Verify result files reflect the expanded total
+        _assert_result_task_counts(results_dir, expected_total)
 
 
 class TestPsimulateLoadTest:
