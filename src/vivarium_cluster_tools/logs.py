@@ -13,10 +13,6 @@ from typing import TextIO
 
 from loguru import logger
 
-# Custom log level for messages that should always be shown to the user,
-# even at the lowest verbosity (verbose=0). Sits between INFO (20) and WARNING (30).
-logger.level("ALWAYS_SHOW", no=25, color="<bold>")
-
 
 def add_logging_sink(
     sink: TextIO | str | Path, verbose: int, colorize: bool = False, serialize: bool = False
@@ -30,13 +26,9 @@ def add_logging_sink(
         logger.add(
             sink,
             colorize=colorize,
-            level="ALWAYS_SHOW",
+            level="INFO",
             format=message_format,
             serialize=serialize,
-        )
-    elif verbose == 1:
-        logger.add(
-            sink, colorize=colorize, level="INFO", format=message_format, serialize=serialize
         )
     else:
         logger.add(

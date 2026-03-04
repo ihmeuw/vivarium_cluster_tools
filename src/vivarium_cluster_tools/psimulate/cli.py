@@ -274,7 +274,7 @@ def test(
     (
         logger.warning(peak_memory_msg)
         if options["peak_memory"] != cluster.PEAK_MEMORY_DEFAULT
-        else logger.info(peak_memory_msg)
+        else logger.debug(peak_memory_msg)
     )
     max_runtime_msg = (
         f"Manually overriding the max runtime request '{test_type}' test to {max_runtime}."
@@ -282,7 +282,7 @@ def test(
     (
         logger.warning(max_runtime_msg)
         if options["max_runtime"] != cluster.MAX_RUNTIME_DEFAULT
-        else logger.info(max_runtime_msg)
+        else logger.debug(max_runtime_msg)
     )
     options["peak_memory"] = peak_memory
     options["max_runtime"] = max_runtime
