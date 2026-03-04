@@ -213,11 +213,7 @@ def main(
     # monitoring URL immediately rather than waiting for run() to finish.
     workflow.bind()
 
-    try:
-        gui_url = JobmonConfig().get("http", "gui_url")
-    except (JobmonConfigError, Exception):
-        gui_url = ""
-
+    gui_url = JobmonConfig().get("http", "gui_url")
     monitoring_url = f"{gui_url}/#/workflow/{workflow.workflow_id}" if gui_url else ""
 
     logger.bind(always=True).info(
