@@ -390,7 +390,6 @@ class TestPsimulateRun:
                 *_common_slurm_args(slurm_project),
                 "-w",
                 str(_EXPECTED_TOTAL_JOBS),
-                # default --max-attempts is 3, so Jobmon retries automatically
             ],
             capture_output=True,
             text=True,
@@ -478,7 +477,7 @@ class TestPsimulateRestart:
         result_dir = shared_tmp_path / "results"
         result_dir.mkdir()
 
-        # --- Initial run with --max-attempts 1: every task fails permanently ---
+        # Initial run with --max-attempts 1: every task fails permanently
         env = {**os.environ, "FAIL_ONCE_SENTINEL_DIR": str(sentinel_dir)}
         initial_proc = subprocess.run(
             [
@@ -500,7 +499,6 @@ class TestPsimulateRestart:
             env=env,
         )
         # Workflow should finish but not with a clean DONE (all tasks failed).
-        # psimulate may return 0 even on partial failure; we check results.
         output_dir = _find_output_dir(result_dir)
         results_dir = output_dir / "results"
 
@@ -520,7 +518,7 @@ class TestPsimulateRestart:
             f"got {len(sentinel_files)}: {sentinel_files}"
         )
 
-        # --- Restart: sentinels exist, so every task now succeeds --------
+        #  Restart: sentinels exist, so every task now succeeds
         restart_proc = subprocess.run(
             [
                 "psimulate",
