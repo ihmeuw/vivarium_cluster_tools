@@ -13,6 +13,8 @@ from pathlib import Path
 from typing import Any, NamedTuple
 
 import numpy as np
+import pandas as pd
+from vivarium.framework.utilities import collapse_nested_dict
 
 from vivarium_cluster_tools.psimulate import branches
 
@@ -108,12 +110,14 @@ def build_job_list(
     model_specification_path: Path,
     output_root: Path,
     keyspace: branches.Keyspace,
+    finished_sim_metadata: pd.DataFrame,
     backup_freq: int | None,
     backup_dir: Path,
     backup_metadata_path: Path,
     extras: dict[str, Any],
-) -> list[JobParameters]:
+) -> tuple[list[JobParameters], int]:
     jobs: list[JobParameters] = []
+    number_already_completed = 0
 
     for input_draw, random_seed, branch_config in keyspace:
         parameters = JobParameters(
@@ -129,7 +133,27 @@ def build_job_list(
             },
             extras=extras,
         )
-        jobs.append(parameters)
+
+        if already_complete(parameters, finished_sim_metadata):
+            number_already_completed += 1
+        else:
+            jobs.append(parameters)
 
     np.random.shuffle(jobs)  # type: ignore [arg-type]
-    return jobs
+    return jobs, number_already_completed
+
+
+def already_complete(
+    job_parameters: JobParameters, finished_sim_metadata: pd.DataFrame
+) -> bool:
+    if finished_sim_metadata.empty:
+        return False
+
+    job_parameter_list = collapse_nested_dict(job_parameters.job_specific)
+    mask = pd.Series(True, index=finished_sim_metadata.index)
+    for k, v in job_parameter_list:
+        if isinstance(v, float):
+            mask &= np.isclose(finished_sim_metadata[k], v)
+        else:
+            mask &= finished_sim_metadata[k] == v
+    return bool(np.any(mask))

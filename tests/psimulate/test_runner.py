@@ -1,12 +1,22 @@
 from pathlib import Path
 
 import pandas as pd
+import pytest
 from pandas.testing import assert_frame_equal
 
 from vivarium_cluster_tools.psimulate.jobs import JobParameters, generate_task_id
 from vivarium_cluster_tools.psimulate.runner import (
+    report_initial_status,
     write_backup_metadata,
 )
+
+
+def test_report_initial_status() -> None:
+    number_existing_jobs = 10
+    finished_sim_metadata = pd.DataFrame(index=range(number_existing_jobs))
+    report_initial_status(number_existing_jobs, finished_sim_metadata, 100)
+    with pytest.raises(RuntimeError, match="There are 1 jobs from the previous run"):
+        report_initial_status(number_existing_jobs + 1, finished_sim_metadata, 100)
 
 
 def test_write_backup_metadata(tmp_path: Path) -> None:

@@ -140,7 +140,7 @@ def collect_metadata(metadata_dir: Path, results_dir: Path) -> pd.DataFrame:
             continue
         with open(metadata_path) as f:
             job_params = json.load(f)
-        # Build flattened job_specific dict
+        # Build flattened job_specific dict matching what already_complete() expects
         job_specific = {
             **job_params.get("branch_configuration", {}),
             "input_draw": job_params["input_draw"],

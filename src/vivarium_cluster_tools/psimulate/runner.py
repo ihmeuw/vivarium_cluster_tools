@@ -33,7 +33,27 @@ from vivarium_cluster_tools.psimulate.paths import OutputPaths
 from vivarium_cluster_tools.psimulate.performance_logger import (
     append_perf_data_to_central_logs,
 )
+from vivarium_cluster_tools.psimulate.results.writing import collect_metadata
 from vivarium_cluster_tools.vipin.perf_report import report_performance
+
+
+def report_initial_status(
+    num_jobs_completed: int, finished_sim_metadata: pd.DataFrame, total_num_jobs: int
+) -> None:
+    if num_jobs_completed:
+        logger.info(
+            f"{num_jobs_completed} of {total_num_jobs} jobs completed in previous run."
+        )
+    extra_jobs_completed = num_jobs_completed - len(finished_sim_metadata)
+    # NOTE: there can never be more rows in `finished_sim_metadata` than `num_jobs_completed`
+    # because `num_jobs_completed` was calculated by comparing the keyspace to `finished_sim_metadata`.
+    if extra_jobs_completed:
+        raise RuntimeError(
+            f"There are {extra_jobs_completed} jobs from the previous run which would not have been created "
+            "with the configuration saved with that run. That either means that code "
+            "has changed between then and now or that the outputs or configuration data "
+            "have been modified."
+        )
 
 
 def try_run_vipin(output_paths: OutputPaths) -> None:
@@ -139,16 +159,40 @@ def main(
     )
     model_specification.persist(model_spec, output_paths.model_specification)
 
+    logger.info("Loading existing outputs if present.")
+    # Collect existing metadata from per-task CSV files in results/metadata/
+    finished_sim_metadata = collect_metadata(
+        output_paths.metadata_dir, output_paths.results_dir
+    )
+    if not finished_sim_metadata.empty:
+        assert command in [
+            COMMANDS.restart,
+            COMMANDS.expand,
+        ], "How do you have existing outputs on an initial run?"
+
     logger.info("Parsing arguments into worker job parameters.")
-    job_parameters = jobs.build_job_list(
+    # For restart, we build the full job list (no filtering) and let Jobmon's
+    # native resume skip already-completed tasks.  For other commands, we
+    # filter out completed jobs ourselves.
+    restart = command == COMMANDS.restart
+    job_list_metadata = pd.DataFrame() if restart else finished_sim_metadata
+    job_parameters, num_jobs_completed = jobs.build_job_list(
         model_specification_path=output_paths.model_specification,
         output_root=output_paths.root,
         keyspace=keyspace,
+        finished_sim_metadata=job_list_metadata,
         backup_freq=backup_freq,
         backup_dir=output_paths.backup_dir,
         backup_metadata_path=output_paths.backup_metadata_path,
         extras=extra_args,
     )
+    # For restart, we know the real completed count from collect_metadata,
+    # not from build_job_list (which saw an empty DataFrame).
+    if restart:
+        num_jobs_completed = len(finished_sim_metadata)
+    # Let the user know if something is fishy at this point.
+    total_num_jobs = len(keyspace)
+    report_initial_status(num_jobs_completed, finished_sim_metadata, total_num_jobs)
     if len(job_parameters) == 0:
         logger.info("No jobs to run, exiting.")
         return
@@ -164,7 +208,6 @@ def main(
     # Build the Jobmon workflow.
     # For restart we reuse the original run's workflow_args so Jobmon can
     # resume the same workflow (skipping already-completed tasks).
-    restart = command == COMMANDS.restart
     wf_command = COMMANDS.run if restart else command
     workflow_name = f"psimulate_{wf_command}_{output_paths.root.name}"
     logger.info("Building Jobmon workflow.")
@@ -202,9 +245,12 @@ def main(
     # try_run_vipin(output_paths)
 
     # Count task outcomes from Jobmon's in-memory task statuses
-    num_submitted = len(job_parameters)
-    num_done = sum(1 for t in workflow.tasks.values() if t.final_status == "D")
-    num_failed = num_submitted - num_done
+
+    num_done_total = sum(1 for t in workflow.tasks.values() if t.final_status == "D")
+    num_completed_this_run = num_done_total - num_jobs_completed
+    num_jobs_attempted = len(job_parameters) - num_jobs_completed
+    num_failed = num_jobs_attempted - num_completed_this_run
+    num_successful = num_jobs_completed + num_completed_this_run
 
     if wf_status != "D":
         logger.bind(quiet=True).warning(
@@ -222,6 +268,8 @@ def main(
         shutil.rmtree(output_paths.backup_dir, ignore_errors=True)
 
     logger.bind(quiet=True).info(
-        f"{num_done} of {num_submitted} jobs completed successfully."
-        f"\nResults written to: {str(output_paths.results_dir)}"
+        f"{num_completed_this_run} of {num_jobs_attempted} jobs "
+        f"completed successfully from this {command}.\n"
+        f"({num_successful} of {total_num_jobs} total jobs completed successfully overall)\n"
+        f"Results written to: {str(output_paths.results_dir)}"
     )
