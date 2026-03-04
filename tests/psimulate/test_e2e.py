@@ -201,6 +201,11 @@ def _get_result_task_ids(results_dir: Path) -> dict[str, set[str]]:
     return result
 
 
+def _collect_mtimes(directory: Path) -> dict[Path, float]:
+    """Return ``{path: mtime}`` for every file under *directory*."""
+    return {p: p.stat().st_mtime for p in directory.rglob("*") if p.is_file()}
+
+
 def _assert_result_task_counts(results_dir: Path, expected: int) -> dict[str, set[str]]:
     """Assert every metric subdir in *results_dir* has exactly *expected* task IDs.
 
@@ -434,6 +439,11 @@ class TestPsimulateRestart:
         results_dir = output_dir / "results"
         _assert_result_task_counts(results_dir, _EXPECTED_TOTAL_JOBS)
 
+        # Snapshot file mtimes and log directories before restart
+        mtimes_before = _collect_mtimes(results_dir)
+        mtimes_before.update(_collect_mtimes(output_dir / "metadata"))
+        log_dirs_before = set((output_dir / "logs").iterdir())
+
         # Restart -- Jobmon should resume and skip all DONE tasks
         proc = _run_psimulate(
             [
@@ -458,6 +468,18 @@ class TestPsimulateRestart:
         assert len(draw_seed_pairs) == _EXPECTED_TOTAL_JOBS
 
         _assert_result_task_counts(results_dir, _EXPECTED_TOTAL_JOBS)
+
+        # Verify no result or metadata files were touched (proves no re-execution)
+        mtimes_after = _collect_mtimes(results_dir)
+        mtimes_after.update(_collect_mtimes(output_dir / "metadata"))
+        assert (
+            mtimes_before == mtimes_after
+        ), "Result/metadata files were modified during no-op restart"
+
+        # Verify no new log directory was created (no workers were launched)
+        log_dirs_after = set((output_dir / "logs").iterdir())
+        new_log_dirs = log_dirs_after - log_dirs_before
+        assert not new_log_dirs, f"Unexpected new log directories: {new_log_dirs}"
 
     def test_restart_after_total_failure(
         self, shared_tmp_path: Path, slurm_project: str
