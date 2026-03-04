@@ -56,11 +56,15 @@ def report_initial_status(
         )
 
 
-def try_run_vipin(output_paths: OutputPaths) -> None:
+def try_run_vipin(output_paths: OutputPaths, workflow_id: int | None = None) -> None:
     log_path = output_paths.worker_logging_root
     try:
         perf_df = report_performance(
-            input_directory=log_path, output_directory=log_path, output_hdf=False, verbose=1
+            input_directory=log_path,
+            output_directory=log_path,
+            output_hdf=False,
+            verbose=1,
+            workflow_id=workflow_id,
         )
     except Exception as e:
         logger.warning(f"Performance reporting failed with: {e}")
@@ -235,9 +239,8 @@ def main(
 
     wf_status = workflow.run(resume=restart)
 
-    # TODO MIC-6856 Fix Vipin
     # Spit out a performance report for the workers.
-    # try_run_vipin(output_paths)
+    try_run_vipin(output_paths, workflow_id=workflow.workflow_id)
 
     # Count task outcomes from Jobmon's in-memory task statuses
 

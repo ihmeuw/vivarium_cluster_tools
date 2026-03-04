@@ -12,9 +12,9 @@ import re
 from pathlib import Path
 from typing import Generator
 
-import numpy as np
 import pandas as pd
 import requests
+from jobmon.core.configuration import JobmonConfig
 from loguru import logger
 
 BASE_PERF_INDEX_COLS = ["host", "job_number", "task_number", "draw", "seed"]
@@ -101,27 +101,71 @@ def set_index_scenario_cols(perf_df: pd.DataFrame) -> tuple[pd.DataFrame, list[s
     return perf_df, scenario_cols
 
 
-def add_squid_api_data(perf_df: pd.DataFrame) -> pd.DataFrame:
-    """Add Squid API data to the performance dataframe.
+def add_jobmon_resource_data(perf_df: pd.DataFrame, workflow_id: int) -> pd.DataFrame:
+    """Add Jobmon resource usage data to the performance dataframe.
 
-    Given a dataframe from PerformanceSummary.to_df, add Squid API data for the job.
-    Squid API reference: https://hub.ihme.washington.edu/display/SCKB/How+to+use+Squid+API
+    Queries the Jobmon Database API ``/workflow/<id>/wf_resource_usage``
+    endpoint and merges per-task resource metrics (wallclock, memory, CPU,
+    I/O) into the performance dataframe.
+
+    Parameters
+    ----------
+    perf_df
+        DataFrame from :meth:`PerformanceSummary.to_df`.
+    workflow_id
+        The Jobmon workflow ID to query.
+
+    Returns
+    -------
+        The input dataframe with Jobmon resource columns merged in.
     """
     try:
-        job_numbers = perf_df["job_number"].unique()
-        assert len(job_numbers) == 1
-        squid_api_data = requests.get(
-            f"http://squid.ihme.washington.edu/api/jobs?job_ids={job_numbers[0]}"
-        ).json()
-        squid_api_df = pd.DataFrame(squid_api_data["jobs"]).add_prefix("squid_api_")
-        perf_df = perf_df.astype({"job_number": np.int64})
-        perf_df = perf_df.merge(
-            squid_api_df,
-            left_on=["job_number"],
-            right_on=["squid_api_job_id"],
-        )
+        service_url = JobmonConfig().get("http", "service_url")
+        url = f"{service_url}/workflow/{workflow_id}/wf_resource_usage"
+        response = requests.get(url, timeout=30)
+        response.raise_for_status()
+        resource_data = response.json()
+
+        if not resource_data:
+            logger.info("Jobmon resource usage API returned no data.")
+            return perf_df
+
+        resource_df = pd.DataFrame(resource_data)
+
+        # Jobmon tasks are named "psim_{task_id[:12]}" — extract the prefix
+        # to join against the run_id in the perf logs.
+        resource_df["run_id_prefix"] = resource_df["task_name"].str.replace("psim_", "", n=1)
+
+        # Build a matching prefix column from the perf data
+        perf_df = perf_df.copy()
+        perf_df["run_id_prefix"] = perf_df["run_id"].astype(str).str[:12]
+
+        # Select useful columns from Jobmon response
+        jobmon_cols = [
+            "run_id_prefix",
+            "task_status",
+            "task_num_attempts",
+            "ti_wallclock",
+            "ti_maxrss",
+            "ti_maxpss",
+            "ti_cpu",
+            "ti_io",
+        ]
+        available_cols = [c for c in jobmon_cols if c in resource_df.columns]
+        resource_df = resource_df[available_cols]
+
+        # Prefix jobmon columns (except join key) to avoid collisions
+        rename_map = {c: f"jobmon_{c}" for c in available_cols if c != "run_id_prefix"}
+        resource_df = resource_df.rename(columns=rename_map)
+
+        perf_df = perf_df.merge(resource_df, on="run_id_prefix", how="left")
+        perf_df = perf_df.drop(columns=["run_id_prefix"])
+
     except Exception as e:
-        logger.warning(f"Squid API request failed with: {e}")
+        logger.warning(f"Jobmon resource usage API request failed with: {e}")
+        # Clean up the temp column if it was added before the failure
+        if "run_id_prefix" in perf_df.columns:
+            perf_df = perf_df.drop(columns=["run_id_prefix"])
     return perf_df
 
 
@@ -188,10 +232,26 @@ def report_performance(
     output_directory: Path | str,
     output_hdf: bool,
     verbose: int,
+    workflow_id: int | None = None,
 ) -> pd.DataFrame | None:
     """Main method for vipin reporting.
 
     Gets job performance data, outputs to a file, and logs a report.
+
+    Parameters
+    ----------
+    input_directory
+        Path to the worker logs directory containing ``perf.*.*.log`` files.
+    output_directory
+        Path to write the summary CSV/HDF output.
+    output_hdf
+        If True, write HDF instead of CSV.
+    verbose
+        Verbosity level for stat reporting.
+    workflow_id
+        Optional Jobmon workflow ID.  When provided, resource usage data
+        (wallclock, memory, CPU, I/O) is fetched from the Jobmon Database
+        API and merged into the report.
     """
     input_directory, output_directory = Path(input_directory), Path(output_directory)
     perf_summary = PerformanceSummary(input_directory)
@@ -202,8 +262,9 @@ def report_performance(
         logger.warning(f"No performance data found in {input_directory}.")
         return None  # nothing left to do
 
-    # Add jobapi data about the job to dataframe
-    perf_df = add_squid_api_data(perf_df)
+    # Add Jobmon resource usage data if a workflow ID is available
+    if workflow_id is not None:
+        perf_df = add_jobmon_resource_data(perf_df, workflow_id)
 
     # Set index to include branch configuration/scenario columns
     perf_df, scenario_cols = set_index_scenario_cols(perf_df)

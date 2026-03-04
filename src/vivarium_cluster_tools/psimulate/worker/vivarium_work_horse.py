@@ -21,7 +21,6 @@ from vivarium.framework.utilities import collapse_nested_dict
 
 from vivarium_cluster_tools.psimulate.environment import ENV_VARIABLES
 from vivarium_cluster_tools.psimulate.jobs import JobParameters
-from vivarium_cluster_tools.vipin.perf_counters import CounterSnapshot
 
 
 class ParallelSimulationContext(SimulationContext):
@@ -45,7 +44,6 @@ def work_horse(
     logger.info(f"Starting job: {job_parameters}")
 
     try:
-        start_snapshot = CounterSnapshot()
         event = {"start": time()}  # timestamps of application events
         logger.info("Beginning simulation setup.")
         backup = get_backup(job_parameters)
@@ -54,7 +52,7 @@ def work_horse(
         else:
             sim, exec_time = initialize_new_sim(event, job_parameters)
         backup_path = run_simulation(job_parameters, event, sim, exec_time)
-        results = get_sim_results(sim, job_parameters, start_snapshot, event, exec_time)
+        results = get_sim_results(sim, job_parameters, event, exec_time)
         remove_backups(backup_path)
 
         return results
@@ -198,18 +196,15 @@ def run_simulation(
 def get_sim_results(
     sim: ParallelSimulationContext,
     job_parameters: JobParameters,
-    start_snapshot: CounterSnapshot,
     event: dict[str, float],
     exec_time: dict[str, float],
 ) -> dict[str, pd.DataFrame]:
     event["end"] = time()
-    do_sim_epilogue(start_snapshot, CounterSnapshot(), event, exec_time, job_parameters)
+    do_sim_epilogue(event, exec_time, job_parameters)
     return sim.get_results()  # Dict[measure, results dataframe]
 
 
 def do_sim_epilogue(
-    start: CounterSnapshot,
-    end: CounterSnapshot,
     event: dict[str, float],
     exec_time: dict[str, float],
     parameters: JobParameters,
@@ -238,7 +233,6 @@ def do_sim_epilogue(
                 "scenario": parameters.branch_configuration,
                 "event": event,
                 "exec_time": exec_time,
-                "counters": (end - start).to_dict(),
             }
         )
     )

@@ -10,6 +10,7 @@ Command line interface for `vipin`.
    :show-nested:
 
 """
+
 import click
 
 from vivarium_cluster_tools import logs
@@ -34,8 +35,22 @@ from vivarium_cluster_tools.vipin import perf_report
     default=False,
     help="Choose hdf or csv for output data. Defaults to csv.",
 )
+@click.option(
+    "--workflow-id",
+    "-w",
+    type=int,
+    default=None,
+    help="Jobmon workflow ID. When provided, resource usage data (wallclock, "
+    "memory, CPU, I/O) from the Jobmon Database API is merged into the report.",
+)
 @click.option("-v", "verbose", count=True, help="Configure logging verbosity.")
-def vipin(logs_directory: str, result_directory: str | None, hdf: bool, verbose: int) -> None:
+def vipin(
+    logs_directory: str,
+    result_directory: str | None,
+    hdf: bool,
+    workflow_id: int | None,
+    verbose: int,
+) -> None:
     """Get performance information from worker_logs from a ``psimulate`` command.
 
     Given a worker logs directory from a previous run, a summary csv will be
@@ -46,4 +61,6 @@ def vipin(logs_directory: str, result_directory: str | None, hdf: bool, verbose:
     if not result_directory:
         result_directory = logs_directory
 
-    perf_report.report_performance(logs_directory, result_directory, hdf, verbose)
+    perf_report.report_performance(
+        logs_directory, result_directory, hdf, verbose, workflow_id
+    )

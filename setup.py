@@ -46,7 +46,6 @@ if __name__ == "__main__":
         "vivarium_build_utils>=2.0.1,<3.0.0",
         "dill",
         "vivarium>=3.0.0",
-        "psutil",
         "layered_config_tree",
         "jobmon_core<=3.6.0",
         "jobmon_client",
@@ -57,7 +56,6 @@ if __name__ == "__main__":
     lint_requirements = [
         "vivarium_dependencies[lint]",
         "types-setuptools",
-        "types-psutil",
         "pyarrow-stubs",
     ]
 
