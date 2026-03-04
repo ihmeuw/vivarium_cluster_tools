@@ -33,17 +33,6 @@ class NativeSpecification(NamedTuple):
     # Class constant
     NUM_THREADS: int = 1
 
-    def to_cli_args(self) -> str:
-        return (
-            f"-J {self.job_name} "
-            f"-A {self.project} "
-            f"-p {self.queue} "
-            f"--mem={self.peak_memory*1024} "
-            f"-t {self.max_runtime} "
-            f"-c {self.NUM_THREADS} "
-            f"{'-C ' + '|'.join(self.hardware) if self.hardware else ''}"
-        ).strip()
-
     def to_jobmon_spec(self, cluster_logging_root: Path) -> dict[str, Any]:
         """Build the Jobmon compute resources dict from this NativeSpecification.
 
