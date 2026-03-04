@@ -222,6 +222,7 @@ def main(
     if monitoring_url:
         logger.bind(always=True).info(f"Monitor progress at: {monitoring_url}")
 
+    # Blocks until workflow finishes and returns final workflow status (e.g. "D" for DONE)
     wf_status = workflow.run()
 
     # TODO MIC-6856 Fix Vipin
