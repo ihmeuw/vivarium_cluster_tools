@@ -24,15 +24,15 @@ def add_logging_sink(
     )
     if verbose == 0:
 
-        def quiet_filter(record: Mapping[str, Any]) -> Any:
-            return record.get("extra", {}).get("quiet", False)
+        def always_filter(record: Mapping[str, Any]) -> Any:
+            return record.get("extra", {}).get("always", False)
 
         logger.add(
             sink,
             colorize=colorize,
             level="INFO",
             format=message_format,
-            filter=quiet_filter,
+            filter=always_filter,
             serialize=serialize,
         )
     elif verbose == 1:
