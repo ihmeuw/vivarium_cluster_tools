@@ -52,39 +52,6 @@ def generate_task_id(
     return hashlib.sha256(canonical.encode()).hexdigest()[:16]
 
 
-def generate_task_id(
-    input_draw: int, random_seed: int, branch_configuration: dict[str, Any]
-) -> str:
-    """Generate a deterministic task ID from job-specific parameters.
-
-    Uses SHA-256 hash of canonical JSON serialization of the job-specific
-    parameters (input_draw, random_seed, branch_configuration).
-
-    Parameters
-    ----------
-    input_draw
-        The input draw number.
-    random_seed
-        The random seed.
-    branch_configuration
-        The branch configuration dictionary.
-
-    Returns
-    -------
-        A hex string of the first 8 bytes (16 hex chars) of the SHA-256 hash.
-    """
-    canonical = json.dumps(
-        {
-            "input_draw": input_draw,
-            "random_seed": random_seed,
-            "branch_configuration": branch_configuration,
-        },
-        sort_keys=True,
-        separators=(",", ":"),
-    )
-    return hashlib.sha256(canonical.encode()).hexdigest()[:16]
-
-
 class JobParameters(NamedTuple):
     """Parameters for a single distributed simulation job."""
 
