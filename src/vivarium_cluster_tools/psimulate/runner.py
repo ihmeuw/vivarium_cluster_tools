@@ -216,11 +216,12 @@ def main(
     gui_url = JobmonConfig().get("http", "gui_url")
     monitoring_url = f"{gui_url}/#/workflow/{workflow.workflow_id}" if gui_url else ""
 
-    logger.bind(always=True).info(
-        "Submitting Jobmon workflow. " f"Results will be written to {str(output_paths.root)}"
+    logger.log(
+        "ALWAYS_SHOW",
+        f"Submitting Jobmon workflow. Results will be written to {str(output_paths.root)}",
     )
     if monitoring_url:
-        logger.bind(always=True).info(f"Monitor progress at: {monitoring_url}")
+        logger.log("ALWAYS_SHOW", f"Monitor progress at: {monitoring_url}")
 
     # Blocks until workflow finishes and returns final workflow status (e.g. "D" for DONE)
     wf_status = workflow.run()
@@ -238,23 +239,26 @@ def main(
     num_successful = num_jobs_completed + num_completed_this_run
 
     if wf_status != "D":
-        logger.bind(always=True).warning(
-            f"Workflow finished with status '{wf_status}' (expected 'D' for DONE)."
+        logger.log(
+            "ALWAYS_SHOW",
+            f"Workflow finished with status '{wf_status}' (expected 'D' for DONE).",
         )
 
     # Emit warning if any jobs failed
     if num_failed > 0:
-        logger.bind(always=True).warning(
+        logger.log(
+            "ALWAYS_SHOW",
             f"*** NOTE: There {'was' if num_failed == 1 else 'were'} "
-            f"{num_failed} failed job{'' if num_failed == 1 else 's'}. ***"
+            f"{num_failed} failed job{'' if num_failed == 1 else 's'}. ***",
         )
     else:
         logger.info(f"Removing sim backup directory {output_paths.backup_dir}")
         shutil.rmtree(output_paths.backup_dir, ignore_errors=True)
 
-    logger.bind(always=True).info(
+    logger.log(
+        "ALWAYS_SHOW",
         f"{num_completed_this_run} of {len(job_parameters)} jobs "
         f"completed successfully from this {command}.\n"
         f"({num_successful} of {total_num_jobs} total jobs completed successfully overall)\n"
-        f"Results written to: {str(output_paths.results_dir)}"
+        f"Results written to: {str(output_paths.results_dir)}",
     )
