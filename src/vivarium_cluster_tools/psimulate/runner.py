@@ -262,7 +262,7 @@ def main(
         logger.debug(f"Removing sim backup directory {output_paths.backup_dir}")
         shutil.rmtree(output_paths.backup_dir, ignore_errors=True)
 
-    logger.debug(
+    logger.info(
         f"{num_completed_this_run} of {num_jobs_attempted} jobs "
         f"completed successfully from this {command}.\n"
         f"({num_successful} of {total_num_jobs} total jobs completed successfully overall)\n"
