@@ -163,11 +163,10 @@ def main(
     finished_sim_metadata = collect_metadata(
         output_paths.metadata_dir, output_paths.results_dir
     )
-    if not finished_sim_metadata.empty:
-        assert command in [
-            COMMANDS.restart,
-            COMMANDS.expand,
-        ], "How do you have existing outputs on an initial run?"
+    if not finished_sim_metadata.empty and command not in [COMMANDS.restart, COMMANDS.expand]:
+        raise RuntimeError(
+            "Existing outputs detected. Please choose a different output directory or use the 'restart' or 'expand' command to continue from these outputs."
+        )
 
     logger.debug("Parsing arguments into worker job parameters.")
     # Translate the keyspace into the list of jobs to actually run
