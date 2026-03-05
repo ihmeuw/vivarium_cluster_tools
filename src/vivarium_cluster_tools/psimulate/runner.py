@@ -169,7 +169,7 @@ def main(
             "Existing outputs detected. Please choose a different output directory or use the 'restart' or 'expand' command to continue from these outputs."
         )
 
-    logger.info("Parsing arguments into worker job parameters.")
+    logger.debug("Parsing arguments into worker job parameters.")
     # For restart, we build the full job list (no filtering) and let Jobmon's
     # native resume skip already-completed tasks.  For other commands, we
     # filter out completed jobs ourselves.
@@ -209,7 +209,7 @@ def main(
     # resume the same workflow (skipping already-completed tasks).
     wf_command = COMMANDS.run if restart else command
     workflow_name = f"psimulate_{wf_command}_{output_paths.root.name}"
-    logger.info("Building Jobmon workflow.")
+    logger.debug("Building Jobmon workflow.")
     workflow = build_workflow(
         workflow_name=workflow_name,
         command=command,
@@ -262,7 +262,7 @@ def main(
         logger.debug(f"Removing sim backup directory {output_paths.backup_dir}")
         shutil.rmtree(output_paths.backup_dir, ignore_errors=True)
 
-    logger.bind(quiet=True).info(
+    logger.debug(
         f"{num_completed_this_run} of {num_jobs_attempted} jobs "
         f"completed successfully from this {command}.\n"
         f"({num_successful} of {total_num_jobs} total jobs completed successfully overall)\n"
