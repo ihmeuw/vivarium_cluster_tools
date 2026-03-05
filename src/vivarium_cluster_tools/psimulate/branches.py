@@ -67,7 +67,8 @@ class Keyspace:
         num_workers
             The number of workers (and thus jobs) to create.
 
-        Returns        -------
+        Returns
+        -------
             A Keyspace with the specified number of unique random seeds and input draws
             and an empty branch configuration.
         """
