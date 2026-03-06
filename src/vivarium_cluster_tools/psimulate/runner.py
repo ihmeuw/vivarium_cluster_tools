@@ -41,7 +41,7 @@ def report_initial_status(
     num_jobs_completed: int, finished_sim_metadata: pd.DataFrame, total_num_jobs: int
 ) -> None:
     if num_jobs_completed:
-        logger.info(
+        logger.debug(
             f"{num_jobs_completed} of {total_num_jobs} jobs completed in previous run."
         )
     extra_jobs_completed = num_jobs_completed - len(finished_sim_metadata)
@@ -106,7 +106,7 @@ def main(
     backup_freq: int | None,
     extra_args: dict[str, Any],
 ) -> None:
-    logger.info("Validating cluster environment.")
+    logger.debug("Validating cluster environment.")
     cluster.validate_cluster_environment()
 
     # Generate programmatic representation of the output directory structure
@@ -116,19 +116,19 @@ def main(
         result_directory=input_paths.result_directory,
         input_model_spec_path=input_paths.model_specification,
     )
-    logger.info("Setting up output directory and all subdirectories.")
+    logger.debug("Setting up output directory and all subdirectories.")
     output_paths.touch()
 
-    logger.info("Setting up logging to files.")
+    logger.debug("Setting up logging to files.")
     # Start sending logs to a file now that it exists.
     logs.configure_main_process_logging_to_file(output_paths.logging_root)
-    logger.info("Validating programming environment.")
+    logger.debug("Validating programming environment.")
     # Either write a requirements.txt with the current environment
     # or verify the current environment matches the prior environment
     # used when doing a restart.
     pip_env.validate(output_paths.environment_file)
 
-    logger.info(
+    logger.debug(
         "Parsing input arguments into model specification and branches and writing to disk."
     )
     # Parse the branches configuration into a parameter space
@@ -159,18 +159,17 @@ def main(
     )
     model_specification.persist(model_spec, output_paths.model_specification)
 
-    logger.info("Loading existing outputs if present.")
+    logger.debug("Loading existing outputs if present.")
     # Collect existing metadata from per-task CSV files in results/metadata/
     finished_sim_metadata = collect_metadata(
         output_paths.metadata_dir, output_paths.results_dir
     )
-    if not finished_sim_metadata.empty:
-        assert command in [
-            COMMANDS.restart,
-            COMMANDS.expand,
-        ], "How do you have existing outputs on an initial run?"
+    if not finished_sim_metadata.empty and command not in [COMMANDS.restart, COMMANDS.expand]:
+        raise RuntimeError(
+            "Existing outputs detected. Please choose a different output directory or use the 'restart' or 'expand' command to continue from these outputs."
+        )
 
-    logger.info("Parsing arguments into worker job parameters.")
+    logger.debug("Parsing arguments into worker job parameters.")
     # For restart, we build the full job list (no filtering) and let Jobmon's
     # native resume skip already-completed tasks.  For other commands, we
     # filter out completed jobs ourselves.
@@ -194,10 +193,10 @@ def main(
     total_num_jobs = len(keyspace)
     report_initial_status(num_jobs_completed, finished_sim_metadata, total_num_jobs)
     if len(job_parameters) == 0:
-        logger.info("No jobs to run, exiting.")
+        logger.debug("No jobs to run, exiting.")
         return
     else:
-        logger.info(f"Found {len(job_parameters)} jobs to run.")
+        logger.debug(f"Found {len(job_parameters)} jobs to run.")
 
     if backup_freq is not None:
         write_backup_metadata(
@@ -210,7 +209,7 @@ def main(
     # resume the same workflow (skipping already-completed tasks).
     wf_command = COMMANDS.run if restart else command
     workflow_name = f"psimulate_{wf_command}_{output_paths.root.name}"
-    logger.info("Building Jobmon workflow.")
+    logger.debug("Building Jobmon workflow.")
     workflow = build_workflow(
         workflow_name=workflow_name,
         command=command,
@@ -225,18 +224,14 @@ def main(
     # monitoring URL immediately rather than waiting for run() to finish.
     workflow.bind()
 
-    try:
-        gui_url = JobmonConfig().get("http", "gui_url")
-    except (JobmonConfigError, Exception):
-        gui_url = ""
-
+    gui_url = JobmonConfig().get("http", "gui_url")
     monitoring_url = f"{gui_url}/#/workflow/{workflow.workflow_id}" if gui_url else ""
 
-    logger.bind(quiet=True).info(
-        "Submitting Jobmon workflow. " f"Results will be written to {str(output_paths.root)}"
+    logger.info(
+        f"Submitting Jobmon workflow. Results will be written to {str(output_paths.root)}",
     )
     if monitoring_url:
-        logger.bind(quiet=True).info(f"Monitor progress at: {monitoring_url}")
+        logger.info(f"Monitor progress at: {monitoring_url}")
 
     wf_status = workflow.run(resume=restart)
 
@@ -253,23 +248,23 @@ def main(
     num_successful = num_jobs_completed + num_completed_this_run
 
     if wf_status != "D":
-        logger.bind(quiet=True).warning(
-            f"Workflow finished with status '{wf_status}' (expected 'D' for DONE)."
+        logger.info(
+            f"Workflow finished with status '{wf_status}' (expected 'D' for DONE).",
         )
 
     # Emit warning if any jobs failed
     if num_failed > 0:
-        logger.bind(quiet=True).warning(
+        logger.info(
             f"*** NOTE: There {'was' if num_failed == 1 else 'were'} "
-            f"{num_failed} failed job{'' if num_failed == 1 else 's'}. ***"
+            f"{num_failed} failed job{'' if num_failed == 1 else 's'}. ***",
         )
     else:
-        logger.info(f"Removing sim backup directory {output_paths.backup_dir}")
+        logger.debug(f"Removing sim backup directory {output_paths.backup_dir}")
         shutil.rmtree(output_paths.backup_dir, ignore_errors=True)
 
-    logger.bind(quiet=True).info(
+    logger.info(
         f"{num_completed_this_run} of {num_jobs_attempted} jobs "
         f"completed successfully from this {command}.\n"
         f"({num_successful} of {total_num_jobs} total jobs completed successfully overall)\n"
-        f"Results written to: {str(output_paths.results_dir)}"
+        f"Results written to: {str(output_paths.results_dir)}",
     )
