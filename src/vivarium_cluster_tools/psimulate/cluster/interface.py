@@ -33,7 +33,9 @@ class NativeSpecification(NamedTuple):
     # Class constant
     NUM_THREADS: int = 1
 
-    def to_jobmon_spec(self, cluster_logging_root: Path) -> dict[str, Any]:
+    def to_jobmon_spec(
+        self, cluster_logging_root: Path, worker_logging_root: Path
+    ) -> dict[str, Any]:
         """Build the Jobmon compute resources dict from this NativeSpecification.
 
         Parameters
@@ -51,9 +53,15 @@ class NativeSpecification(NamedTuple):
           its own GB → MB conversion internally.
         * ``constraints`` is a pipe-separated string of SLURM feature names
           (e.g. ``"r650|r650v2"``), included only when hardware is requested.
-        * ``standard_output`` and ``standard_error`` route SLURM stdout/stderr
-          to the cluster logs directory. The Jobmon SLURM plugin appends the
-          task name and SLURM job ID to these paths automatically.
+        * ``stdout`` and ``stderr`` control where Jobmon writes the captured
+          subprocess output. Jobmon runs the task command as a subprocess with
+          piped I/O and writes the captured output to files under these
+          directories. The Jobmon SLURM plugin appends the task name and
+          distributor ID to form the final file paths.
+
+          Note: these are distinct from ``standard_output``/``standard_error``
+          which control SLURM's ``--output``/``--error`` flags for the outer
+          Jobmon wrapper process (which produces no output of its own).
         """
         resources: dict[str, Any] = {
             "queue": self.queue,
@@ -63,6 +71,8 @@ class NativeSpecification(NamedTuple):
             "cores": self.NUM_THREADS,
             "standard_output": str(cluster_logging_root),
             "standard_error": str(cluster_logging_root),
+            "stdout": str(worker_logging_root),
+            "stderr": str(worker_logging_root),
         }
         if self.hardware:
             resources["constraints"] = "|".join(self.hardware)

@@ -237,7 +237,7 @@ def main(
     if monitoring_url:
         logger.info(f"Monitor progress at: {monitoring_url}")
 
-    wf_status = workflow.run(resume=restart)
+    wf_status = workflow.run(resume=restart, configure_logging=True)
 
     # Spit out a performance report for the workers.
     try_run_vipin(output_paths, workflow_id=workflow.workflow_id)

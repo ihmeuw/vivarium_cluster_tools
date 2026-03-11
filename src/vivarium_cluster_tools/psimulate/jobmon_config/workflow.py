@@ -75,7 +75,8 @@ def build_workflow(
         op_args=["worker_log_dir", "command"],
         default_cluster_name="slurm",
         default_compute_resources=native_specification.to_jobmon_spec(
-            output_paths.cluster_logging_root
+            output_paths.cluster_logging_root,
+            output_paths.worker_logging_root,
         ),
     )
 
