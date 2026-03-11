@@ -87,24 +87,22 @@ def build_workflow(
         default_max_attempts=max_attempts,
     )
 
-    # Write job spec metadata and create tasks
-    tasks = []
+    # Write job spec metadata (one JSON per task for the worker to pick up)
     for job_params in job_parameters_list:
         write_metadata(
             metadata_dir=output_paths.metadata_dir,
             job_parameters=job_params,
         )
 
-        task = task_template.create_task(
-            name=f"psim_{job_params.task_id[:12]}",
-            max_attempts=max_attempts,
-            task_id=job_params.task_id,
-            metadata_dir=str(output_paths.metadata_dir),
-            results_dir=str(output_paths.results_dir),
-            worker_log_dir=str(output_paths.worker_logging_root),
-            command=command,
-        )
-        tasks.append(task)
+    # Batch-create all tasks
+    tasks = task_template.create_tasks(
+        max_attempts=max_attempts,
+        task_id=[jp.task_id for jp in job_parameters_list],
+        metadata_dir=str(output_paths.metadata_dir),
+        results_dir=str(output_paths.results_dir),
+        worker_log_dir=str(output_paths.worker_logging_root),
+        command=command,
+    )
 
     workflow.add_tasks(tasks)
 

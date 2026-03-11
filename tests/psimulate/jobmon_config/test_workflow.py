@@ -168,12 +168,21 @@ class TestBuildWorkflow:
         native_spec: MagicMock,
         two_jobs: list[JobParameters],
     ) -> None:
-        """All created tasks are added to the workflow in a single call."""
+        """All created tasks are added to the workflow."""
         self._call_build_workflow(
             mock_tool_cls, mock_write_metadata, output_paths, native_spec, two_jobs
         )
         task_template = mock_tool_cls.return_value.get_task_template.return_value
         workflow = mock_tool_cls.return_value.create_workflow.return_value
 
-        expected_tasks = [task_template.create_task.return_value] * len(two_jobs)
+        # create_tasks (plural) is called once with a list of task_ids
+        task_template.create_tasks.assert_called_once()
+        kwargs = task_template.create_tasks.call_args.kwargs
+        assert kwargs["task_id"] == [jp.task_id for jp in two_jobs]
+        assert kwargs["max_attempts"] == 3  # default
+        assert kwargs["metadata_dir"] == str(output_paths.metadata_dir)
+        assert kwargs["results_dir"] == str(output_paths.results_dir)
+        assert kwargs["command"] == "run"
+
+        expected_tasks = task_template.create_tasks.return_value
         workflow.add_tasks.assert_called_once_with(expected_tasks)
