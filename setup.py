@@ -49,7 +49,7 @@ if __name__ == "__main__":
         "psutil",
         "layered_config_tree",
     ]
-
+    # TODO: Move this to the install requires if we move VCT to stash.
     if not os.environ.get("READTHEDOCS"):
         install_requires.append("jobmon_installer_ihme")
 
