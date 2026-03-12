@@ -67,15 +67,14 @@ def build_workflow(
             "--metadata-dir {metadata_dir} "
             "--task-id {task_id} "
             "--results-dir {results_dir} "
-            "--worker-log-dir {worker_log_dir} "
             "--command {command}"
         ),
         node_args=["task_id"],
         task_args=["metadata_dir", "results_dir"],
-        op_args=["worker_log_dir", "command"],
+        op_args=["command"],
         default_cluster_name="slurm",
         default_compute_resources=native_specification.to_jobmon_spec(
-            output_paths.cluster_logging_root
+            output_paths.worker_logging_root
         ),
     )
 
@@ -100,7 +99,6 @@ def build_workflow(
         task_id=[jp.task_id for jp in job_parameters_list],
         metadata_dir=str(output_paths.metadata_dir),
         results_dir=str(output_paths.results_dir),
-        worker_log_dir=str(output_paths.worker_logging_root),
         command=command,
     )
 
