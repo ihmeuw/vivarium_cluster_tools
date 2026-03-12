@@ -16,7 +16,14 @@ import numpy as np
 import pandas as pd
 from loguru import logger
 
-BASE_PERF_INDEX_COLS = ["host", "jobmon_task_id", "workflow_run_id", "job_hash", "draw", "seed"]
+BASE_PERF_INDEX_COLS = [
+    "host",
+    "jobmon_task_id",
+    "workflow_run_id",
+    "job_hash",
+    "draw",
+    "seed",
+]
 
 # The number of scenario columns beyond which we shorten the scenarios to a single string
 COMPOUND_SCENARIO_COL_COUNT = 2
