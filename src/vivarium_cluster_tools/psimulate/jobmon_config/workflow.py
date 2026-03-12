@@ -58,9 +58,9 @@ def build_workflow(
     -------
         A ready-to-run Jobmon Workflow object.
     """
-    tool = Tool(name="vivarium_cluster_tools_psimulate")
+    tool = Tool(name="vivarium_cluster_tools")
     task_template = tool.get_task_template(
-        template_name="psimulate_task",
+        template_name="psimulate",
         command_template=(
             # task runner to come as workhorse wrapper
             f"python -m vivarium_cluster_tools.psimulate.worker.task_runner "
