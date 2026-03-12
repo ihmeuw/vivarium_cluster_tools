@@ -73,8 +73,8 @@ class TestNativeSpecification:
         assert spec["memory"] == 4.0
         assert spec["runtime"] == 3600
         assert spec["cores"] == ns.NUM_THREADS
-        assert spec["standard_output"] == str(worker_logging_root)
-        assert spec["standard_error"] == str(worker_logging_root)
+        assert spec["stdout"] == str(worker_logging_root)
+        assert spec["stderr"] == str(worker_logging_root)
 
     @pytest.mark.parametrize(
         "hardware, expected_constraints",
