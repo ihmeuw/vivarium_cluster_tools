@@ -9,12 +9,14 @@ Tools for summarizing and reporting performance information.
 
 import json
 import re
+import time
 from pathlib import Path
 from typing import Generator
 
 import pandas as pd
-import requests
-from jobmon.core.configuration import JobmonConfig
+from jobmon.client.status_commands import workflow_tasks
+from jobmon.core.requester import Requester
+from jobmon.core.serializers import SerializeTaskResourceUsage
 from loguru import logger
 
 BASE_PERF_INDEX_COLS = ["host", "job_number", "task_number", "draw", "seed"]
@@ -94,19 +96,40 @@ class PerformanceSummary:
 
 def set_index_scenario_cols(perf_df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
     """Get the columns useful to index performance data by."""
-    index_cols = BASE_PERF_INDEX_COLS
     scenario_cols = [col for col in perf_df.columns if col.startswith("scenario_")]
-    index_cols.extend(scenario_cols)
+    index_cols = list(BASE_PERF_INDEX_COLS) + scenario_cols
     perf_df = perf_df.set_index(index_cols)
     return perf_df, scenario_cols
 
 
-def add_jobmon_resource_data(perf_df: pd.DataFrame, workflow_id: int) -> pd.DataFrame:
+def _fetch_task_resource_usage(requester: Requester, task_id: int) -> dict | None:
+    """Fetch resource usage for a single Jobmon task, returning None on failure."""
+    try:
+        rc, response = requester.send_request(
+            app_route="/task_resource_usage",
+            message={"task_id": task_id},
+            request_type="get",
+        )
+        if rc == 200:
+            usage = SerializeTaskResourceUsage.kwargs_from_wire(response["resource_usage"])
+            if usage.get("runtime") and usage.get("memory"):
+                return usage
+    except Exception:
+        pass
+    return None
+
+
+def add_jobmon_resource_data(
+    perf_df: pd.DataFrame, workflow_id: int, max_retries: int = 3, retry_delay: float = 5.0
+) -> pd.DataFrame:
     """Add Jobmon resource usage data to the performance dataframe.
 
-    Queries the Jobmon Database API ``/workflow/<id>/wf_resource_usage``
-    endpoint and merges per-task resource metrics (wallclock, memory, CPU,
-    I/O) into the performance dataframe.
+    Uses the Jobmon ``workflow_tasks`` helper to list tasks, then queries
+    each task's resource usage via ``/task_resource_usage``.  The resulting
+    metrics (num_attempts, runtime, memory) are merged by ``jobmon_task_id``.
+
+    Resource data may not be available immediately after a workflow finishes,
+    so tasks with blank data are retried up to *max_retries* times.
 
     Parameters
     ----------
@@ -114,58 +137,67 @@ def add_jobmon_resource_data(perf_df: pd.DataFrame, workflow_id: int) -> pd.Data
         DataFrame from :meth:`PerformanceSummary.to_df`.
     workflow_id
         The Jobmon workflow ID to query.
+    max_retries
+        Maximum number of retry attempts for tasks with missing resource data.
+    retry_delay
+        Seconds to wait between retry attempts.
 
     Returns
     -------
         The input dataframe with Jobmon resource columns merged in.
     """
     try:
-        service_url = JobmonConfig().get("http", "service_url")
-        url = f"{service_url}/workflow/{workflow_id}/wf_resource_usage"
-        response = requests.get(url, timeout=30)
-        response.raise_for_status()
-        resource_data = response.json()
-
-        if not resource_data:
-            logger.info("Jobmon resource usage API returned no data.")
+        tasks_df = workflow_tasks(workflow_id, limit=10_000)
+        if tasks_df.empty:
+            logger.info("Jobmon workflow_tasks returned no tasks.")
             return perf_df
 
-        resource_df = pd.DataFrame(resource_data)
+        requester = Requester.from_defaults()
+        task_ids = tasks_df["TASK_ID"].astype(int).tolist()
+        results: dict[int, dict] = {}
 
-        # Jobmon tasks are named "psim_{task_id[:12]}" — extract the prefix
-        # to join against the run_id in the perf logs.
-        resource_df["run_id_prefix"] = resource_df["task_name"].str.replace("psim_", "", n=1)
+        for attempt in range(max_retries + 1):
+            pending = [tid for tid in task_ids if tid not in results]
+            if not pending:
+                break
+            if attempt > 0:
+                logger.debug(
+                    f"Retry {attempt}/{max_retries}: {len(pending)} tasks "
+                    f"still missing resource data, waiting {retry_delay}s..."
+                )
+                time.sleep(retry_delay)
 
-        # Build a matching prefix column from the perf data
+            for task_id in pending:
+                usage = _fetch_task_resource_usage(requester, task_id)
+                if usage is not None:
+                    usage["task_id"] = task_id
+                    results[task_id] = usage
+
+        if not results:
+            logger.info("No per-task resource usage data available from Jobmon.")
+            return perf_df
+
+        if len(results) < len(task_ids):
+            logger.warning(
+                f"{len(task_ids) - len(results)} task(s) still missing resource "
+                f"data after {max_retries} retries."
+            )
+
+        resource_df = pd.DataFrame(list(results.values()))
+        resource_df = resource_df.drop(columns=["nodename"], errors="ignore")
+        resource_df = resource_df.rename(
+            columns={c: f"jobmon_{c}" for c in resource_df.columns if c != "task_id"}
+        )
+
         perf_df = perf_df.copy()
-        perf_df["run_id_prefix"] = perf_df["run_id"].astype(str).str[:12]
-
-        # Select useful columns from Jobmon response
-        jobmon_cols = [
-            "run_id_prefix",
-            "task_status",
-            "task_num_attempts",
-            "ti_wallclock",
-            "ti_maxrss",
-            "ti_maxpss",
-            "ti_cpu",
-            "ti_io",
-        ]
-        available_cols = [c for c in jobmon_cols if c in resource_df.columns]
-        resource_df = resource_df[available_cols]
-
-        # Prefix jobmon columns (except join key) to avoid collisions
-        rename_map = {c: f"jobmon_{c}" for c in available_cols if c != "run_id_prefix"}
-        resource_df = resource_df.rename(columns=rename_map)
-
-        perf_df = perf_df.merge(resource_df, on="run_id_prefix", how="left")
-        perf_df = perf_df.drop(columns=["run_id_prefix"])
+        perf_df["_jti"] = pd.to_numeric(perf_df["jobmon_task_id"], errors="coerce").astype(
+            "Int64"
+        )
+        perf_df = perf_df.merge(resource_df, left_on="_jti", right_on="task_id", how="left")
+        perf_df = perf_df.drop(columns=["_jti", "task_id"])
 
     except Exception as e:
         logger.warning(f"Jobmon resource usage API request failed with: {e}")
-        # Clean up the temp column if it was added before the failure
-        if "run_id_prefix" in perf_df.columns:
-            perf_df = perf_df.drop(columns=["run_id_prefix"])
     return perf_df
 
 
@@ -194,21 +226,28 @@ def print_stat_report(perf_df: pd.DataFrame, scenario_cols: list[str]) -> None:
         )
 
     # Print execution times stats by scenario
-    temp = (
-        perf_df.set_index("compound_scenario" if do_compound else scenario_cols)
-        .filter(like="exec_time_")
-        .stack()
-        .reset_index()
-    )
+    if do_compound:
+        idx = "compound_scenario"
+    elif scenario_cols:
+        idx = scenario_cols
+    else:
+        idx = None
+
+    if idx is not None:
+        temp = perf_df.set_index(idx).filter(like="exec_time_").stack().reset_index()
+    else:
+        temp = perf_df.filter(like="exec_time_").stack().reset_index()
+        temp = temp.drop(columns=["level_0"], errors="ignore")
 
     if do_compound:
         cols = ["compound_scenario", "measure", "value"]
+    elif scenario_cols:
+        cols = list(scenario_cols) + ["measure", "value"]
     else:
-        cols = scenario_cols
-        cols.extend(["measure", "value"])
+        cols = ["measure", "value"]
 
     temp.columns = cols
-    cols.remove("value")
+    cols = [c for c in cols if c != "value"]
 
     report_df = temp.groupby(cols).describe()
     report_df.columns = report_df.columns.droplevel()
