@@ -39,12 +39,10 @@ class __EnvVariables(NamedTuple):
     HOSTNAME: EnvVariable
     JOBMON_TASK_ID: EnvVariable
     JOBMON_WORKFLOW_RUN_ID: EnvVariable
-    VIVARIUM_LOGGING_DIRECTORY: EnvVariable
 
 
 ENV_VARIABLES = __EnvVariables(
     HOSTNAME=EnvVariable("HOSTNAME", finder=lambda name: socket.gethostname()),
     JOBMON_TASK_ID=EnvVariable("JOBMON_TASK_ID"),
     JOBMON_WORKFLOW_RUN_ID=EnvVariable("JOBMON_WORKFLOW_RUN_ID"),
-    VIVARIUM_LOGGING_DIRECTORY=EnvVariable("VIVARIUM_LOGGING_DIRECTORY"),
 )

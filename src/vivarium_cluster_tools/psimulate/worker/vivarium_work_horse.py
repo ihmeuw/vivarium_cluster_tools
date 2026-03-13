@@ -225,8 +225,7 @@ def do_sim_epilogue(
     logger.info(f'Total simulation run time {exec_time["total_minutes"]:.3f} minutes.')
 
     perf_log = logger.add(
-        Path(ENV_VARIABLES.VIVARIUM_LOGGING_DIRECTORY.value)
-        / f"perf.{parameters.task_id}.log",
+        Path(parameters.worker_logging_root) / f"perf.{parameters.task_id}.log",
         level="DEBUG",
         serialize=True,
     )
