@@ -80,7 +80,7 @@ class PerformanceSummary:
         perf_df.columns = perf_df.columns.str.replace("_scenario", "", regex=False)
         return perf_df
 
-    TELEMETRY_PATTERN = re.compile(r"^{\"host\".+\"jobmon_task_id\".+}$")
+    TELEMETRY_PATTERN = re.compile(r"^{\"host\".+\"job_number\".+}$")
     PERF_LOG_PATTERN = re.compile(r"^perf\.[0-9a-f]{16}\.log$")
 
     def clean_perf_logs(self) -> None:
