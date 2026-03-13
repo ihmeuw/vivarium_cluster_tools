@@ -234,8 +234,8 @@ def do_sim_epilogue(
         json.dumps(
             {
                 "host": ENV_VARIABLES.HOSTNAME.value,
-                "jobmon_task_id": ENV_VARIABLES.JOBMON_TASK_ID.value,
-                "workflow_run_id": ENV_VARIABLES.JOBMON_WORKFLOW_RUN_ID.value,
+                "job_number": ENV_VARIABLES.JOBMON_WORKFLOW_RUN_ID.value,  # Now Jobmon Workflow number
+                "task_number": ENV_VARIABLES.JOBMON_TASK_ID.value,  # Now Jobmon task number
                 "job_hash": parameters.task_id,
                 "draw": parameters.input_draw,
                 "seed": parameters.random_seed,
