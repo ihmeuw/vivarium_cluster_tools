@@ -15,13 +15,7 @@ from typing import Generator
 import pandas as pd
 from loguru import logger
 
-BASE_PERF_INDEX_COLS = [
-    "host",
-    "job_number",
-    "task_number",
-    "draw",
-    "seed",
-]
+BASE_PERF_INDEX_COLS = ["host", "job_number", "task_number", "draw", "seed"]
 
 # The number of scenario columns beyond which we shorten the scenarios to a single string
 COMPOUND_SCENARIO_COL_COUNT = 2
