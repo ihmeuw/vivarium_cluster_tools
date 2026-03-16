@@ -123,17 +123,10 @@ def print_stat_report(perf_df: pd.DataFrame, scenario_cols: list[str]) -> None:
         )
 
     # Print execution times stats by scenario
-    if do_compound:
-        idx = ["compound_scenario"]
-        cols = ["compound_scenario", "measure", "value"]
-    elif scenario_cols:
-        idx = scenario_cols
-        cols = list(scenario_cols) + ["measure", "value"]
-    else:
-        idx = None
-        cols = ["measure", "value"]
+    idx = ["compound_scenario"] if do_compound else list(scenario_cols)
+    cols = idx + ["measure", "value"]
 
-    if idx is not None:
+    if idx:
         temp = perf_df.set_index(idx).filter(like="exec_time_").stack().reset_index()
     else:
         temp = perf_df.filter(like="exec_time_").stack().reset_index()
