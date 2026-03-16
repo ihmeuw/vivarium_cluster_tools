@@ -124,7 +124,7 @@ def print_stat_report(perf_df: pd.DataFrame, scenario_cols: list[str]) -> None:
 
     # Print execution times stats by scenario
     if do_compound:
-        idx = "compound_scenario"
+        idx = ["compound_scenario"]
     elif scenario_cols:
         idx = scenario_cols
     else:
