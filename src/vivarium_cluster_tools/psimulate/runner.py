@@ -98,6 +98,47 @@ def write_backup_metadata(
     )
 
 
+def write_requested_resources(
+    output_root: Path,
+    native_specification: cluster.NativeSpecification,
+    max_workers: int,
+    max_attempts: int,
+) -> None:
+    """Write the requested cluster resources to a file in the output directory.
+
+    This creates a ``requested_resources.txt`` file that records the resource
+    parameters used for the run so that engineers can easily review profiling
+    and resource requirements after the fact.
+
+    Parameters
+    ----------
+    output_root
+        The root output directory for the simulation run.
+    native_specification
+        The cluster resource specification.
+    max_workers
+        Maximum number of concurrent workers.
+    max_attempts
+        Maximum number of Jobmon task attempts.
+
+    """
+    resource_file = output_root / "requested_resources.txt"
+    hardware_str = (
+        ",".join(native_specification.hardware) if native_specification.hardware else "none"
+    )
+    lines = [
+        f"project: {native_specification.project}",
+        f"queue: {native_specification.queue}",
+        f"peak_memory_gb: {native_specification.peak_memory}",
+        f"max_runtime: {native_specification.max_runtime}",
+        f"hardware: {hardware_str}",
+        f"max_workers: {max_workers}",
+        f"max_attempts: {max_attempts}",
+    ]
+    resource_file.write_text("\n".join(lines) + "\n")
+    logger.info(f"Requested resources written to {resource_file}")
+
+
 def main(
     command: str,
     input_paths: paths.InputPaths,
@@ -119,6 +160,14 @@ def main(
     )
     logger.debug("Setting up output directory and all subdirectories.")
     output_paths.touch()
+
+    logger.debug("Writing requested resources to output directory.")
+    write_requested_resources(
+        output_root=output_paths.root,
+        native_specification=native_specification,
+        max_workers=max_workers,
+        max_attempts=max_attempts,
+    )
 
     logger.debug("Setting up logging to files.")
     # Start sending logs to a file now that it exists.
