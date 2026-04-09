@@ -7,8 +7,10 @@ Shared CLI tools
 
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 import click
+import yaml
 
 # NOTE: The argument type hints for the cli wrappers are not precise; they should
 # be type-hinted using Protocols. However, the functions being wrapped are never
@@ -94,3 +96,74 @@ class MinutesOrNone(click.ParamType):
 
 
 MINUTES_OR_NONE = MinutesOrNone()
+
+
+def load_run_config(ctx: click.Context, param: click.Parameter, value: str | None) -> None:
+    """Eager callback for ``--run-config``.  Loads a YAML file and injects its
+    values as defaults for the current command.
+
+    * Options are set via ``ctx.default_map`` so Click's own type coercion,
+      callbacks, and validation still apply.
+    * Arguments (positional params) are handled by setting their ``default``
+      and marking them as not required so Click does not complain about
+      missing positional values.
+    """
+    if value is None:
+        return
+
+    config_path = Path(value)
+    try:
+        config: dict[str, Any] = yaml.safe_load(config_path.read_text()) or {}
+    except yaml.YAMLError as exc:
+        raise click.BadParameter(f"Failed to parse YAML config file: {exc}", param=param)
+
+    if not isinstance(config, dict):
+        raise click.BadParameter(
+            "Run config file must contain a YAML mapping (key: value pairs).",
+            param=param,
+        )
+
+    # Validate that every key maps to a known parameter on this command.
+    valid_names = {
+        parameter.name for parameter in ctx.command.params if parameter.name is not None
+    }
+    unknown = set(config) - valid_names
+    if unknown:
+        raise click.BadParameter(
+            f"Unrecognized config keys: {', '.join(sorted(unknown))}. "
+            f"Valid keys for this command: {', '.join(sorted(valid_names))}",
+            param=param,
+        )
+
+    # Separate arguments from options.
+    arg_names = {
+        parameter.name
+        for parameter in ctx.command.params
+        if isinstance(parameter, click.Argument)
+    }
+
+    # For options, use default_map so CLI values automatically win.
+    option_defaults = {key: value for key, value in config.items() if key not in arg_names}
+    ctx.default_map = {**(ctx.default_map or {}), **option_defaults}
+
+    # For arguments, set the default and relax the required flag so Click
+    # doesn't error when they aren't provided on the command line.
+    for parameter in ctx.command.params:
+        if isinstance(parameter, click.Argument) and parameter.name in config:
+            parameter.default = config[parameter.name]
+            parameter.required = False
+
+
+def with_run_config(func: CLIFunction) -> CLIFunction:
+    """Decorator that adds the ``--run-config`` option to a Click command."""
+    return click.option(
+        "--run-config",
+        type=click.Path(exists=True, dir_okay=False),
+        default=None,
+        callback=load_run_config,
+        is_eager=True,
+        expose_value=False,
+        help="Path to a YAML configuration file. Values in this file "
+        "serve as defaults and are overridden by any argument "
+        "provided on the command line.",
+    )(func)

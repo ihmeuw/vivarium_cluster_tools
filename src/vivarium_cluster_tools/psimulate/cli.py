@@ -51,6 +51,7 @@ shared_options: list[Decorator] = [
 
 
 @psimulate.command()
+@cli_tools.with_run_config
 @click.argument(
     "model_specification",
     required=True,
@@ -134,6 +135,7 @@ def run(
 
 
 @psimulate.command()
+@cli_tools.with_run_config
 @click.argument(
     "results-root",
     type=click.Path(exists=True, file_okay=False, writable=True),
@@ -178,6 +180,7 @@ def restart(
 
 
 @psimulate.command()
+@cli_tools.with_run_config
 @click.argument(
     "results-root",
     type=click.Path(exists=True, file_okay=False, writable=True),
