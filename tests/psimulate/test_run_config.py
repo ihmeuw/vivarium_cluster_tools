@@ -19,9 +19,6 @@ from click.testing import CliRunner
 
 from vivarium_cluster_tools.psimulate.cli import psimulate
 
-# All tests are expected to fail until --run-config is implemented.
-pytestmark = pytest.mark.xfail(reason="--run-config not yet implemented", strict=True)
-
 # ---------------------------------------------------------------------------
 # The runner.main call is the "leaf" of every CLI command.  We mock it so
 # tests exercise only the CLI-parsing / config-loading layer.
