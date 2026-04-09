@@ -1,3 +1,8 @@
+**3.1.0 - TBD/TBD/TBD**
+
+  - Pipeline workflow epic
+    - Add support for configuration file for psimulate run/restart/expand
+
 **3.0.3 - 04/06/26**
 
   - Bugfix: Remove mortality component from test model specifications.
