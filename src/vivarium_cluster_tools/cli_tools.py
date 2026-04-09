@@ -158,6 +158,7 @@ def with_run_config(func: CLIFunction) -> CLIFunction:
     """Decorator that adds the ``--run-config`` option to a Click command."""
     return click.option(
         "--run-config",
+        "-c",
         type=click.Path(exists=True, dir_okay=False),
         default=None,
         callback=load_run_config,
