@@ -53,14 +53,35 @@ shared_options: list[Decorator] = [
 @psimulate.command()
 @cli_tools.with_run_config
 @click.argument(
-    "model_specification",
-    required=True,
+    "model_specification_pos",
+    required=False,
+    default=None,
     type=click.Path(exists=True, dir_okay=False),
     callback=cli_tools.coerce_to_full_path,
 )
 @click.argument(
-    "branch_configuration",
+    "branch_configuration_pos",
+    required=False,
+    default=None,
     type=click.Path(exists=True, dir_okay=False),
+    callback=cli_tools.coerce_to_full_path,
+)
+@click.option(
+    "--model-specification",
+    "-M",
+    "model_specification_opt",
+    type=click.Path(exists=True, dir_okay=False),
+    default=None,
+    help="Path to the model specification yaml file.",
+    callback=cli_tools.coerce_to_full_path,
+)
+@click.option(
+    "--branch-configuration",
+    "-B",
+    "branch_configuration_opt",
+    type=click.Path(exists=True, dir_okay=False),
+    default=None,
+    help="Path to the branch configuration yaml file.",
     callback=cli_tools.coerce_to_full_path,
 )
 @click.option(
@@ -82,8 +103,10 @@ shared_options: list[Decorator] = [
 )
 @cli_tools.pass_shared_options(shared_options)
 def run(
-    model_specification: Path,
-    branch_configuration: Path | None,
+    model_specification_pos: Path | None,
+    branch_configuration_pos: Path | None,
+    model_specification_opt: Path | None,
+    branch_configuration_opt: Path | None,
     artifact_path: Path | None,
     result_directory: Path,
     **options: Any,
@@ -107,6 +130,26 @@ def run(
     of the simulation run.
     """
     logs.configure_main_process_logging_to_terminal(options["verbose"])
+
+    model_specification = cli_tools.resolve_deprecated_positional(
+        model_specification_pos,
+        model_specification_opt,
+        "model_specification",
+        "--model-specification/-M",
+    )
+    branch_configuration = cli_tools.resolve_deprecated_positional(
+        branch_configuration_pos,
+        branch_configuration_opt,
+        "branch_configuration",
+        "--branch-configuration/-B",
+    )
+
+    if model_specification is None:
+        raise click.UsageError(
+            "Missing required argument: model_specification. "
+            "Provide it via --model-specification/-M."
+        )
+
     main = handle_exceptions(runner.main, logger, options["with_debugger"])
 
     main(
@@ -137,14 +180,25 @@ def run(
 @psimulate.command()
 @cli_tools.with_run_config
 @click.argument(
-    "results-root",
+    "results_root_pos",
+    required=False,
+    default=None,
     type=click.Path(exists=True, file_okay=False, writable=True),
     callback=cli_tools.coerce_to_full_path,
-    required=True,
+)
+@click.option(
+    "--results-root",
+    "-R",
+    "results_root_opt",
+    type=click.Path(exists=True, file_okay=False, writable=True),
+    default=None,
+    help="Path to results directory from a previous psimulate run.",
+    callback=cli_tools.coerce_to_full_path,
 )
 @cli_tools.pass_shared_options(shared_options)
 def restart(
-    results_root: Path,
+    results_root_pos: Path | None,
+    results_root_opt: Path | None,
     **options: Any,
 ) -> None:
     """Restart a parallel simulation.
@@ -155,6 +209,19 @@ def restart(
     output directory from a previous ``psimulate run`` invocation.
     """
     logs.configure_main_process_logging_to_terminal(options["verbose"])
+
+    results_root = cli_tools.resolve_deprecated_positional(
+        results_root_pos,
+        results_root_opt,
+        "results_root",
+        "--results-root/-R",
+    )
+
+    if results_root is None:
+        raise click.UsageError(
+            "Missing required argument: results_root. " "Provide it via --results-root/-R."
+        )
+
     main = handle_exceptions(runner.main, logger, options["with_debugger"])
 
     main(
@@ -182,10 +249,20 @@ def restart(
 @psimulate.command()
 @cli_tools.with_run_config
 @click.argument(
-    "results-root",
+    "results_root_pos",
+    required=False,
+    default=None,
     type=click.Path(exists=True, file_okay=False, writable=True),
     callback=cli_tools.coerce_to_full_path,
-    required=True,
+)
+@click.option(
+    "--results-root",
+    "-R",
+    "results_root_opt",
+    type=click.Path(exists=True, file_okay=False, writable=True),
+    default=None,
+    help="Path to results directory from a previous psimulate run.",
+    callback=cli_tools.coerce_to_full_path,
 )
 @click.option(
     "--add-draws",
@@ -203,7 +280,8 @@ def restart(
 )
 @cli_tools.pass_shared_options(shared_options)
 def expand(
-    results_root: Path,
+    results_root_pos: Path | None,
+    results_root_opt: Path | None,
     **options: Any,
 ) -> None:
     """Expand a previous run.
@@ -215,6 +293,19 @@ def expand(
     previous ``psimulate run`` invocation.
     """
     logs.configure_main_process_logging_to_terminal(options["verbose"])
+
+    results_root = cli_tools.resolve_deprecated_positional(
+        results_root_pos,
+        results_root_opt,
+        "results_root",
+        "--results-root/-R",
+    )
+
+    if results_root is None:
+        raise click.UsageError(
+            "Missing required argument: results_root. " "Provide it via --results-root/-R."
+        )
+
     main = handle_exceptions(runner.main, logger, options["with_debugger"])
 
     main(

@@ -11,6 +11,7 @@ from typing import Any
 
 import click
 import yaml
+from loguru import logger
 
 # NOTE: The argument type hints for the cli wrappers are not precise; they should
 # be type-hinted using Protocols. However, the functions being wrapped are never
@@ -123,15 +124,31 @@ def load_run_config(ctx: click.Context, param: click.Parameter, value: str | Non
             param=param,
         )
 
+    # Map user-friendly config keys to internal parameter names where
+    # positional arguments have been deprecated in favor of keyword options.
+    _CONFIG_KEY_ALIASES: dict[str, str] = {
+        "model_specification": "model_specification_opt",
+        "branch_configuration": "branch_configuration_opt",
+        "results_root": "results_root_opt",
+    }
+
+    # Remap aliased keys before validation.
+    remapped: dict[str, Any] = {}
+    for key, val in config.items():
+        remapped[_CONFIG_KEY_ALIASES.get(key, key)] = val
+    config = remapped
+
     # Validate that every key maps to a known parameter on this command.
     valid_names = {
         parameter.name for parameter in ctx.command.params if parameter.name is not None
     }
+    # Also accept the user-friendly aliases as valid.
+    valid_for_display = valid_names | set(_CONFIG_KEY_ALIASES.keys())
     unknown = set(config) - valid_names
     if unknown:
         raise click.BadParameter(
             f"Unrecognized config keys: {', '.join(sorted(unknown))}. "
-            f"Valid keys for this command: {', '.join(sorted(valid_names))}",
+            f"Valid keys for this command: {', '.join(sorted(valid_for_display))}",
             param=param,
         )
 
@@ -168,9 +185,31 @@ def with_run_config(func: CLIFunction) -> CLIFunction:
         "snake_case names as CLI parameters (e.g., peak_memory, "
         "max_runtime, result_directory). Values in this file serve "
         "as defaults and are overridden by any argument provided on "
-        "the command line. Note: positional arguments "
-        "(model_specification, branch_configuration, results_root) "
-        "can be specified in the config file, but if provided on the "
-        "CLI they are assigned by position — you cannot skip a "
-        "leading positional arg and only provide a later one.",
+        "the command line.",
     )(func)
+
+
+def resolve_deprecated_positional(
+    positional_value: Any,
+    option_value: Any,
+    param_name: str,
+    option_flag: str,
+) -> Any:
+    """Resolve a parameter that can be provided as a positional arg (deprecated)
+    or as a keyword option (preferred).
+
+    Returns the resolved value and emits a deprecation warning if the positional
+    form was used.  Raises ``click.UsageError`` if both forms are provided.
+    """
+    if positional_value is not None and option_value is not None:
+        raise click.UsageError(
+            f"'{param_name}' was provided both as a positional argument and "
+            f"as the '{option_flag}' option. Use only the option form."
+        )
+    if positional_value is not None:
+        logger.warning(
+            f"Passing '{param_name}' as a positional argument is deprecated. "
+            f"Use '{option_flag}' instead."
+        )
+        return positional_value
+    return option_value
