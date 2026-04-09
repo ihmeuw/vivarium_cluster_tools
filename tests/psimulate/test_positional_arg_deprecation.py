@@ -182,22 +182,22 @@ class TestPositionalArgDeprecationWarning:
         self, tmp_path: Path, model_spec: Path, branch_config: Path, result_dir: Path
     ) -> None:
         cli_runner = CliRunner()
-        with patch(_RUNNER_MAIN) as mock_main:
-            result = cli_runner.invoke(
-                psimulate,
-                [
-                    "run",
-                    str(model_spec),
-                    str(branch_config),
-                    "--result-directory",
-                    str(result_dir),
-                    "--project",
-                    "proj_simscience",
-                ],
-            )
+        with pytest.warns(FutureWarning, match="deprecated"):
+            with patch(_RUNNER_MAIN) as mock_main:
+                result = cli_runner.invoke(
+                    psimulate,
+                    [
+                        "run",
+                        str(model_spec),
+                        str(branch_config),
+                        "--result-directory",
+                        str(result_dir),
+                        "--project",
+                        "proj_simscience",
+                    ],
+                )
 
         assert result.exit_code == 0, result.output
-        assert "deprecated" in result.output.lower()
         mock_main.assert_called_once()
         call_kwargs = mock_main.call_args.kwargs
         assert call_kwargs["input_paths"].model_specification == model_spec.resolve()
@@ -207,38 +207,38 @@ class TestPositionalArgDeprecationWarning:
         self, tmp_path: Path, results_root: Path
     ) -> None:
         cli_runner = CliRunner()
-        with patch(_RUNNER_MAIN) as mock_main:
-            result = cli_runner.invoke(
-                psimulate,
-                [
-                    "restart",
-                    str(results_root),
-                    "--project",
-                    "proj_simscience",
-                ],
-            )
+        with pytest.warns(FutureWarning, match="deprecated"):
+            with patch(_RUNNER_MAIN) as mock_main:
+                result = cli_runner.invoke(
+                    psimulate,
+                    [
+                        "restart",
+                        str(results_root),
+                        "--project",
+                        "proj_simscience",
+                    ],
+                )
 
         assert result.exit_code == 0, result.output
-        assert "deprecated" in result.output.lower()
         mock_main.assert_called_once()
 
     def test_expand_positional_arg_emits_warning(
         self, tmp_path: Path, results_root: Path
     ) -> None:
         cli_runner = CliRunner()
-        with patch(_RUNNER_MAIN) as mock_main:
-            result = cli_runner.invoke(
-                psimulate,
-                [
-                    "expand",
-                    str(results_root),
-                    "--project",
-                    "proj_simscience",
-                ],
-            )
+        with pytest.warns(FutureWarning, match="deprecated"):
+            with patch(_RUNNER_MAIN) as mock_main:
+                result = cli_runner.invoke(
+                    psimulate,
+                    [
+                        "expand",
+                        str(results_root),
+                        "--project",
+                        "proj_simscience",
+                    ],
+                )
 
         assert result.exit_code == 0, result.output
-        assert "deprecated" in result.output.lower()
         mock_main.assert_called_once()
 
 

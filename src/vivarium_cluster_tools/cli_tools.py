@@ -5,13 +5,13 @@ Shared CLI tools
 
 """
 
+import warnings
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 import click
 import yaml
-from loguru import logger
 
 # NOTE: The argument type hints for the cli wrappers are not precise; they should
 # be type-hinted using Protocols. However, the functions being wrapped are never
@@ -207,9 +207,11 @@ def resolve_deprecated_positional(
             f"as the '{option_flag}' option. Use only the option form."
         )
     if positional_value is not None:
-        logger.warning(
+        warnings.warn(
             f"Passing '{param_name}' as a positional argument is deprecated. "
-            f"Use '{option_flag}' instead."
+            f"Use '{option_flag}' instead.",
+            FutureWarning,
+            stacklevel=2,
         )
         return positional_value
     return option_value
