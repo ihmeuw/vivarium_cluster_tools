@@ -164,7 +164,13 @@ def with_run_config(func: CLIFunction) -> CLIFunction:
         callback=load_run_config,
         is_eager=True,
         expose_value=False,
-        help="Path to a YAML configuration file. Values in this file "
-        "serve as defaults and are overridden by any argument "
-        "provided on the command line.",
+        help="Path to a YAML configuration file. Keys use the same "
+        "snake_case names as CLI parameters (e.g., peak_memory, "
+        "max_runtime, result_directory). Values in this file serve "
+        "as defaults and are overridden by any argument provided on "
+        "the command line. Note: positional arguments "
+        "(model_specification, branch_configuration, results_root) "
+        "can be specified in the config file, but if provided on the "
+        "CLI they are assigned by position — you cannot skip a "
+        "leading positional arg and only provide a later one.",
     )(func)
