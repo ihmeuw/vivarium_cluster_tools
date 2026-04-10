@@ -1,8 +1,7 @@
-**3.1.0 - TBD/TBD/TBD**
+**3.1.0 - 04/10/26**
 
-  - Pipeline workflow epic
-    - Add support for configuration file for psimulate run/restart/expand
-    - Positional arguments for psimulate run/restart/expand are now keyword arguments
+  - Add support for configuration file for psimulate run/restart/expand
+  - Positional arguments for psimulate run/restart/expand are now keyword arguments
 
 **3.0.3 - 04/06/26**
 
