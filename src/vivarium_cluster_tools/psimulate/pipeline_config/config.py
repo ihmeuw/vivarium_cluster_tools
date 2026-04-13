@@ -62,6 +62,29 @@ class StepConfig:
         """True if the step uses a raw command string."""
         return self.command is not None
 
+    def _validate(self) -> None:
+        """Validate this step's internal consistency. Raise on errors."""
+        # Validate step type if provided
+        if self.type is not None and self.type not in SUPPORTED_STEP_TYPES:
+            raise ValueError(
+                f"Step '{self.name}': unsupported type '{self.type}'. "
+                f"Must be one of {sorted(SUPPORTED_STEP_TYPES)}."
+            )
+
+        # type requires path
+        if self.type is not None and self.path is None:
+            raise ValueError(f"Step '{self.name}': 'type' requires 'path' to be provided.")
+
+        # Must not have both command and type+path
+        if self.is_raw_command and self.is_structured:
+            raise ValueError(
+                f"Step '{self.name}': provide 'command' OR 'type'+'path', not both."
+            )
+
+        # Must have at least one of command or type+path
+        if not self.is_raw_command and not self.is_structured:
+            raise ValueError(f"Step '{self.name}': must provide 'command' or 'type'+'path'.")
+
 
 @dataclass
 class PipelineConfig:
@@ -104,6 +127,7 @@ class PipelineConfig:
                 environment=step_dict.get("environment"),
                 resources=ResourceConfig.from_dict(step_dict.get("resources")),
             )
+            step._validate()
             steps.append(step)
 
         config = cls(
@@ -118,34 +142,10 @@ class PipelineConfig:
         return config
 
     def _validate(self) -> None:
-        """Validate the pipeline configuration. Raise on errors."""
+        """Validate pipeline-level constraints. Raise on errors."""
         # Unique step names
         names = [s.name for s in self.steps]
         if len(names) != len(set(names)):
-            raise ValueError("Step names must be unique.")
-
-        for step in self.steps:
-            # Validate step type if provided
-            if step.type is not None and step.type not in SUPPORTED_STEP_TYPES:
-                raise ValueError(
-                    f"Step '{step.name}': unsupported type '{step.type}'. "
-                    f"Must be one of {sorted(SUPPORTED_STEP_TYPES)}."
-                )
-
-            # type requires path
-            if step.type is not None and step.path is None:
-                raise ValueError(
-                    f"Step '{step.name}': 'type' requires 'path' to be provided."
-                )
-
-            # Must not have both command and type+path
-            if step.is_raw_command and step.is_structured:
-                raise ValueError(
-                    f"Step '{step.name}': provide 'command' OR 'type'+'path', not both."
-                )
-
-            # Must have at least one of command or type+path
-            if not step.is_raw_command and not step.is_structured:
-                raise ValueError(
-                    f"Step '{step.name}': must provide 'command' or 'type'+'path'."
-                )
+            raise ValueError(
+                f"Step names must be unique. Duplicate names found: {set([name for name in names if names.count(name) > 1])}"
+            )
