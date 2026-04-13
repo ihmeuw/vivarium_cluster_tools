@@ -150,6 +150,12 @@ def run(
             "Provide it via --model-specification/-M."
         )
 
+    if branch_configuration is None:
+        raise click.UsageError(
+            "Missing required argument: branch_configuration. "
+            "Provide it via --branch-configuration/-B."
+        )
+
     main = handle_exceptions(runner.main, logger, options["with_debugger"])
 
     main(
