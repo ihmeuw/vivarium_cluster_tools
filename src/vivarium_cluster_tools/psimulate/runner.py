@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
+import yaml
 from jobmon.core.configuration import JobmonConfig
 from jobmon.core.exceptions import ConfigError as JobmonConfigError
 from loguru import logger
@@ -98,45 +99,88 @@ def write_backup_metadata(
     )
 
 
-def write_requested_resources(
+def write_configuration(
     output_root: Path,
+    command: str,
+    input_paths: paths.InputPaths,
     native_specification: cluster.NativeSpecification,
     max_workers: int,
     max_attempts: int,
+    backup_freq: int | None,
+    extra_args: dict[str, Any],
 ) -> None:
-    """Write the requested cluster resources to a file in the output directory.
+    """Write the resolved run configuration to a YAML file in the output directory.
 
-    This creates a ``requested_resources.txt`` file that records the resource
-    parameters used for the run so that engineers can easily review profiling
-    and resource requirements after the fact.
+    This creates a ``configuration.yaml`` file that records all of the
+    parameters used for the run.  The file is written in a format that is
+    directly usable with ``psimulate <command> --run-config configuration.yaml``
+    so that team members can reproduce or review a previous run without
+    needing to know the original command-line arguments.
 
     Parameters
     ----------
     output_root
         The root output directory for the simulation run.
+    command
+        The psimulate sub-command (e.g. ``"run"``, ``"restart"``, ``"expand"``).
+    input_paths
+        The resolved input file paths.
     native_specification
         The cluster resource specification.
     max_workers
         Maximum number of concurrent workers.
     max_attempts
         Maximum number of Jobmon task attempts.
+    backup_freq
+        Interval in seconds between saving backups, or ``None`` to disable.
+    extra_args
+        Additional command-specific arguments (e.g. ``sim_verbosity``,
+        ``num_draws``, ``num_seeds``).
 
     """
-    resource_file = output_root / "requested_resources.txt"
-    hardware_str = (
-        ",".join(native_specification.hardware) if native_specification.hardware else "none"
-    )
-    lines = [
-        f"project: {native_specification.project}",
-        f"queue: {native_specification.queue}",
-        f"peak_memory_gb: {native_specification.peak_memory}",
-        f"max_runtime: {native_specification.max_runtime}",
-        f"hardware: {hardware_str}",
-        f"max_workers: {max_workers}",
-        f"max_attempts: {max_attempts}",
-    ]
-    resource_file.write_text("\n".join(lines) + "\n")
-    logger.info(f"Requested resources written to {resource_file}")
+    config: dict[str, Any] = {}
+
+    # Input paths – keys match the names accepted by --run-config
+    if command == COMMANDS.run:
+        if input_paths.model_specification is not None:
+            config["model_specification"] = str(input_paths.model_specification)
+        if input_paths.branch_configuration is not None:
+            config["branch_configuration"] = str(input_paths.branch_configuration)
+        config["result_directory"] = str(input_paths.result_directory)
+        if input_paths.artifact is not None:
+            config["artifact_path"] = str(input_paths.artifact)
+    else:
+        # restart / expand – the result directory *is* the results_root
+        config["results_root"] = str(input_paths.result_directory)
+
+    # Cluster resources
+    config["project"] = native_specification.project
+    config["queue"] = native_specification.queue
+    config["peak_memory"] = native_specification.peak_memory
+    config["max_runtime"] = native_specification.max_runtime
+    if native_specification.hardware:
+        config["hardware"] = ",".join(native_specification.hardware)
+
+    # Execution parameters
+    config["max_workers"] = max_workers
+    config["max_attempts"] = max_attempts
+    if backup_freq is not None:
+        # backup_freq is stored in seconds; convert back to minutes for the CLI.
+        # Written as a string so Click's MinutesOrNone type can parse it.
+        config["backup_freq"] = str(backup_freq / 60.0)
+
+    # Command-specific extras
+    if "sim_verbosity" in extra_args:
+        config["sim_verbosity"] = str(extra_args["sim_verbosity"])
+    if command == COMMANDS.expand:
+        if extra_args.get("num_draws"):
+            config["add_draws"] = extra_args["num_draws"]
+        if extra_args.get("num_seeds"):
+            config["add_seeds"] = extra_args["num_seeds"]
+
+    config_file = output_root / "configuration.yaml"
+    config_file.write_text(yaml.dump(config, default_flow_style=False, sort_keys=False))
+    logger.info(f"Run configuration written to {config_file}")
 
 
 def main(
@@ -161,12 +205,16 @@ def main(
     logger.debug("Setting up output directory and all subdirectories.")
     output_paths.touch()
 
-    logger.debug("Writing requested resources to output directory.")
-    write_requested_resources(
+    logger.debug("Writing run configuration to output directory.")
+    write_configuration(
         output_root=output_paths.root,
+        command=command,
+        input_paths=input_paths,
         native_specification=native_specification,
         max_workers=max_workers,
         max_attempts=max_attempts,
+        backup_freq=backup_freq,
+        extra_args=extra_args,
     )
 
     logger.debug("Setting up logging to files.")
