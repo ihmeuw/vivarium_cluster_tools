@@ -1,4 +1,4 @@
-**3.1.0 - 04/10/26**
+**3.1.0 - 04/13/26**
 
   - Add support for configuration file for psimulate run/restart/expand
   - Positional arguments for psimulate run/restart/expand are now keyword arguments
