@@ -18,10 +18,6 @@ from vivarium_cluster_tools.psimulate.pipeline_config.config import (
     StepConfig,
 )
 
-xfail = pytest.mark.xfail(strict=True, reason="Not yet implemented")
-
-
-@xfail
 class TestPipelineConfigFromYaml:
     """Verify that ``PipelineConfig.from_yaml`` correctly parses valid YAML."""
 
@@ -108,7 +104,6 @@ class TestPipelineConfigFromYaml:
         assert config.steps[0].path == "tests/test_one.py"
 
 
-@xfail
 class TestStepConfigProperties:
     """Verify ``StepConfig`` classification properties."""
 
@@ -129,7 +124,6 @@ class TestStepConfigProperties:
         assert step.is_raw_command is False
 
 
-@xfail
 class TestPipelineConfigValidation:
     """Verify that invalid configurations raise ``ValueError``."""
 
