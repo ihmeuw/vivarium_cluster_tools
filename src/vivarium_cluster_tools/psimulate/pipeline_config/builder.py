@@ -46,7 +46,7 @@ class PipelineWorkflowBuilder:
 
         task_template = tool.get_task_template(
             template_name="pipeline_command_step",
-            command_template="conda run --no-banner -n {env} {command}",
+            command_template="conda run --no-capture-output -n {env} {command}",
             node_args=["command"],
             task_args=[],
             op_args=["env"],
