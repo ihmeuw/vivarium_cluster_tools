@@ -9,11 +9,7 @@ import pytest
 from pytest_mock import MockerFixture
 
 from vivarium_cluster_tools.psimulate.pipeline_config.builder import PipelineWorkflowBuilder
-from vivarium_cluster_tools.psimulate.pipeline_config.config import (
-    PipelineConfig,
-    ResourceConfig,
-    StepConfig,
-)
+from vivarium_cluster_tools.psimulate.pipeline_config.config import PipelineConfig, StepConfig
 
 
 @pytest.fixture()
@@ -42,7 +38,6 @@ def mock_tool_cls(mocker: MockerFixture) -> MagicMock:
 class TestPipelineWorkflowBuilder:
     """Verify that ``PipelineWorkflowBuilder`` builds a correct Jobmon workflow."""
 
-    @pytest.mark.xfail(reason="Not yet implemented", strict=True)
     def test_valid_config_builds_workflow(
         self,
         three_step_config: PipelineConfig,
@@ -55,7 +50,6 @@ class TestPipelineWorkflowBuilder:
         expected_workflow = mock_tool_cls.return_value.create_workflow.return_value
         assert workflow is expected_workflow
 
-    @pytest.mark.xfail(reason="Not yet implemented", strict=True)
     def test_dag_preserves_step_ordering(
         self,
         three_step_config: PipelineConfig,
