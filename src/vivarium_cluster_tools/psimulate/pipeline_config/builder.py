@@ -47,7 +47,7 @@ class PipelineWorkflowBuilder:
         task_template = tool.get_task_template(
             template_name="pipeline_command_step",
             command_template="conda run --no-banner -n {env} {command}",
-            node_args=["name"],
+            node_args=["step_name"],
             task_args=[],
             op_args=["env", "command"],
             default_cluster_name="slurm",
@@ -81,6 +81,7 @@ class PipelineWorkflowBuilder:
             task = task_template.create_task(
                 name=step.name,
                 compute_resources=compute_resources,
+                step_name=step.name,
                 env=env,
                 command=command,
             )
