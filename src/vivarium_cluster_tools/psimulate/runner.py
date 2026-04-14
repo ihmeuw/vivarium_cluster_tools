@@ -114,8 +114,7 @@ def write_configuration(
     This creates a ``configuration.yaml`` file that records all of the
     parameters used for the run.  The file is written in a format that is
     directly usable with ``psimulate <command> --run-config configuration.yaml``
-    so that team members can reproduce or review a previous run without
-    needing to know the original command-line arguments.
+    so that previous runs can be easily reproduced.
 
     Parameters
     ----------
