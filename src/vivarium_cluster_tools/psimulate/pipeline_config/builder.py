@@ -23,10 +23,11 @@ if TYPE_CHECKING:
 COMMAND_RESOLVERS: dict[str, Callable[[str | list[str] | None, str | None], str]] = {
     "pytest": lambda path, args: f"pytest {_join_paths(path)} {args or ''}".strip(),
     "notebook": lambda path, args: (
-        f"papermill {path} {{output_directory}}/executed/{Path(path).name} {args or ''}"
+        f"papermill {_get_single_path(path)} {{output_directory}}/executed/"
+        f"{Path(_get_single_path(path)).name} {args or ''}"
     ).strip(),
-    "python": lambda path, args: f"python {path} {args or ''}".strip(),
-    "shell": lambda path, args: f"bash {path} {args or ''}".strip(),
+    "python": lambda path, args: f"python {_join_paths(path)} {args or ''}".strip(),
+    "shell": lambda path, args: f"bash {_join_paths(path)} {args or ''}".strip(),
 }
 
 
@@ -93,6 +94,15 @@ class PipelineWorkflowBuilder:
         workflow.add_tasks(tasks)
 
         return workflow
+
+
+def _get_single_path(path: str | list[str] | None) -> str:
+    """Extract a single path string from various path formats."""
+    if path is None:
+        return ""
+    if isinstance(path, list):
+        return str(path[0]) if path else ""
+    return str(path)
 
 
 def _join_paths(path: str | list[str] | None) -> str:
