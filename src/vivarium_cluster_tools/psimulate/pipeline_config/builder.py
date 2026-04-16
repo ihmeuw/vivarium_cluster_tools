@@ -58,6 +58,7 @@ class PipelineWorkflowBuilder:
             name=self.config.name,
             default_cluster_name="slurm",
             default_max_attempts=3,
+            max_concurrently_running=1,  # Pipeline steps are sequential
         )
 
         tasks = []
