@@ -41,7 +41,7 @@ from vivarium_cluster_tools.vipin.perf_report import report_performance
 
 def workflow_main(
     pipeline_config: Any,  # Will be PipelineConfig type
-    **options: Any,
+    verbose: int = 0,
 ) -> None:
     """Entry point for the psimulate workflow subcommand.
 
@@ -49,10 +49,61 @@ def workflow_main(
     ----------
     pipeline_config
         The parsed and validated pipeline configuration (with CLI overrides applied).
-    options
-        Additional execution options (verbose, with_debugger, etc).
+    verbose
+        Verbosity level.
     """
-    raise NotImplementedError("workflow_main stub - not yet implemented")
+    from vivarium_cluster_tools.psimulate.pipeline_config.builder import (
+        PipelineWorkflowBuilder,
+    )
+
+    logger.info(f"Starting workflow: {pipeline_config.name}")
+
+    # Create output directory if it doesn't exist
+    output_root = pipeline_config.output_directory
+    output_root.mkdir(parents=True, exist_ok=True)
+
+    # Write the requested configuration to output directory
+    write_configuration(
+        output_root=output_root,
+        command="workflow",
+        input_paths=None,
+        native_specification=cluster.NativeSpecification(
+            job_name=pipeline_config.name,
+            project=pipeline_config.project,
+            queue=pipeline_config.queue,
+            peak_memory=4,  # Default, steps have their own resources
+            max_runtime="01:00:00",
+            hardware=[],
+        ),
+        max_workers=100,  # Reasonable default for pipeline
+        max_attempts=3,
+        backup_freq=None,
+        extra_args={"pipeline_config": pipeline_config},
+    )
+
+    # Build the workflow
+    logger.debug("Building pipeline workflow.")
+    builder = PipelineWorkflowBuilder(pipeline_config)
+    workflow = builder.build()
+
+    # Bind and run
+    workflow.bind()
+
+    gui_url = JobmonConfig().get("http", "gui_url")
+    monitoring_url = f"{gui_url}/#/workflow/{workflow.workflow_id}" if gui_url else ""
+
+    logger.info(f"Submitting workflow. Results will be written to {output_root}")
+    if monitoring_url:
+        logger.info(f"Monitor progress at: {monitoring_url}")
+
+    wf_status = workflow.run()
+
+    if wf_status != "D":
+        logger.warning(
+            f"Workflow finished with status '{wf_status}' (expected 'D' for DONE)."
+        )
+    else:
+        logger.info(f"Workflow completed successfully. Results in {output_root}")
 
 
 def report_initial_status(

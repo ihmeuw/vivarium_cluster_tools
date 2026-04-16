@@ -17,7 +17,7 @@ import yaml
 
 SUPPORTED_STEP_TYPES = {"pytest", "notebook", "python", "shell"}
 
-REQUIRED_PIPELINE_FIELDS = {"name", "project", "queue", "output_directory", "steps"}
+REQUIRED_PIPELINE_FIELDS = {"name", "steps"}
 
 
 @dataclass
@@ -128,9 +128,9 @@ class PipelineConfig:
     """Parsed and validated pipeline configuration."""
 
     name: str
-    project: str
-    queue: str
-    output_directory: Path
+    project: str | None
+    queue: str | None
+    output_directory: Path | None
     default_environment: str | None
     steps: list[StepConfig]
 
@@ -169,9 +169,11 @@ class PipelineConfig:
 
         config = cls(
             name=pipeline["name"],
-            project=pipeline["project"],
-            queue=pipeline["queue"],
-            output_directory=Path(pipeline["output_directory"]),
+            project=pipeline.get("project"),
+            queue=pipeline.get("queue"),
+            output_directory=Path(pipeline["output_directory"])
+            if "output_directory" in pipeline
+            else None,
             default_environment=pipeline.get("default_environment"),
             steps=steps,
         )
@@ -191,10 +193,16 @@ class PipelineConfig:
         """Serialize to a dictionary suitable for YAML output."""
         result: dict[str, Any] = {
             "name": self.name,
-            "project": self.project,
-            "queue": self.queue,
-            "output_directory": str(self.output_directory),
         }
+
+        if self.project is not None:
+            result["project"] = self.project
+
+        if self.queue is not None:
+            result["queue"] = self.queue
+
+        if self.output_directory is not None:
+            result["output_directory"] = str(self.output_directory)
 
         if self.default_environment is not None:
             result["default_environment"] = self.default_environment

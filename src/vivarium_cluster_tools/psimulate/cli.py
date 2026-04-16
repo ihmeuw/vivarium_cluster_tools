@@ -415,14 +415,14 @@ def test(
 
 
 @psimulate.command()
+@cli_tools.with_pipeline_config
+@cluster.with_project
 @click.option(
-    "--config",
-    "-c",
-    "config_path",
-    type=click.Path(exists=True, dir_okay=False),
-    required=True,
-    help="Path to the pipeline configuration YAML file.",
-    callback=cli_tools.coerce_to_full_path,
+    "--queue",
+    "-q",
+    type=click.Choice(["all.q", "long.q"]),
+    default=None,
+    help="Override queue from config file. Defaults to 'all.q' if not specified.",
 )
 @click.option(
     "--output-directory",
@@ -432,8 +432,6 @@ def test(
     help="Override output directory from config file.",
     callback=cli_tools.coerce_to_full_path,
 )
-@cluster.with_project
-@cluster.with_queue_and_max_runtime
 @cli_tools.with_verbose_and_pdb
 def workflow(
     config_path: Path,
@@ -446,7 +444,37 @@ def workflow(
     specified via the -c/--config option. The config file specifies
     all pipeline steps, compute resources, and execution order.
 
-    Top-level options like project and queue can be overridden from
-    the command line.
+    Top-level options like project, queue, and output_directory can
+    be provided in the config file and/or overridden from the command line.
     """
-    raise NotImplementedError("workflow subcommand stub - not yet implemented")
+    from vivarium_cluster_tools.psimulate.pipeline_config.config import PipelineConfig
+
+    logs.configure_main_process_logging_to_terminal(options["verbose"])
+
+    # Parse the pipeline configuration
+    pipeline_config = PipelineConfig.from_yaml(config_path)
+
+    # Apply CLI overrides (these will be set from defaults if in config file)
+    pipeline_config.project = options["project"]
+    if options.get("queue") is not None:
+        pipeline_config.queue = options["queue"]
+    if output_directory is not None:
+        pipeline_config.output_directory = output_directory
+
+    # Validate required fields
+    if not pipeline_config.output_directory:
+        raise click.UsageError(
+            "Output directory is required. Provide it in the config file or via --output-directory/-o."
+        )
+
+    # Set default queue if not provided (matching behavior of other psimulate commands)
+    if not pipeline_config.queue:
+        pipeline_config.queue = "all.q"
+        logger.debug("No queue specified, defaulting to 'all.q'.")
+
+    main = handle_exceptions(runner.workflow_main, logger, options["with_debugger"])
+
+    main(
+        pipeline_config=pipeline_config,
+        verbose=options["verbose"],
+    )

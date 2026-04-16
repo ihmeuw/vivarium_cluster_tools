@@ -189,6 +189,68 @@ def with_run_config(func: CLIFunction) -> CLIFunction:
     )(func)
 
 
+def load_pipeline_config(
+    ctx: click.Context, param: click.Parameter | None, value: str | None
+) -> Path | None:
+    """Parse a pipeline YAML config and populate ctx.default_map with top-level options.
+
+    This callback is used by the `with_pipeline_config` decorator to enable
+    pipeline configuration files to provide defaults for CLI options like
+    --project, --queue, and --output-directory.
+    """
+    if value is None:
+        return None
+
+    config_path = Path(value).resolve()
+
+    # Parse the pipeline YAML
+    with open(config_path) as f:
+        raw = yaml.safe_load(f)
+
+    if "pipeline" not in raw:
+        raise click.BadParameter(
+            f"Invalid pipeline configuration: missing 'pipeline' key in {config_path}",
+            param=param,
+        )
+
+    pipeline = raw["pipeline"]
+
+    # Extract top-level options that map to CLI parameters
+    # Map pipeline config keys to CLI parameter names
+    config = {}
+    if "project" in pipeline:
+        config["project"] = pipeline["project"]
+    if "queue" in pipeline:
+        config["queue"] = pipeline["queue"]
+    if "output_directory" in pipeline:
+        config["output_directory"] = pipeline["output_directory"]
+
+    # Use default_map so CLI values automatically win
+    ctx.default_map = {**(ctx.default_map or {}), **config}
+
+    # Store the full config path for the command to access
+    return config_path
+
+
+def with_pipeline_config(func: CLIFunction) -> CLIFunction:
+    """Decorator that adds the ``--config/-c`` option for pipeline YAML files.
+
+    This decorator parses a pipeline configuration YAML file and extracts
+    top-level settings (project, queue, output_directory) to use as defaults
+    for their corresponding CLI options. CLI flags will override these defaults.
+    """
+    return click.option(
+        "--config",
+        "-c",
+        "config_path",
+        type=click.Path(exists=True, dir_okay=False),
+        required=True,
+        callback=load_pipeline_config,
+        is_eager=True,
+        help="Path to the pipeline configuration YAML file.",
+    )(func)
+
+
 def resolve_deprecated_positional(
     positional_value: Any,
     option_value: Any,

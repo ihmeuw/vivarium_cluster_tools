@@ -668,8 +668,8 @@ class TestWorkflowSubcommand:
             (["--queue", "long.q"], {"queue": "long.q"}),
             # Multiple flags overridden simultaneously
             (
-                ["-P", "proj_new", "-q", "long.q"],
-                {"project": "proj_new", "queue": "long.q"},
+                ["-P", "proj_simscience_prod", "-q", "long.q"],
+                {"project": "proj_simscience_prod", "queue": "long.q"},
             ),
         ],
     )
@@ -762,3 +762,93 @@ class TestWorkflowSubcommand:
         assert result.exit_code != 0
         # Click's error message for missing required options typically mentions "Missing option"
         assert "missing" in result.output.lower() or "required" in result.output.lower()
+
+    @pytest.mark.xfail(reason="workflow subcommand not yet implemented", strict=True)
+    def test_workflow_queue_optional_defaults_to_all_q(self, tmp_path: Path) -> None:
+        """Queue is optional in config; defaults to 'all.q' if not provided."""
+        pipeline_config = _write_yaml(
+            tmp_path,
+            {
+                "pipeline": {
+                    "name": "test_workflow",
+                    "project": "proj_simscience",
+                    # Note: queue is NOT provided
+                    "output_directory": str(tmp_path / "output"),
+                    "steps": [
+                        {
+                            "name": "test_step",
+                            "command": "echo test",
+                            "resources": {"memory": 2},
+                        }
+                    ],
+                }
+            },
+            name="pipeline.yaml",
+        )
+
+        cli_runner = CliRunner()
+        with patch(
+            "vivarium_cluster_tools.psimulate.runner.workflow_main"
+        ) as mock_workflow_main:
+            result = cli_runner.invoke(psimulate, ["workflow", "-c", str(pipeline_config)])
+
+        assert result.exit_code == 0, result.output
+        call_kwargs = mock_workflow_main.call_args.kwargs
+        # Should default to "all.q"
+        assert call_kwargs["pipeline_config"].queue == "all.q"
+
+    @pytest.mark.xfail(reason="workflow subcommand not yet implemented", strict=True)
+    def test_workflow_project_required(self, tmp_path: Path) -> None:
+        """Project is required; error if missing from both config and CLI."""
+        pipeline_config = _write_yaml(
+            tmp_path,
+            {
+                "pipeline": {
+                    "name": "test_workflow",
+                    # Note: project is NOT provided
+                    "output_directory": str(tmp_path / "output"),
+                    "steps": [
+                        {
+                            "name": "test_step",
+                            "command": "echo test",
+                            "resources": {"memory": 2},
+                        }
+                    ],
+                }
+            },
+            name="pipeline.yaml",
+        )
+
+        cli_runner = CliRunner()
+        result = cli_runner.invoke(psimulate, ["workflow", "-c", str(pipeline_config)])
+        assert result.exit_code != 0
+        assert "project" in result.output.lower()
+        assert "required" in result.output.lower() or "missing" in result.output.lower()
+
+    @pytest.mark.xfail(reason="workflow subcommand not yet implemented", strict=True)
+    def test_workflow_output_directory_required(self, tmp_path: Path) -> None:
+        """Output directory is required; error if missing from both config and CLI."""
+        pipeline_config = _write_yaml(
+            tmp_path,
+            {
+                "pipeline": {
+                    "name": "test_workflow",
+                    "project": "proj_simscience",
+                    # Note: output_directory is NOT provided
+                    "steps": [
+                        {
+                            "name": "test_step",
+                            "command": "echo test",
+                            "resources": {"memory": 2},
+                        }
+                    ],
+                }
+            },
+            name="pipeline.yaml",
+        )
+
+        cli_runner = CliRunner()
+        result = cli_runner.invoke(psimulate, ["workflow", "-c", str(pipeline_config)])
+        assert result.exit_code != 0
+        assert "output" in result.output.lower()
+        assert "required" in result.output.lower() or "missing" in result.output.lower()
