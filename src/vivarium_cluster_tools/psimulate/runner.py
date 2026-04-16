@@ -72,7 +72,6 @@ def workflow_main(
             max_runtime="01:00:00",
             hardware=[],
         ),
-        max_workers=100,  # Reasonable default for pipeline
         max_attempts=3,
         backup_freq=None,
         extra_args={"pipeline_config": pipeline_config},
