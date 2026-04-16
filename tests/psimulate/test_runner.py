@@ -354,3 +354,124 @@ def test_reuse_configuration_yaml(tmp_path: Path) -> None:
     assert call_kwargs["max_workers"] == 500
     assert call_kwargs["max_attempts"] == 5
     assert call_kwargs["extra_args"]["sim_verbosity"] == 1
+
+
+def test_write_configuration_workflow_command(tmp_path: Path) -> None:
+    """Verify that write_configuration works for the 'workflow' command."""
+    output_dir = tmp_path / "workflow_output"
+    output_dir.mkdir()
+
+    # Create a mock PipelineConfig to simulate workflow input
+    from vivarium_cluster_tools.psimulate.pipeline_config.config import (
+        PipelineConfig,
+        ResourceConfig,
+        StepConfig,
+    )
+
+    pipeline_config = PipelineConfig(
+        name="test_workflow",
+        project="proj_simscience",
+        queue="all.q",
+        output_directory=output_dir,
+        default_environment=None,
+        steps=[
+            StepConfig(
+                name="test_step",
+                type="pytest",
+                path="tests/",
+                resources=ResourceConfig(memory=4, runtime="01:00:00"),
+            )
+        ],
+    )
+
+    write_configuration(
+        output_root=output_dir,
+        command="workflow",
+        input_paths=None,  # workflow doesn't use InputPaths
+        native_specification=_make_native_spec(
+            project=pipeline_config.project,
+            queue=pipeline_config.queue,
+        ),
+        max_workers=100,
+        max_attempts=3,
+        backup_freq=None,
+        extra_args={"pipeline_config": pipeline_config},
+    )
+
+    config = _read_configuration_yaml(output_dir)
+    assert config["pipeline"]["name"] == "test_workflow"
+    assert config["pipeline"]["project"] == "proj_simscience"
+    assert config["pipeline"]["queue"] == "all.q"
+    assert config["pipeline"]["output_directory"] == str(output_dir)
+    # Verify steps are included
+    assert len(config["pipeline"]["steps"]) == 1
+    assert config["pipeline"]["steps"][0]["name"] == "test_step"
+    assert config["pipeline"]["steps"][0]["type"] == "pytest"
+
+
+@pytest.mark.xfail(reason="workflow_main not yet implemented", strict=True)
+def test_workflow_configuration_includes_cli_overrides(tmp_path: Path) -> None:
+    """Verify that CLI overrides are reflected in the written configuration.yaml."""
+    output_dir = tmp_path / "workflow_output"
+    output_dir.mkdir()
+
+    pipeline_yaml = tmp_path / "pipeline.yaml"
+    pipeline_yaml.write_text(
+        yaml.dump(
+            {
+                "pipeline": {
+                    "name": "test_workflow",
+                    "project": "proj_simscience",
+                    "queue": "all.q",
+                    "output_directory": str(output_dir),
+                    "steps": [
+                        {
+                            "name": "test_step",
+                            "command": "echo test",
+                            "resources": {"memory": 4},
+                        }
+                    ],
+                }
+            }
+        )
+    )
+
+    cli_runner = CliRunner()
+    with patch("vivarium_cluster_tools.psimulate.runner.workflow_main") as mock_workflow_main:
+        # Mock workflow_main to call write_configuration
+        def mock_impl(**kwargs: Any) -> None:
+            write_configuration(
+                output_root=output_dir,
+                command="workflow",
+                input_paths=None,
+                native_specification=_make_native_spec(
+                    project=kwargs["pipeline_config"].project,
+                    queue=kwargs["pipeline_config"].queue,
+                ),
+                max_workers=100,
+                max_attempts=3,
+                backup_freq=None,
+                extra_args={"pipeline_config": kwargs["pipeline_config"]},
+            )
+
+        mock_workflow_main.side_effect = mock_impl
+
+        result = cli_runner.invoke(
+            psimulate,
+            [
+                "workflow",
+                "-c",
+                str(pipeline_yaml),
+                "-P",
+                "proj_simscience_prod",
+                "-q",
+                "long.q",
+            ],
+        )
+
+    assert result.exit_code == 0, result.output
+
+    config = _read_configuration_yaml(output_dir)
+    # CLI overrides should be in the written config
+    assert config["pipeline"]["project"] == "proj_simscience_prod"
+    assert config["pipeline"]["queue"] == "long.q"

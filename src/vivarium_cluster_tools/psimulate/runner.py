@@ -39,6 +39,22 @@ from vivarium_cluster_tools.psimulate.results.writing import collect_metadata
 from vivarium_cluster_tools.vipin.perf_report import report_performance
 
 
+def workflow_main(
+    pipeline_config: Any,  # Will be PipelineConfig type
+    **options: Any,
+) -> None:
+    """Entry point for the psimulate workflow subcommand.
+
+    Parameters
+    ----------
+    pipeline_config
+        The parsed and validated pipeline configuration (with CLI overrides applied).
+    options
+        Additional execution options (verbose, with_debugger, etc).
+    """
+    raise NotImplementedError("workflow_main stub - not yet implemented")
+
+
 def report_initial_status(
     num_jobs_completed: int, finished_sim_metadata: pd.DataFrame, total_num_jobs: int
 ) -> None:
@@ -102,7 +118,7 @@ def write_backup_metadata(
 def write_configuration(
     output_root: Path,
     command: str,
-    input_paths: paths.InputPaths,
+    input_paths: paths.InputPaths | None,
     native_specification: cluster.NativeSpecification,
     max_workers: int,
     max_attempts: int,
@@ -121,9 +137,9 @@ def write_configuration(
     output_root
         The root output directory for the simulation run.
     command
-        The psimulate sub-command (e.g. ``"run"``, ``"restart"``, ``"expand"``).
+        The psimulate sub-command (e.g. ``"run"``, ``"restart"``, ``"expand"``, ``"workflow"``).
     input_paths
-        The resolved input file paths.
+        The resolved input file paths. None for workflow command.
     native_specification
         The cluster resource specification.
     max_workers
@@ -134,23 +150,33 @@ def write_configuration(
         Interval in seconds between saving backups, or ``None`` to disable.
     extra_args
         Additional command-specific arguments (e.g. ``sim_verbosity``,
-        ``num_draws``, ``num_seeds``).
+        ``num_draws``, ``num_seeds``, ``pipeline_config``).
 
     """
     config: dict[str, Any] = {}
 
+    # Handle workflow command
+    if command == "workflow":
+        # For workflow, write the complete pipeline definition (with CLI overrides applied)
+        # so the configuration.yaml can be reused directly with: psimulate workflow -c configuration.yaml
+        pipeline_config = extra_args.get("pipeline_config")
+        if pipeline_config:
+            # Use the PipelineConfig.to_dict() method to serialize
+            config["pipeline"] = pipeline_config.to_dict()
     # Input paths – keys match the names accepted by --run-config
-    if command == COMMANDS.run:
-        if input_paths.model_specification is not None:
-            config["model_specification"] = str(input_paths.model_specification)
-        if input_paths.branch_configuration is not None:
-            config["branch_configuration"] = str(input_paths.branch_configuration)
-        config["result_directory"] = str(input_paths.result_directory)
-        if input_paths.artifact is not None:
-            config["artifact_path"] = str(input_paths.artifact)
+    elif command == COMMANDS.run:
+        if input_paths is not None:
+            if input_paths.model_specification is not None:
+                config["model_specification"] = str(input_paths.model_specification)
+            if input_paths.branch_configuration is not None:
+                config["branch_configuration"] = str(input_paths.branch_configuration)
+            config["result_directory"] = str(input_paths.result_directory)
+            if input_paths.artifact is not None:
+                config["artifact_path"] = str(input_paths.artifact)
     else:
         # restart / expand – the result directory *is* the results_root
-        config["results_root"] = str(input_paths.result_directory)
+        if input_paths is not None:
+            config["results_root"] = str(input_paths.result_directory)
 
     # Cluster resources
     config["project"] = native_specification.project

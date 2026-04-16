@@ -39,6 +39,17 @@ class ResourceConfig:
             cores=data.get("cores", 1),
         )
 
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize to a dictionary, omitting None values and default cores."""
+        result: dict[str, Any] = {}
+        if self.memory is not None:
+            result["memory"] = self.memory
+        if self.runtime is not None:
+            result["runtime"] = self.runtime
+        if self.cores != 1:  # Only include if not default
+            result["cores"] = self.cores
+        return result
+
 
 @dataclass
 class StepConfig:
@@ -84,6 +95,32 @@ class StepConfig:
         # Must have at least one of command or type+path
         if not self.is_raw_command and not self.is_structured:
             raise ValueError(f"Step '{self.name}': must provide 'command' or 'type'+'path'.")
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize to a dictionary, omitting None values."""
+        result: dict[str, Any] = {"name": self.name}
+
+        # Add command or type+path (only non-None values)
+        if self.command is not None:
+            result["command"] = self.command
+        if self.type is not None:
+            result["type"] = self.type
+        if self.path is not None:
+            result["path"] = self.path
+        if self.args is not None:
+            result["args"] = self.args
+
+        # Add environment if specified
+        if self.environment is not None:
+            result["environment"] = self.environment
+
+        # Add resources if specified and non-empty
+        if self.resources is not None:
+            resources_dict = self.resources.to_dict()
+            if resources_dict:  # Only add if there are non-default values
+                result["resources"] = resources_dict
+
+        return result
 
 
 @dataclass
@@ -149,3 +186,19 @@ class PipelineConfig:
             raise ValueError(
                 f"Step names must be unique. Duplicate names found: {set([name for name in names if names.count(name) > 1])}"
             )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize to a dictionary suitable for YAML output."""
+        result: dict[str, Any] = {
+            "name": self.name,
+            "project": self.project,
+            "queue": self.queue,
+            "output_directory": str(self.output_directory),
+        }
+
+        if self.default_environment is not None:
+            result["default_environment"] = self.default_environment
+
+        result["steps"] = [step.to_dict() for step in self.steps]
+
+        return result

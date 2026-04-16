@@ -412,3 +412,41 @@ def test(
             "num_workers": num_workers,
         },
     )
+
+
+@psimulate.command()
+@click.option(
+    "--config",
+    "-c",
+    "config_path",
+    type=click.Path(exists=True, dir_okay=False),
+    required=True,
+    help="Path to the pipeline configuration YAML file.",
+    callback=cli_tools.coerce_to_full_path,
+)
+@click.option(
+    "--output-directory",
+    "-o",
+    type=click.Path(file_okay=False),
+    default=None,
+    help="Override output directory from config file.",
+    callback=cli_tools.coerce_to_full_path,
+)
+@cluster.with_project
+@cluster.with_queue_and_max_runtime
+@cli_tools.with_verbose_and_pdb
+def workflow(
+    config_path: Path,
+    output_directory: Path | None,
+    **options: Any,
+) -> None:
+    """Run a multi-step pipeline workflow.
+
+    The workflow is defined in a pipeline configuration YAML file
+    specified via the -c/--config option. The config file specifies
+    all pipeline steps, compute resources, and execution order.
+
+    Top-level options like project and queue can be overridden from
+    the command line.
+    """
+    raise NotImplementedError("workflow subcommand stub - not yet implemented")
