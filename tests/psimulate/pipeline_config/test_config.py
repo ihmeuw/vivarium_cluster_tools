@@ -18,6 +18,7 @@ from vivarium_cluster_tools.psimulate.pipeline_config.config import (
     StepConfig,
 )
 
+
 class TestPipelineConfigFromYaml:
     """Verify that ``PipelineConfig.from_yaml`` correctly parses valid YAML."""
 
