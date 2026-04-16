@@ -229,21 +229,23 @@ def write_configuration(
         if input_paths is not None:
             config["results_root"] = str(input_paths.result_directory)
 
-    # Cluster resources
-    config["project"] = native_specification.project
-    config["queue"] = native_specification.queue
-    config["peak_memory"] = native_specification.peak_memory
-    config["max_runtime"] = native_specification.max_runtime
-    if native_specification.hardware:
-        config["hardware"] = ",".join(native_specification.hardware)
+    # Cluster resources (not needed for workflow - they're in pipeline config)
+    # NOTE: # Cluster resources are already in the pipeline config, so don't duplicate them at root level
+    if command != "workflow":
+        config["project"] = native_specification.project
+        config["queue"] = native_specification.queue
+        config["peak_memory"] = native_specification.peak_memory
+        config["max_runtime"] = native_specification.max_runtime
+        if native_specification.hardware:
+            config["hardware"] = ",".join(native_specification.hardware)
 
-    # Execution parameters
-    config["max_workers"] = max_workers
-    config["max_attempts"] = max_attempts
-    if backup_freq is not None:
-        # backup_freq is stored in seconds; convert back to minutes for the CLI.
-        # Written as a string so Click's MinutesOrNone type can parse it.
-        config["backup_freq"] = str(backup_freq / 60.0)
+        # Execution parameters
+        config["max_workers"] = max_workers
+        config["max_attempts"] = max_attempts
+        if backup_freq is not None:
+            # backup_freq is stored in seconds; convert back to minutes for the CLI.
+            # Written as a string so Click's MinutesOrNone type can parse it.
+            config["backup_freq"] = str(backup_freq / 60.0)
 
     # Command-specific extras
     if "sim_verbosity" in extra_args:
