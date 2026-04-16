@@ -35,6 +35,7 @@ from vivarium_cluster_tools.psimulate.paths import OutputPaths
 from vivarium_cluster_tools.psimulate.performance_logger import (
     append_perf_data_to_central_logs,
 )
+from vivarium_cluster_tools.psimulate.pipeline_config.builder import PipelineWorkflowBuilder
 from vivarium_cluster_tools.psimulate.results.writing import collect_metadata
 from vivarium_cluster_tools.vipin.perf_report import report_performance
 
@@ -52,10 +53,6 @@ def workflow_main(
     verbose
         Verbosity level.
     """
-    from vivarium_cluster_tools.psimulate.pipeline_config.builder import (
-        PipelineWorkflowBuilder,
-    )
-
     logger.info(f"Starting workflow: {pipeline_config.name}")
 
     # Create output directory if it doesn't exist

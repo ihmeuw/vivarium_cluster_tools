@@ -22,6 +22,7 @@ from vivarium_cluster_tools import cli_tools, logs
 from vivarium_cluster_tools.cli_tools import Decorator
 from vivarium_cluster_tools.psimulate import COMMANDS, cluster, paths, results, runner
 from vivarium_cluster_tools.psimulate.jobmon_config import with_max_attempts, with_max_workers
+from vivarium_cluster_tools.psimulate.pipeline_config.config import PipelineConfig
 from vivarium_cluster_tools.psimulate.worker.load_test_work_horse import (
     get_psimulate_test_dict,
 )
@@ -447,8 +448,6 @@ def workflow(
     Top-level options like project, queue, and output_directory can
     be provided in the config file and/or overridden from the command line.
     """
-    from vivarium_cluster_tools.psimulate.pipeline_config.config import PipelineConfig
-
     logs.configure_main_process_logging_to_terminal(options["verbose"])
 
     # Parse the pipeline configuration
