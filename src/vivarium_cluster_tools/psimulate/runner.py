@@ -72,6 +72,7 @@ def workflow_main(
             max_runtime="01:00:00",
             hardware=[],
         ),
+        max_workers=None,  # Not used for workflow command
         max_attempts=3,
         backup_freq=None,
         extra_args={"pipeline_config": pipeline_config},
@@ -167,7 +168,7 @@ def write_configuration(
     command: str,
     input_paths: paths.InputPaths | None,
     native_specification: cluster.NativeSpecification,
-    max_workers: int,
+    max_workers: int | None,
     max_attempts: int,
     backup_freq: int | None,
     extra_args: dict[str, Any],
@@ -190,7 +191,7 @@ def write_configuration(
     native_specification
         The cluster resource specification.
     max_workers
-        Maximum number of concurrent workers.
+        Maximum number of concurrent workers. Not used for workflow command.
     max_attempts
         Maximum number of Jobmon task attempts.
     backup_freq
@@ -228,6 +229,8 @@ def write_configuration(
     # Cluster resources (not needed for workflow - they're in pipeline config)
     # NOTE: # Cluster resources are already in the pipeline config, so don't duplicate them at root level
     if command != "workflow":
+        if max_workers is None:
+            raise ValueError(f"max_workers is required for command '{command}'")
         config["project"] = native_specification.project
         config["queue"] = native_specification.queue
         config["peak_memory"] = native_specification.peak_memory
