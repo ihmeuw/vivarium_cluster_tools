@@ -621,7 +621,6 @@ class TestDeprecationDeadline:
 class TestWorkflowSubcommand:
     """Tests for -c/--config on the ``workflow`` subcommand."""
 
-    @pytest.mark.xfail(reason="workflow subcommand not yet implemented", strict=True)
     def test_workflow_with_config_file(self, tmp_path: Path) -> None:
         """Workflow subcommand accepts -c flag with pipeline config."""
         pipeline_config = _write_yaml(
@@ -657,7 +656,6 @@ class TestWorkflowSubcommand:
         assert call_kwargs["pipeline_config"].name == "test_workflow"
         assert call_kwargs["pipeline_config"].project == "proj_simscience"
 
-    @pytest.mark.xfail(reason="workflow subcommand not yet implemented", strict=True)
     @pytest.mark.parametrize(
         "cli_args,expected_overrides",
         [
@@ -715,7 +713,6 @@ class TestWorkflowSubcommand:
         for config_key, expected_value in expected_overrides.items():
             assert getattr(call_kwargs["pipeline_config"], config_key) == expected_value
 
-    @pytest.mark.xfail(reason="workflow subcommand not yet implemented", strict=True)
     def test_workflow_cli_overrides_output_directory(self, tmp_path: Path) -> None:
         """CLI -o flag overrides output_directory from config file."""
         original_output = tmp_path / "output_original"
@@ -763,7 +760,6 @@ class TestWorkflowSubcommand:
         # Click's error message for missing required options typically mentions "Missing option"
         assert "missing" in result.output.lower() or "required" in result.output.lower()
 
-    @pytest.mark.xfail(reason="workflow subcommand not yet implemented", strict=True)
     def test_workflow_queue_optional_defaults_to_all_q(self, tmp_path: Path) -> None:
         """Queue is optional in config; defaults to 'all.q' if not provided."""
         pipeline_config = _write_yaml(
@@ -797,7 +793,6 @@ class TestWorkflowSubcommand:
         # Should default to "all.q"
         assert call_kwargs["pipeline_config"].queue == "all.q"
 
-    @pytest.mark.xfail(reason="workflow subcommand not yet implemented", strict=True)
     def test_workflow_project_required(self, tmp_path: Path) -> None:
         """Project is required; error if missing from both config and CLI."""
         pipeline_config = _write_yaml(
@@ -825,7 +820,6 @@ class TestWorkflowSubcommand:
         assert "project" in result.output.lower()
         assert "required" in result.output.lower() or "missing" in result.output.lower()
 
-    @pytest.mark.xfail(reason="workflow subcommand not yet implemented", strict=True)
     def test_workflow_output_directory_required(self, tmp_path: Path) -> None:
         """Output directory is required; error if missing from both config and CLI."""
         pipeline_config = _write_yaml(
@@ -834,7 +828,7 @@ class TestWorkflowSubcommand:
                 "pipeline": {
                     "name": "test_workflow",
                     "project": "proj_simscience",
-                    # Note: output_directory is NOT provided
+                    # NOTE: output_directory is NOT provided
                     "steps": [
                         {
                             "name": "test_step",

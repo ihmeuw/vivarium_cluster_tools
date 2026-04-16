@@ -135,26 +135,21 @@ class TestPipelineConfigValidation:
         with pytest.raises(ValueError, match="name"):
             PipelineConfig.from_yaml(yaml_path)
 
-    def test_rejects_missing_project(self, tmp_path: Path) -> None:
-        data = make_pipeline_dict()
-        del data["pipeline"]["project"]
-        yaml_path = write_pipeline_yaml(tmp_path, data)
-        with pytest.raises(ValueError, match="project"):
-            PipelineConfig.from_yaml(yaml_path)
+    @pytest.mark.parametrize(
+        "field_name",
+        ["project", "queue", "output_directory"],
+    )
+    def test_optional_fields_can_be_omitted(self, tmp_path: Path, field_name: str) -> None:
+        """Project, queue, and output_directory are optional in config.
 
-    def test_rejects_missing_queue(self, tmp_path: Path) -> None:
+        Validation happens at CLI layer where required fields are checked
+        and defaults are applied (e.g., queue defaults to 'all.q').
+        """
         data = make_pipeline_dict()
-        del data["pipeline"]["queue"]
+        del data["pipeline"][field_name]
         yaml_path = write_pipeline_yaml(tmp_path, data)
-        with pytest.raises(ValueError, match="queue"):
-            PipelineConfig.from_yaml(yaml_path)
-
-    def test_rejects_missing_output_directory(self, tmp_path: Path) -> None:
-        data = make_pipeline_dict()
-        del data["pipeline"]["output_directory"]
-        yaml_path = write_pipeline_yaml(tmp_path, data)
-        with pytest.raises(ValueError, match="output_directory"):
-            PipelineConfig.from_yaml(yaml_path)
+        config = PipelineConfig.from_yaml(yaml_path)
+        assert getattr(config, field_name) is None
 
     def test_rejects_missing_steps(self, tmp_path: Path) -> None:
         data = make_pipeline_dict()

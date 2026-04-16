@@ -409,7 +409,6 @@ def test_write_configuration_workflow_command(tmp_path: Path) -> None:
     assert config["pipeline"]["steps"][0]["type"] == "pytest"
 
 
-@pytest.mark.xfail(reason="workflow_main not yet implemented", strict=True)
 def test_workflow_configuration_includes_cli_overrides(tmp_path: Path) -> None:
     """Verify that CLI overrides are reflected in the written configuration.yaml."""
     output_dir = tmp_path / "workflow_output"
