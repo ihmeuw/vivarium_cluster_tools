@@ -1,3 +1,9 @@
+**3.2.0 - TBD/TBD/TBD**
+
+- Psimulate workflow epic
+  - Parse configuration to for workflow
+  - Build Jobmon workflow from configuration 
+
 **3.1.0 - 04/16/26**
 
 - Tighten vivarium_build_utils pin
