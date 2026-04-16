@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
 from jobmon.client.api import Tool
 
@@ -20,7 +20,7 @@ from vivarium_cluster_tools.psimulate.pipeline_config.config import PipelineConf
 if TYPE_CHECKING:
     from jobmon.client.workflow import Workflow
 
-COMMAND_RESOLVERS = {
+COMMAND_RESOLVERS: dict[str, Callable[[str | list[str] | None, str | None], str]] = {
     "pytest": lambda path, args: f"pytest {_join_paths(path)} {args or ''}".strip(),
     "notebook": lambda path, args: (
         f"papermill {path} {{output_directory}}/executed/{Path(path).name} {args or ''}"
@@ -95,8 +95,10 @@ class PipelineWorkflowBuilder:
         return workflow
 
 
-def _join_paths(path: str | list[str]) -> str:
+def _join_paths(path: str | list[str] | None) -> str:
     """Normalize path to a space-separated string."""
+    if path is None:
+        return ""
     if isinstance(path, list):
         return " ".join(str(p) for p in path)
     return str(path)
