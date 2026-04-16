@@ -108,9 +108,11 @@ def resolve_command(step: StepConfig) -> str:
     For raw command steps, returns the command as-is.
     For structured steps, uses the type to infer the command.
     """
-    if step.is_raw_command:
+    # Check command directly for type narrowing
+    if step.command is not None:
         return step.command
-    if step.is_structured:
+    # Check type and path directly for type narrowing
+    if step.type is not None and step.path is not None:
         resolver = COMMAND_RESOLVERS[step.type]
         return resolver(step.path, step.args)
     raise ValueError(f"Step '{step.name}' has no command, type, or recognized bespoke name.")
