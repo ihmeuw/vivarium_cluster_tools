@@ -183,6 +183,32 @@ class TestWorkflowConfigValidation:
         with pytest.raises(ValueError, match="bad_step"):
             WorkflowConfig.from_yaml(yaml_path)
 
+    def test_rejects_step_with_command_and_path_without_type(self, tmp_path: Path) -> None:
+        steps = [
+            {
+                "name": "bad_step",
+                "command": "echo hello",
+                "path": "tests/test_something.py",
+            }
+        ]
+        data = make_workflow_dict(steps=steps)
+        yaml_path = write_workflow_yaml(tmp_path, data)
+        with pytest.raises(ValueError, match="bad_step"):
+            WorkflowConfig.from_yaml(yaml_path)
+
+    def test_rejects_step_with_command_and_type_without_path(self, tmp_path: Path) -> None:
+        steps = [
+            {
+                "name": "bad_step",
+                "command": "echo hello",
+                "type": "pytest",
+            }
+        ]
+        data = make_workflow_dict(steps=steps)
+        yaml_path = write_workflow_yaml(tmp_path, data)
+        with pytest.raises(ValueError, match="bad_step"):
+            WorkflowConfig.from_yaml(yaml_path)
+
     def test_rejects_step_with_neither_command_nor_type(self, tmp_path: Path) -> None:
         steps = [{"name": "empty_step", "resources": {"memory": 4}}]
         data = make_workflow_dict(steps=steps)

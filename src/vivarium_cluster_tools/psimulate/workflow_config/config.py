@@ -81,6 +81,13 @@ class StepConfig:
                 f"Step '{self.name}': provide 'command' OR 'type'+'path', not both."
             )
 
+        # Command should not be mixed with type or path
+        if self.command is not None and (self.type is not None or self.path is not None):
+            raise ValueError(
+                f"Step '{self.name}': 'command' cannot be combined with 'type' or 'path'. "
+                "Use 'command' alone for raw commands, or 'type'+'path' for structured steps."
+            )
+
         # Must have at least one of command or type+path
         if not self.is_raw_command and not self.is_structured:
             raise ValueError(f"Step '{self.name}': must provide 'command' or 'type'+'path'.")
