@@ -35,13 +35,13 @@ from vivarium_cluster_tools.psimulate.paths import OutputPaths
 from vivarium_cluster_tools.psimulate.performance_logger import (
     append_perf_data_to_central_logs,
 )
-from vivarium_cluster_tools.psimulate.pipeline_config.builder import PipelineWorkflowBuilder
 from vivarium_cluster_tools.psimulate.results.writing import collect_metadata
+from vivarium_cluster_tools.psimulate.workflow_config.builder import WorkflowBuilder
 from vivarium_cluster_tools.vipin.perf_report import report_performance
 
 
 def workflow_main(
-    pipeline_config: Any,  # Will be PipelineConfig type
+    pipeline_config: Any,  # Will be WorkflowConfig type
     verbose: int = 0,
 ) -> None:
     """Entry point for the psimulate workflow subcommand.
@@ -49,7 +49,7 @@ def workflow_main(
     Parameters
     ----------
     pipeline_config
-        The parsed and validated pipeline configuration (with CLI overrides applied).
+        The parsed and validated workflow configuration (with CLI overrides applied).
     verbose
         Verbosity level.
     """
@@ -79,8 +79,8 @@ def workflow_main(
     )
 
     # Build the workflow
-    logger.debug("Building pipeline workflow.")
-    builder = PipelineWorkflowBuilder(pipeline_config)
+    logger.debug("Building workflow.")
+    builder = WorkflowBuilder(pipeline_config)
     workflow = builder.build()
 
     # Bind and run
@@ -205,12 +205,12 @@ def write_configuration(
 
     # Handle workflow command
     if command == "workflow":
-        # For workflow, write the complete pipeline definition (with CLI overrides applied)
+        # For workflow, write the complete workflow definition (with CLI overrides applied)
         # so the configuration.yaml can be reused directly with: psimulate workflow -c configuration.yaml
         pipeline_config = extra_args.get("pipeline_config")
         if pipeline_config:
-            # Use the PipelineConfig.to_dict() method to serialize
-            config["pipeline"] = pipeline_config.to_dict()
+            # Use the WorkflowConfig.to_dict() method to serialize
+            config["workflow"] = pipeline_config.to_dict()
     # Input paths – keys match the names accepted by --run-config
     elif command == COMMANDS.run:
         if input_paths is not None:

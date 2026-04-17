@@ -1,4 +1,4 @@
-"""Unit tests for the pipeline workflow builder."""
+"""Unit tests for the workflow builder."""
 
 from __future__ import annotations
 
@@ -8,18 +8,18 @@ from unittest.mock import MagicMock
 import pytest
 from pytest_mock import MockerFixture
 
-from vivarium_cluster_tools.psimulate.pipeline_config.builder import (
-    PipelineWorkflowBuilder,
+from vivarium_cluster_tools.psimulate.workflow_config.builder import (
+    WorkflowBuilder,
     resolve_command,
 )
-from vivarium_cluster_tools.psimulate.pipeline_config.config import PipelineConfig, StepConfig
+from vivarium_cluster_tools.psimulate.workflow_config.config import StepConfig, WorkflowConfig
 
 
 @pytest.fixture()
-def three_step_config() -> PipelineConfig:
-    """A ``PipelineConfig`` with three sequential raw-command steps."""
-    return PipelineConfig(
-        name="test_pipeline",
+def three_step_config() -> WorkflowConfig:
+    """A ``WorkflowConfig`` with three sequential raw-command steps."""
+    return WorkflowConfig(
+        name="test_workflow",
         project="proj_simscience",
         queue="all.q",
         output_directory=Path("/tmp/results"),
@@ -35,19 +35,19 @@ def three_step_config() -> PipelineConfig:
 @pytest.fixture()
 def mock_tool_cls(mocker: MockerFixture) -> MagicMock:
     """Patch the Jobmon ``Tool`` class at the builder's import site."""
-    return mocker.patch("vivarium_cluster_tools.psimulate.pipeline_config.builder.Tool")
+    return mocker.patch("vivarium_cluster_tools.psimulate.workflow_config.builder.Tool")
 
 
-class TestPipelineWorkflowBuilder:
-    """Verify that ``PipelineWorkflowBuilder`` builds a correct Jobmon workflow."""
+class TestWorkflowBuilder:
+    """Verify that ``WorkflowBuilder`` builds a correct Jobmon workflow."""
 
     def test_valid_config_builds_workflow(
         self,
-        three_step_config: PipelineConfig,
+        three_step_config: WorkflowConfig,
         mock_tool_cls: MagicMock,
     ) -> None:
         """A valid config produces a Jobmon Workflow with tasks added."""
-        builder = PipelineWorkflowBuilder(three_step_config)
+        builder = WorkflowBuilder(three_step_config)
         workflow = builder.build()
 
         expected_workflow = mock_tool_cls.return_value.create_workflow.return_value
@@ -55,10 +55,10 @@ class TestPipelineWorkflowBuilder:
 
     def test_dag_preserves_step_ordering(
         self,
-        three_step_config: PipelineConfig,
+        three_step_config: WorkflowConfig,
         mock_tool_cls: MagicMock,
     ) -> None:
-        """A 3-step pipeline produces a DAG: step1 -> step2 -> step3."""
+        """A 3-step workflow produces a DAG: step1 -> step2 -> step3."""
         task1 = MagicMock(name="task_step1")
         task2 = MagicMock(name="task_step2")
         task3 = MagicMock(name="task_step3")
@@ -66,7 +66,7 @@ class TestPipelineWorkflowBuilder:
         template_mock = mock_tool_cls.return_value.get_task_template.return_value
         template_mock.create_task.side_effect = [task1, task2, task3]
 
-        builder = PipelineWorkflowBuilder(three_step_config)
+        builder = WorkflowBuilder(three_step_config)
         builder.build()
 
         # Each config step produces exactly one task

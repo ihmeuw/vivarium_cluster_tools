@@ -22,10 +22,10 @@ from vivarium_cluster_tools import cli_tools, logs
 from vivarium_cluster_tools.cli_tools import Decorator
 from vivarium_cluster_tools.psimulate import COMMANDS, cluster, paths, results, runner
 from vivarium_cluster_tools.psimulate.jobmon_config import with_max_attempts, with_max_workers
-from vivarium_cluster_tools.psimulate.pipeline_config.config import PipelineConfig
 from vivarium_cluster_tools.psimulate.worker.load_test_work_horse import (
     get_psimulate_test_dict,
 )
+from vivarium_cluster_tools.psimulate.workflow_config.config import WorkflowConfig
 
 
 @click.group()
@@ -416,7 +416,7 @@ def test(
 
 
 @psimulate.command()
-@cli_tools.with_pipeline_config
+@cli_tools.with_workflow_config
 @cluster.with_project
 @click.option(
     "--queue",
@@ -450,8 +450,8 @@ def workflow(
     """
     logs.configure_main_process_logging_to_terminal(options["verbose"])
 
-    # Parse the pipeline configuration
-    pipeline_config = PipelineConfig.from_yaml(config_path)
+    # Parse the workflow configuration
+    pipeline_config = WorkflowConfig.from_yaml(config_path)
 
     # Apply CLI overrides (these will be set from defaults if in config file)
     pipeline_config.project = options["project"]

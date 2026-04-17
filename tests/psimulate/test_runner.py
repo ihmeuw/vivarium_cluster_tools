@@ -361,14 +361,14 @@ def test_write_configuration_workflow_command(tmp_path: Path) -> None:
     output_dir = tmp_path / "workflow_output"
     output_dir.mkdir()
 
-    # Create a mock PipelineConfig to simulate workflow input
-    from vivarium_cluster_tools.psimulate.pipeline_config.config import (
-        PipelineConfig,
+    # Create a mock WorkflowConfig to simulate workflow input
+    from vivarium_cluster_tools.psimulate.workflow_config.config import (
         ResourceConfig,
         StepConfig,
+        WorkflowConfig,
     )
 
-    pipeline_config = PipelineConfig(
+    pipeline_config = WorkflowConfig(
         name="test_workflow",
         project="proj_simscience",
         queue="all.q",
@@ -399,14 +399,14 @@ def test_write_configuration_workflow_command(tmp_path: Path) -> None:
     )
 
     config = _read_configuration_yaml(output_dir)
-    assert config["pipeline"]["name"] == "test_workflow"
-    assert config["pipeline"]["project"] == "proj_simscience"
-    assert config["pipeline"]["queue"] == "all.q"
-    assert config["pipeline"]["output_directory"] == str(output_dir)
+    assert config["workflow"]["name"] == "test_workflow"
+    assert config["workflow"]["project"] == "proj_simscience"
+    assert config["workflow"]["queue"] == "all.q"
+    assert config["workflow"]["output_directory"] == str(output_dir)
     # Verify steps are included
-    assert len(config["pipeline"]["steps"]) == 1
-    assert config["pipeline"]["steps"][0]["name"] == "test_step"
-    assert config["pipeline"]["steps"][0]["type"] == "pytest"
+    assert len(config["workflow"]["steps"]) == 1
+    assert config["workflow"]["steps"][0]["name"] == "test_step"
+    assert config["workflow"]["steps"][0]["type"] == "pytest"
 
 
 def test_workflow_configuration_includes_cli_overrides(tmp_path: Path) -> None:
@@ -418,7 +418,7 @@ def test_workflow_configuration_includes_cli_overrides(tmp_path: Path) -> None:
     pipeline_yaml.write_text(
         yaml.dump(
             {
-                "pipeline": {
+                "workflow": {
                     "name": "test_workflow",
                     "project": "proj_simscience",
                     "queue": "all.q",
@@ -472,5 +472,5 @@ def test_workflow_configuration_includes_cli_overrides(tmp_path: Path) -> None:
 
     config = _read_configuration_yaml(output_dir)
     # CLI overrides should be in the written config
-    assert config["pipeline"]["project"] == "proj_simscience_prod"
-    assert config["pipeline"]["queue"] == "long.q"
+    assert config["workflow"]["project"] == "proj_simscience_prod"
+    assert config["workflow"]["queue"] == "long.q"

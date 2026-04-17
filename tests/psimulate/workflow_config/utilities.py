@@ -1,11 +1,10 @@
-"""Shared fixtures for the pipeline_config test suite."""
+"""Utility functions for workflow_config tests."""
 
 from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
 
-import pytest
 import yaml
 
 
@@ -24,12 +23,12 @@ def make_step_dict(**overrides: Any) -> dict[str, Any]:
     return defaults
 
 
-def make_pipeline_dict(**overrides: Any) -> dict[str, Any]:
-    """Create a valid minimal pipeline config dict.
+def make_workflow_dict(**overrides: Any) -> dict[str, Any]:
+    """Create a valid minimal workflow config dict.
 
-    Returns a dict with the ``pipeline`` top-level key containing
+    Returns a dict with the ``workflow`` top-level key containing
     two steps: one structured (pytest) and one raw command.
-    Override any top-level pipeline field or replace ``steps`` entirely.
+    Override any top-level workflow field or replace ``steps`` entirely.
     """
     steps = overrides.pop("steps", None)
     if steps is None:
@@ -59,31 +58,19 @@ def make_pipeline_dict(**overrides: Any) -> dict[str, Any]:
             },
         ]
 
-    pipeline: dict[str, Any] = {
+    workflow: dict[str, Any] = {
         "name": "test_pipeline",
         "project": "proj_simscience",
         "queue": "all.q",
         "output_directory": "/tmp/results",
         "steps": steps,
     }
-    pipeline.update(overrides)
-    return {"pipeline": pipeline}
+    workflow.update(overrides)
+    return {"workflow": workflow}
 
 
-def write_pipeline_yaml(tmp_path: Path, data: dict[str, Any]) -> Path:
-    """Write a pipeline config dict to a YAML file and return the path."""
-    yaml_path = tmp_path / "pipeline.yaml"
+def write_workflow_yaml(tmp_path: Path, data: dict[str, Any]) -> Path:
+    """Write a workflow config dict to a YAML file and return the path."""
+    yaml_path = tmp_path / "workflow.yaml"
     yaml_path.write_text(yaml.dump(data, sort_keys=False))
     return yaml_path
-
-
-@pytest.fixture()
-def valid_pipeline_dict() -> dict[str, Any]:
-    """A valid minimal pipeline config dict."""
-    return make_pipeline_dict()
-
-
-@pytest.fixture()
-def valid_pipeline_yaml(tmp_path: Path, valid_pipeline_dict: dict[str, Any]) -> Path:
-    """Write the valid pipeline dict to a YAML file and return the path."""
-    return write_pipeline_yaml(tmp_path, valid_pipeline_dict)

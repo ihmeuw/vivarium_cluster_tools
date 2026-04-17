@@ -622,11 +622,11 @@ class TestWorkflowSubcommand:
     """Tests for -c/--config on the ``workflow`` subcommand."""
 
     def test_workflow_with_config_file(self, tmp_path: Path) -> None:
-        """Workflow subcommand accepts -c flag with pipeline config."""
+        """Workflow subcommand accepts -c flag with workflow config."""
         pipeline_config = _write_yaml(
             tmp_path,
             {
-                "pipeline": {
+                "workflow": {
                     "name": "test_workflow",
                     "project": "proj_simscience",
                     "queue": "all.q",
@@ -684,7 +684,7 @@ class TestWorkflowSubcommand:
         pipeline_config = _write_yaml(
             tmp_path,
             {
-                "pipeline": {
+                "workflow": {
                     "name": "test_workflow",
                     "project": "proj_simscience",
                     "queue": "all.q",
@@ -722,7 +722,7 @@ class TestWorkflowSubcommand:
         pipeline_config = _write_yaml(
             tmp_path,
             {
-                "pipeline": {
+                "workflow": {
                     "name": "test_workflow",
                     "project": "proj_simscience",
                     "queue": "all.q",
@@ -765,7 +765,7 @@ class TestWorkflowSubcommand:
         pipeline_config = _write_yaml(
             tmp_path,
             {
-                "pipeline": {
+                "workflow": {
                     "name": "test_workflow",
                     "project": "proj_simscience",
                     # Note: queue is NOT provided
@@ -798,7 +798,7 @@ class TestWorkflowSubcommand:
         pipeline_config = _write_yaml(
             tmp_path,
             {
-                "pipeline": {
+                "workflow": {
                     "name": "test_workflow",
                     # Note: project is NOT provided
                     "output_directory": str(tmp_path / "output"),
@@ -825,7 +825,7 @@ class TestWorkflowSubcommand:
         pipeline_config = _write_yaml(
             tmp_path,
             {
-                "pipeline": {
+                "workflow": {
                     "name": "test_workflow",
                     "project": "proj_simscience",
                     # NOTE: output_directory is NOT provided

@@ -189,13 +189,13 @@ def with_run_config(func: CLIFunction) -> CLIFunction:
     )(func)
 
 
-def load_pipeline_config(
+def load_workflow_config(
     ctx: click.Context, param: click.Parameter | None, value: str | None
 ) -> Path | None:
-    """Parse a pipeline YAML config and populate ctx.default_map with top-level options.
+    """Parse a workflow YAML config and populate ctx.default_map with top-level options.
 
-    This callback is used by the `with_pipeline_config` decorator to enable
-    pipeline configuration files to provide defaults for CLI options like
+    This callback is used by the `with_workflow_config` decorator to enable
+    workflow configuration files to provide defaults for CLI options like
     --project, --queue, and --output-directory.
     """
     if value is None:
@@ -203,27 +203,27 @@ def load_pipeline_config(
 
     config_path = Path(value).resolve()
 
-    # Parse the pipeline YAML
+    # Parse the workflow YAML
     with open(config_path) as f:
         raw = yaml.safe_load(f)
 
-    if "pipeline" not in raw:
+    if "workflow" not in raw:
         raise click.BadParameter(
-            f"Invalid pipeline configuration: missing 'pipeline' key in {config_path}",
+            f"Invalid workflow configuration: missing 'workflow' key in {config_path}",
             param=param,
         )
 
-    pipeline = raw["pipeline"]
+    workflow = raw["workflow"]
 
     # Extract top-level options that map to CLI parameters
-    # Map pipeline config keys to CLI parameter names
+    # Map workflow config keys to CLI parameter names
     config = {}
-    if "project" in pipeline:
-        config["project"] = pipeline["project"]
-    if "queue" in pipeline:
-        config["queue"] = pipeline["queue"]
-    if "output_directory" in pipeline:
-        config["output_directory"] = pipeline["output_directory"]
+    if "project" in workflow:
+        config["project"] = workflow["project"]
+    if "queue" in workflow:
+        config["queue"] = workflow["queue"]
+    if "output_directory" in workflow:
+        config["output_directory"] = workflow["output_directory"]
 
     # Use default_map so CLI values automatically win
     ctx.default_map = {**(ctx.default_map or {}), **config}
@@ -232,10 +232,10 @@ def load_pipeline_config(
     return config_path
 
 
-def with_pipeline_config(func: CLIFunction) -> CLIFunction:
-    """Decorator that adds the ``--config/-c`` option for pipeline YAML files.
+def with_workflow_config(func: CLIFunction) -> CLIFunction:
+    """Decorator that adds the ``--config/-c`` option for workflow YAML files.
 
-    This decorator parses a pipeline configuration YAML file and extracts
+    This decorator parses a workflow configuration YAML file and extracts
     top-level settings (project, queue, output_directory) to use as defaults
     for their corresponding CLI options. CLI flags will override these defaults.
     """
@@ -245,9 +245,9 @@ def with_pipeline_config(func: CLIFunction) -> CLIFunction:
         "config_path",
         type=click.Path(exists=True, dir_okay=False),
         required=True,
-        callback=load_pipeline_config,
+        callback=load_workflow_config,
         is_eager=True,
-        help="Path to the pipeline configuration YAML file.",
+        help="Path to the workflow configuration YAML file.",
     )(func)
 
 
