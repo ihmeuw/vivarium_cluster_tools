@@ -15,11 +15,12 @@ from typing import TYPE_CHECKING, Callable
 
 from jobmon.client.api import Tool
 
-from vivarium_cluster_tools.psimulate.workflow_config.config import WorkflowConfig, StepConfig
+from vivarium_cluster_tools.psimulate.workflow_config.config import StepConfig, WorkflowConfig
 
 if TYPE_CHECKING:
     from jobmon.client.workflow import Workflow
 
+# Mapping of types to functions that resolve a command string from the step's configuration
 COMMAND_RESOLVERS: dict[str, Callable[[str | list[str] | None, str | None], str]] = {
     "pytest": lambda path, args: f"pytest {_join_paths(path)} {args or ''}".strip(),
     "notebook": lambda path, args: (
@@ -54,6 +55,7 @@ class WorkflowBuilder:
             default_cluster_name="slurm",
         )
 
+        # TODO: MIC-6997
         workflow = tool.create_workflow(
             name=self.config.name,
             default_cluster_name="slurm",

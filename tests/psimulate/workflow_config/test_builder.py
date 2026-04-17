@@ -12,7 +12,7 @@ from vivarium_cluster_tools.psimulate.workflow_config.builder import (
     WorkflowBuilder,
     resolve_command,
 )
-from vivarium_cluster_tools.psimulate.workflow_config.config import WorkflowConfig, StepConfig
+from vivarium_cluster_tools.psimulate.workflow_config.config import StepConfig, WorkflowConfig
 
 
 @pytest.fixture()
