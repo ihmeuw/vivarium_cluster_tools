@@ -1,9 +1,9 @@
 """
 ========================
-Pipeline Config Parser
+Workflow Config Parser
 ========================
 
-Parse and validate pipeline YAML configuration files.
+Parse and validate workflow YAML configuration files.
 
 """
 
@@ -17,12 +17,12 @@ import yaml
 
 SUPPORTED_STEP_TYPES = {"pytest", "notebook", "python", "shell"}
 
-REQUIRED_PIPELINE_FIELDS = {"name", "project", "queue", "output_directory", "steps"}
+REQUIRED_WORKFLOW_FIELDS = {"name", "project", "queue", "output_directory", "steps"}
 
 
 @dataclass
 class ResourceConfig:
-    """Compute resource specification for a pipeline step."""
+    """Compute resource specification for a workflow step."""
 
     memory: float | None = None
     runtime: str | None = None
@@ -42,7 +42,7 @@ class ResourceConfig:
 
 @dataclass
 class StepConfig:
-    """Configuration for a single pipeline step."""
+    """Configuration for a single workflow step."""
 
     name: str
     command: str | None = None
@@ -81,14 +81,21 @@ class StepConfig:
                 f"Step '{self.name}': provide 'command' OR 'type'+'path', not both."
             )
 
+        # Command should not be mixed with type or path
+        if self.command is not None and (self.type is not None or self.path is not None):
+            raise ValueError(
+                f"Step '{self.name}': 'command' cannot be combined with 'type' or 'path'. "
+                "Use 'command' alone for raw commands, or 'type'+'path' for structured steps."
+            )
+
         # Must have at least one of command or type+path
         if not self.is_raw_command and not self.is_structured:
             raise ValueError(f"Step '{self.name}': must provide 'command' or 'type'+'path'.")
 
 
 @dataclass
-class PipelineConfig:
-    """Parsed and validated pipeline configuration."""
+class WorkflowConfig:
+    """Parsed and validated workflow configuration."""
 
     name: str
     project: str
@@ -98,23 +105,23 @@ class PipelineConfig:
     steps: list[StepConfig]
 
     @classmethod
-    def from_yaml(cls, path: Path) -> PipelineConfig:
-        """Load, validate, and return a PipelineConfig from a YAML file."""
+    def from_yaml(cls, path: Path) -> WorkflowConfig:
+        """Load, validate, and return a WorkflowConfig from a YAML file."""
         with open(path) as f:
             raw = yaml.safe_load(f)
 
-        pipeline = raw["pipeline"]
+        workflow = raw["workflow"]
 
         # Check required top-level fields
-        for field_name in REQUIRED_PIPELINE_FIELDS:
-            if field_name not in pipeline:
+        for field_name in REQUIRED_WORKFLOW_FIELDS:
+            if field_name not in workflow:
                 raise ValueError(
-                    f"Pipeline configuration is missing required field '{field_name}'."
+                    f"Workflow configuration is missing required field '{field_name}'."
                 )
 
-        raw_steps = pipeline["steps"]
+        raw_steps = workflow["steps"]
         if not raw_steps:
-            raise ValueError("Pipeline 'steps' must not be empty.")
+            raise ValueError("Workflow 'steps' must not be empty.")
 
         steps = []
         for step_dict in raw_steps:
@@ -131,18 +138,18 @@ class PipelineConfig:
             steps.append(step)
 
         config = cls(
-            name=pipeline["name"],
-            project=pipeline["project"],
-            queue=pipeline["queue"],
-            output_directory=Path(pipeline["output_directory"]),
-            default_environment=pipeline.get("default_environment"),
+            name=workflow["name"],
+            project=workflow["project"],
+            queue=workflow["queue"],
+            output_directory=Path(workflow["output_directory"]),
+            default_environment=workflow.get("default_environment"),
             steps=steps,
         )
         config._validate()
         return config
 
     def _validate(self) -> None:
-        """Validate pipeline-level constraints. Raise on errors."""
+        """Validate workflow-level constraints. Raise on errors."""
         # Unique step names
         names = [s.name for s in self.steps]
         if len(names) != len(set(names)):

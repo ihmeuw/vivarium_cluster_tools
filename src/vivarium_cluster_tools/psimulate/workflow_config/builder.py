@@ -1,9 +1,9 @@
 """
 ========================
-Pipeline Workflow Builder
+Workflow Builder
 ========================
 
-Build Jobmon workflows from pipeline configuration.
+Build Jobmon workflows from workflow configuration.
 
 """
 
@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Callable
 
 from jobmon.client.api import Tool
 
-from vivarium_cluster_tools.psimulate.pipeline_config.config import PipelineConfig, StepConfig
+from vivarium_cluster_tools.psimulate.workflow_config.config import WorkflowConfig, StepConfig
 
 if TYPE_CHECKING:
     from jobmon.client.workflow import Workflow
@@ -31,22 +31,22 @@ COMMAND_RESOLVERS: dict[str, Callable[[str | list[str] | None, str | None], str]
 }
 
 
-class PipelineWorkflowBuilder:
-    """Builds a complete Jobmon workflow from a pipeline configuration.
+class WorkflowBuilder:
+    """Builds a complete Jobmon workflow from a workflow configuration.
 
-    For each step in the pipeline, creates a Jobmon task and wires
+    For each step in the workflow, creates a Jobmon task and wires
     dependencies so that steps execute in the configured order.
     """
 
-    def __init__(self, config: PipelineConfig) -> None:
+    def __init__(self, config: WorkflowConfig) -> None:
         self.config = config
 
     def build(self) -> Workflow:
-        """Build the full pipeline DAG and return the Jobmon Workflow."""
+        """Build the full workflow DAG and return the Jobmon Workflow."""
         tool = Tool(name="vivarium_cluster_tools")
 
         task_template = tool.get_task_template(
-            template_name="pipeline_command_step",
+            template_name="workflow_command_step",
             command_template="conda run --no-capture-output -n {env} {command}",
             node_args=["command"],
             task_args=[],
