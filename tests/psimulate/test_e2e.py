@@ -44,7 +44,7 @@ _EXPECTED_TOTAL_JOBS = 4
 
 RESULTS_DIR = "/mnt/team/simulation_science/priv/engineering/tests/output/"
 
-pytestmark = [pytest.mark.cluster, pytest.mark.slow, pytest.mark.weekly]
+pytestmark = [pytest.mark.cluster, pytest.mark.slow]
 
 
 def _make_shared_tmp_dir() -> Path:
