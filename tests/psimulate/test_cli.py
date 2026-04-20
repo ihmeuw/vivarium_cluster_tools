@@ -653,8 +653,8 @@ class TestWorkflowSubcommand:
         assert result.exit_code == 0, result.output
         mock_workflow_main.assert_called_once()
         call_kwargs = mock_workflow_main.call_args.kwargs
-        assert call_kwargs["pipeline_config"].name == "test_workflow"
-        assert call_kwargs["pipeline_config"].project == "proj_simscience"
+        assert call_kwargs["workflow_config"].name == "test_workflow"
+        assert call_kwargs["workflow_config"].project == "proj_simscience"
 
     @pytest.mark.parametrize(
         "cli_args,expected_overrides",
@@ -711,7 +711,7 @@ class TestWorkflowSubcommand:
 
         # Verify all expected overrides were applied
         for config_key, expected_value in expected_overrides.items():
-            assert getattr(call_kwargs["pipeline_config"], config_key) == expected_value
+            assert getattr(call_kwargs["workflow_config"], config_key) == expected_value
 
     def test_workflow_cli_overrides_output_directory(self, tmp_path: Path) -> None:
         """CLI -o flag overrides output_directory from config file."""
@@ -746,7 +746,7 @@ class TestWorkflowSubcommand:
 
         assert result.exit_code == 0, result.output
         call_kwargs = mock_workflow_main.call_args.kwargs
-        assert call_kwargs["pipeline_config"].output_directory == override_output.resolve()
+        assert call_kwargs["workflow_config"].output_directory == override_output.resolve()
 
     def test_workflow_missing_config_flag_errors(self) -> None:
         """Running workflow without -c flag produces an error.
@@ -791,7 +791,7 @@ class TestWorkflowSubcommand:
         assert result.exit_code == 0, result.output
         call_kwargs = mock_workflow_main.call_args.kwargs
         # Should default to "all.q"
-        assert call_kwargs["pipeline_config"].queue == "all.q"
+        assert call_kwargs["workflow_config"].queue == "all.q"
 
     def test_workflow_project_required(self, tmp_path: Path) -> None:
         """Project is required; error if missing from both config and CLI."""

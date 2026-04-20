@@ -1,7 +1,7 @@
 """
-========================
+================
 Workflow Builder
-========================
+================
 
 Build Jobmon workflows from workflow configuration.
 
@@ -21,32 +21,33 @@ if TYPE_CHECKING:
     from jobmon.client.workflow import Workflow
 
 # Mapping of types to functions that resolve a command string from the step's configuration
-COMMAND_RESOLVERS: dict[str, Callable[[str | list[str] | None, str | None], str]] = {
-    "pytest": lambda path, args: f"pytest {_join_paths(path)} {args or ''}".strip(),
-    "notebook": lambda path, args: (
-        f"papermill {_get_single_path(path)} {{output_directory}}/executed/"
+COMMAND_RESOLVERS: dict[str, Callable[[str | list[str] | None, str | None, Path], str]] = {
+    "pytest": lambda path, args, output_directory: f"pytest {_join_paths(path)} {args or ''}".strip(),
+    "notebook": lambda path, args, output_directory: (
+        f"papermill {_get_single_path(path)} {output_directory}/executed/"
         f"{Path(_get_single_path(path)).name} {args or ''}"
     ).strip(),
-    "python": lambda path, args: f"python {_join_paths(path)} {args or ''}".strip(),
-    "shell": lambda path, args: f"bash {_join_paths(path)} {args or ''}".strip(),
+    "python": lambda path, args, output_directory: f"python {_join_paths(path)} {args or ''}".strip(),
+    "shell": lambda path, args, output_directory: f"bash {_join_paths(path)} {args or ''}".strip(),
 }
 
 
 class WorkflowBuilder:
-    """Builds a complete Jobmon workflow from a workflow configuration.
+    """Build a complete Jobmon workflow from a workflow configuration.
 
     For each step in the workflow, creates a Jobmon task and wires
-    dependencies so that steps execute in the configured order.
+    dependencies so that steps execute in sequential order in which
+    they are defined in the configuration file.
     """
 
     def __init__(self, config: WorkflowConfig) -> None:
         self.config = config
+        self._tool = Tool(name="vivarium_cluster_tools")
 
     def build(self) -> Workflow:
         """Build the full workflow DAG and return the Jobmon Workflow."""
-        tool = Tool(name="vivarium_cluster_tools")
-
-        task_template = tool.get_task_template(
+        # TODO: MIC-6997 - encapsulate Jobmon UI in one place
+        task_template = self._tool.get_task_template(
             template_name="workflow_command_step",
             command_template="conda run --no-capture-output -n {env} {command}",
             node_args=["command"],
@@ -55,8 +56,8 @@ class WorkflowBuilder:
             default_cluster_name="slurm",
         )
 
-        # TODO: MIC-6997
-        workflow = tool.create_workflow(
+        # TODO: MIC-6997 - encapsulate Jobmon UI in one place
+        workflow = self._tool.create_workflow(
             name=self.config.name,
             default_cluster_name="slurm",
             default_max_attempts=3,
@@ -65,7 +66,7 @@ class WorkflowBuilder:
 
         tasks = []
         for step in self.config.steps:
-            command = resolve_command(step)
+            command = resolve_command(step, self.config.output_directory)
             env = (
                 step.environment
                 or self.config.default_environment
@@ -75,11 +76,9 @@ class WorkflowBuilder:
             compute_resources = {
                 "queue": self.config.queue,
                 "project": self.config.project,
-                "memory": resources.memory if resources and resources.memory else 4,
-                "runtime": resources.runtime
-                if resources and resources.runtime
-                else "01:00:00",
-                "cores": resources.cores if resources else 1,
+                "memory": resources.memory_gb,
+                "runtime": resources.runtime,
+                "cores": resources.cores,
             }
 
             task = task_template.create_task(
@@ -117,7 +116,7 @@ def _join_paths(path: str | list[str] | None) -> str:
     return str(path)
 
 
-def resolve_command(step: StepConfig) -> str:
+def resolve_command(step: StepConfig, output_directory: Path) -> str:
     """Resolve a step's configuration into a shell command string.
 
     For raw command steps, returns the command as-is.
@@ -128,6 +127,8 @@ def resolve_command(step: StepConfig) -> str:
         return step.command
     # Check type and path directly for type narrowing
     if step.type is not None and step.path is not None:
+        if step.type not in COMMAND_RESOLVERS:
+            raise ValueError(f"Step '{step.name}': unsupported step type '{step.type}'.")
         resolver = COMMAND_RESOLVERS[step.type]
-        return resolver(step.path, step.args)
+        return resolver(step.path, step.args, output_directory)
     raise ValueError(f"Step '{step.name}' has no command, type, or recognized bespoke name.")

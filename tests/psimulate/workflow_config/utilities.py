@@ -15,7 +15,7 @@ def make_step_dict(**overrides: Any) -> dict[str, Any]:
         "type": "pytest",
         "path": "tests/test_something.py",
         "resources": {
-            "memory": 4,
+            "memory_gb": 4,
             "runtime": "01:00:00",
         },
     }
@@ -42,7 +42,7 @@ def make_workflow_dict(**overrides: Any) -> dict[str, Any]:
                 ],
                 "args": "--runslow",
                 "resources": {
-                    "memory": 10,
+                    "memory_gb": 10,
                     "runtime": "01:00:00",
                 },
             },
@@ -51,7 +51,7 @@ def make_workflow_dict(**overrides: Any) -> dict[str, Any]:
                 "command": "python scripts/analyze.py --input /results",
                 "environment": "analysis_env",
                 "resources": {
-                    "memory": 20,
+                    "memory_gb": 20,
                     "runtime": "02:00:00",
                     "cores": 2,
                 },

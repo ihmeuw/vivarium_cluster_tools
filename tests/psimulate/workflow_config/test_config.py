@@ -76,7 +76,7 @@ class TestWorkflowConfigFromYaml:
         config = WorkflowConfig.from_yaml(valid_workflow_yaml)
         res = config.steps[0].resources
         assert res is not None
-        assert res.memory == 10
+        assert res.memory_gb == 10
         assert res.runtime == "01:00:00"
 
     def test_parses_step_resources_cores(self, valid_workflow_yaml: Path) -> None:
@@ -109,19 +109,19 @@ class TestStepConfigProperties:
     """Verify ``StepConfig`` classification properties."""
 
     def test_is_structured_true(self) -> None:
-        step = StepConfig(name="s", type="pytest", path="tests/")
+        step = StepConfig(name="s", resources=ResourceConfig(), type="pytest", path="tests/")
         assert step.is_structured is True
 
     def test_is_structured_false(self) -> None:
-        step = StepConfig(name="s", command="echo hello")
+        step = StepConfig(name="s", resources=ResourceConfig(), command="echo hello")
         assert step.is_structured is False
 
     def test_is_raw_command_true(self) -> None:
-        step = StepConfig(name="s", command="echo hello")
+        step = StepConfig(name="s", resources=ResourceConfig(), command="echo hello")
         assert step.is_raw_command is True
 
     def test_is_raw_command_false(self) -> None:
-        step = StepConfig(name="s", type="pytest", path="tests/")
+        step = StepConfig(name="s", resources=ResourceConfig(), type="pytest", path="tests/")
         assert step.is_raw_command is False
 
 
@@ -189,6 +189,7 @@ class TestWorkflowConfigValidation:
                 "name": "bad_step",
                 "command": "echo hello",
                 "path": "tests/test_something.py",
+                "resources": {"memory_gb": 4, "runtime": "01:00:00"},
             }
         ]
         data = make_workflow_dict(steps=steps)
@@ -202,6 +203,7 @@ class TestWorkflowConfigValidation:
                 "name": "bad_step",
                 "command": "echo hello",
                 "type": "pytest",
+                "resources": {"memory_gb": 4, "runtime": "01:00:00"},
             }
         ]
         data = make_workflow_dict(steps=steps)
@@ -210,7 +212,7 @@ class TestWorkflowConfigValidation:
             WorkflowConfig.from_yaml(yaml_path)
 
     def test_rejects_step_with_neither_command_nor_type(self, tmp_path: Path) -> None:
-        steps = [{"name": "empty_step", "resources": {"memory": 4}}]
+        steps = [{"name": "empty_step", "resources": {"memory_gb": 4}}]
         data = make_workflow_dict(steps=steps)
         yaml_path = write_workflow_yaml(tmp_path, data)
         with pytest.raises(ValueError, match="empty_step"):
@@ -234,8 +236,75 @@ class TestWorkflowConfigValidation:
             WorkflowConfig.from_yaml(yaml_path)
 
     def test_rejects_step_with_type_but_no_path(self, tmp_path: Path) -> None:
-        steps = [{"name": "no_path", "type": "pytest", "resources": {"memory": 4}}]
+        steps = [{"name": "no_path", "type": "pytest", "resources": {"memory_gb": 4}}]
         data = make_workflow_dict(steps=steps)
         yaml_path = write_workflow_yaml(tmp_path, data)
         with pytest.raises(ValueError, match="no_path"):
             WorkflowConfig.from_yaml(yaml_path)
+
+    def test_rejects_command_step_with_args(self, tmp_path: Path) -> None:
+        steps = [
+            {
+                "name": "bad_step",
+                "command": "echo hello",
+                "args": "--verbose",
+                "resources": {"memory_gb": 4, "runtime": "01:00:00"},
+            }
+        ]
+        data = make_workflow_dict(steps=steps)
+        yaml_path = write_workflow_yaml(tmp_path, data)
+        with pytest.raises(ValueError, match="bad_step"):
+            WorkflowConfig.from_yaml(yaml_path)
+
+    def test_rejects_step_without_resources(self, tmp_path: Path) -> None:
+        steps = [
+            {
+                "name": "no_resources",
+                "type": "pytest",
+                "path": "tests/test_something.py",
+            }
+        ]
+        data = make_workflow_dict(steps=steps)
+        yaml_path = write_workflow_yaml(tmp_path, data)
+        with pytest.raises(ValueError, match="resources"):
+            WorkflowConfig.from_yaml(yaml_path)
+
+    def test_rejects_missing_workflow_key(self, tmp_path: Path) -> None:
+        yaml_path = tmp_path / "workflow.yaml"
+        yaml_path.write_text("not_workflow:\n  name: oops\n")
+        with pytest.raises(ValueError, match="workflow"):
+            WorkflowConfig.from_yaml(yaml_path)
+
+
+class TestResourceConfigValidation:
+    """Verify ``ResourceConfig`` validation."""
+
+    def test_accepts_valid_runtime(self) -> None:
+        rc = ResourceConfig(runtime="01:30:00")
+        assert rc.runtime == "01:30:00"
+
+    def test_rejects_invalid_runtime_format(self) -> None:
+        with pytest.raises(ValueError, match="hh:mm:ss"):
+            ResourceConfig(runtime="90m")
+
+    def test_rejects_runtime_missing_leading_zeros(self) -> None:
+        with pytest.raises(ValueError, match="hh:mm:ss"):
+            ResourceConfig(runtime="1:00:00")
+
+    def test_uses_default_runtime(self) -> None:
+        rc = ResourceConfig()
+        assert rc.runtime == "01:00:00"
+
+    def test_from_dict_defaults(self) -> None:
+        rc = ResourceConfig.from_dict({})
+        assert rc is not None
+        assert rc.memory_gb == 4
+        assert rc.runtime == "01:00:00"
+        assert rc.cores == 1
+
+    def test_from_dict_all_fields(self) -> None:
+        rc = ResourceConfig.from_dict({"memory_gb": 8, "runtime": "02:00:00", "cores": 4})
+        assert rc is not None
+        assert rc.memory_gb == 8
+        assert rc.runtime == "02:00:00"
+        assert rc.cores == 4
