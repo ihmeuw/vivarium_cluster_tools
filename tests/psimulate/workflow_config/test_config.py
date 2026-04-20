@@ -57,20 +57,15 @@ class TestWorkflowConfigFromYaml:
         assert config.steps[0].name == "pre_tests"
         assert config.steps[1].name == "post_analysis"
 
-    def test_parses_structured_step(self, valid_workflow_yaml: Path) -> None:
+    def test_parses_command_step(self, valid_workflow_yaml: Path) -> None:
         config = WorkflowConfig.from_yaml(valid_workflow_yaml)
         step = config.steps[0]
-        assert step.type == "pytest"
-        assert step.path == ["tests/test_lbwsg.py", "tests/test_mortality.py"]
-        assert step.args == "--runslow"
-        assert step.command is None
+        assert step.command == "pytest tests/test_lbwsg.py tests/test_mortality.py --runslow"
 
     def test_parses_raw_command_step(self, valid_workflow_yaml: Path) -> None:
         config = WorkflowConfig.from_yaml(valid_workflow_yaml)
         step = config.steps[1]
         assert step.command == "python scripts/analyze.py --input /results"
-        assert step.type is None
-        assert step.path is None
 
     def test_parses_step_resources(self, valid_workflow_yaml: Path) -> None:
         config = WorkflowConfig.from_yaml(valid_workflow_yaml)
@@ -92,37 +87,6 @@ class TestWorkflowConfigFromYaml:
     def test_step_environment_defaults_to_none(self, valid_workflow_yaml: Path) -> None:
         config = WorkflowConfig.from_yaml(valid_workflow_yaml)
         assert config.steps[0].environment is None
-
-    def test_parses_path_as_list(self, valid_workflow_yaml: Path) -> None:
-        config = WorkflowConfig.from_yaml(valid_workflow_yaml)
-        assert isinstance(config.steps[0].path, list)
-
-    def test_parses_path_as_string(self, tmp_path: Path) -> None:
-        steps = [make_step_dict(name="single_path", path="tests/test_one.py")]
-        data = make_workflow_dict(steps=steps)
-        yaml_path = write_workflow_yaml(tmp_path, data)
-        config = WorkflowConfig.from_yaml(yaml_path)
-        assert config.steps[0].path == "tests/test_one.py"
-
-
-class TestStepConfigProperties:
-    """Verify ``StepConfig`` classification properties."""
-
-    def test_is_structured_true(self) -> None:
-        step = StepConfig(name="s", resources=ResourceConfig(), type="pytest", path="tests/")
-        assert step.is_structured is True
-
-    def test_is_structured_false(self) -> None:
-        step = StepConfig(name="s", resources=ResourceConfig(), command="echo hello")
-        assert step.is_structured is False
-
-    def test_is_raw_command_true(self) -> None:
-        step = StepConfig(name="s", resources=ResourceConfig(), command="echo hello")
-        assert step.is_raw_command is True
-
-    def test_is_raw_command_false(self) -> None:
-        step = StepConfig(name="s", resources=ResourceConfig(), type="pytest", path="tests/")
-        assert step.is_raw_command is False
 
 
 class TestWorkflowConfigValidation:
@@ -169,99 +133,28 @@ class TestWorkflowConfigValidation:
         with pytest.raises(ValueError, match="steps"):
             WorkflowConfig.from_yaml(yaml_path)
 
-    def test_rejects_step_with_both_command_and_type(self, tmp_path: Path) -> None:
-        steps = [
-            make_step_dict(
-                name="bad_step",
-                command="echo hello",
-                type="pytest",
-                path="tests/",
-            )
-        ]
-        data = make_workflow_dict(steps=steps)
-        yaml_path = write_workflow_yaml(tmp_path, data)
-        with pytest.raises(ValueError, match="bad_step"):
-            WorkflowConfig.from_yaml(yaml_path)
-
-    def test_rejects_step_with_command_and_path_without_type(self, tmp_path: Path) -> None:
-        steps = [
-            {
-                "name": "bad_step",
-                "command": "echo hello",
-                "path": "tests/test_something.py",
-                "resources": {"memory_gb": 4, "runtime": "01:00:00"},
-            }
-        ]
-        data = make_workflow_dict(steps=steps)
-        yaml_path = write_workflow_yaml(tmp_path, data)
-        with pytest.raises(ValueError, match="bad_step"):
-            WorkflowConfig.from_yaml(yaml_path)
-
-    def test_rejects_step_with_command_and_type_without_path(self, tmp_path: Path) -> None:
-        steps = [
-            {
-                "name": "bad_step",
-                "command": "echo hello",
-                "type": "pytest",
-                "resources": {"memory_gb": 4, "runtime": "01:00:00"},
-            }
-        ]
-        data = make_workflow_dict(steps=steps)
-        yaml_path = write_workflow_yaml(tmp_path, data)
-        with pytest.raises(ValueError, match="bad_step"):
-            WorkflowConfig.from_yaml(yaml_path)
-
-    def test_rejects_step_with_neither_command_nor_type(self, tmp_path: Path) -> None:
-        steps = [{"name": "empty_step", "resources": {"memory_gb": 4}}]
-        data = make_workflow_dict(steps=steps)
-        yaml_path = write_workflow_yaml(tmp_path, data)
-        with pytest.raises(ValueError, match="empty_step"):
-            WorkflowConfig.from_yaml(yaml_path)
-
     def test_rejects_duplicate_step_names(self, tmp_path: Path) -> None:
         steps = [
             make_step_dict(name="dupe"),
-            make_step_dict(name="dupe", command="echo hi", type=None, path=None),
+            make_step_dict(name="dupe", command="echo hi"),
         ]
         data = make_workflow_dict(steps=steps)
         yaml_path = write_workflow_yaml(tmp_path, data)
         with pytest.raises(ValueError, match="unique"):
             WorkflowConfig.from_yaml(yaml_path)
 
-    def test_rejects_invalid_step_type(self, tmp_path: Path) -> None:
-        steps = [make_step_dict(name="bad_type", type="invalid")]
+    def test_rejects_step_without_command(self, tmp_path: Path) -> None:
+        steps = [{"name": "no_cmd", "resources": {"memory_gb": 4}}]
         data = make_workflow_dict(steps=steps)
         yaml_path = write_workflow_yaml(tmp_path, data)
-        with pytest.raises(ValueError, match="invalid"):
-            WorkflowConfig.from_yaml(yaml_path)
-
-    def test_rejects_step_with_type_but_no_path(self, tmp_path: Path) -> None:
-        steps = [{"name": "no_path", "type": "pytest", "resources": {"memory_gb": 4}}]
-        data = make_workflow_dict(steps=steps)
-        yaml_path = write_workflow_yaml(tmp_path, data)
-        with pytest.raises(ValueError, match="no_path"):
-            WorkflowConfig.from_yaml(yaml_path)
-
-    def test_rejects_command_step_with_args(self, tmp_path: Path) -> None:
-        steps = [
-            {
-                "name": "bad_step",
-                "command": "echo hello",
-                "args": "--verbose",
-                "resources": {"memory_gb": 4, "runtime": "01:00:00"},
-            }
-        ]
-        data = make_workflow_dict(steps=steps)
-        yaml_path = write_workflow_yaml(tmp_path, data)
-        with pytest.raises(ValueError, match="bad_step"):
+        with pytest.raises(ValueError, match="command"):
             WorkflowConfig.from_yaml(yaml_path)
 
     def test_rejects_step_without_resources(self, tmp_path: Path) -> None:
         steps = [
             {
                 "name": "no_resources",
-                "type": "pytest",
-                "path": "tests/test_something.py",
+                "command": "echo hello",
             }
         ]
         data = make_workflow_dict(steps=steps)
@@ -272,7 +165,7 @@ class TestWorkflowConfigValidation:
     def test_rejects_missing_workflow_key(self, tmp_path: Path) -> None:
         yaml_path = tmp_path / "workflow.yaml"
         yaml_path.write_text("not_workflow:\n  name: oops\n")
-        with pytest.raises(ValueError, match="workflow"):
+        with pytest.raises(KeyError, match="workflow"):
             WorkflowConfig.from_yaml(yaml_path)
 
 
