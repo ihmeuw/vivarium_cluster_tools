@@ -43,10 +43,8 @@ class ResourceConfig:
             raise ValueError(f"Invalid runtime '{self.runtime}'. Expected format 'hh:mm:ss'.")
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any] | None) -> ResourceConfig | None:
-        """Create a ResourceConfig from a dictionary, or return None."""
-        if data is None:
-            return None
+    def from_dict(cls, data: dict[str, Any]) -> ResourceConfig:
+        """Create a ResourceConfig from a dictionary."""
         return cls(
             memory_gb=data.get("memory_gb"),
             runtime=data.get("runtime"),
@@ -60,6 +58,8 @@ class StepConfig:
 
     name: str
     """Unique name for this step within the workflow."""
+    resources: ResourceConfig
+    """Resource configuration for this step."""
     command: str | None = None
     """Raw command string to execute for this step. Mutually exclusive with 'type' and 'path'."""
     type: str | None = None
@@ -70,8 +70,6 @@ class StepConfig:
     """Optional additional arguments for structured steps, passed as a single string."""
     environment: str | None = None
     """Optional environment name to use for this step."""
-    resources: ResourceConfig | None = None
-    """Optional resource configuration for this step."""
 
     @property
     def is_structured(self) -> bool:
@@ -137,6 +135,11 @@ class WorkflowConfig:
         with open(path) as f:
             raw = yaml.safe_load(f)
 
+        if not isinstance(raw, dict) or "workflow" not in raw:
+            raise ValueError(
+                "Workflow configuration must contain a top-level 'workflow' key."
+            )
+
         workflow = raw["workflow"]
 
         # Check required top-level fields
@@ -152,14 +155,18 @@ class WorkflowConfig:
 
         steps = []
         for step_dict in raw_steps:
+            step_name = step_dict["name"]
+            raw_resources = step_dict.get("resources")
+            if raw_resources is None:
+                raise ValueError(f"Step '{step_name}': 'resources' is required.")
             step = StepConfig(
-                name=step_dict["name"],
+                name=step_name,
+                resources=ResourceConfig.from_dict(raw_resources),
                 command=step_dict.get("command"),
                 type=step_dict.get("type"),
                 path=step_dict.get("path"),
                 args=step_dict.get("args"),
                 environment=step_dict.get("environment"),
-                resources=ResourceConfig.from_dict(step_dict.get("resources")),
             )
             step._validate()
             steps.append(step)
