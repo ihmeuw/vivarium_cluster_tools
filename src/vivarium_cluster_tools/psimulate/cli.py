@@ -417,7 +417,18 @@ def test(
 
 @psimulate.command()
 @cli_tools.with_workflow_config
-@cluster.with_project
+@click.option(
+    "--project",
+    "-P",
+    type=click.Choice(
+        [
+            "proj_simscience",
+            "proj_simscience_prod",
+        ]
+    ),
+    default=None,
+    help="Override project from config file.",
+)
 @click.option(
     "--queue",
     "-q",
@@ -439,11 +450,11 @@ def workflow(
     output_directory: Path | None,
     **options: Any,
 ) -> None:
-    """Run a multi-step pipeline workflow.
+    """Run a multi-step Jobmon workflow.
 
-    The workflow is defined in a pipeline configuration YAML file
+    The workflow is defined in a workflow configuration YAML file
     specified via the -c/--config option. The config file specifies
-    all pipeline steps, compute resources, and execution order.
+    all workflow steps, compute resources, and execution order.
 
     Top-level options like project, queue, and output_directory can
     be provided in the config file and/or overridden from the command line.
@@ -451,29 +462,34 @@ def workflow(
     logs.configure_main_process_logging_to_terminal(options["verbose"])
 
     # Parse the workflow configuration
-    pipeline_config = WorkflowConfig.from_yaml(config_path)
+    workflow_config = WorkflowConfig.from_yaml(config_path)
 
-    # Apply CLI overrides (these will be set from defaults if in config file)
-    pipeline_config.project = options["project"]
+    # Apply CLI overrides
+    if options.get("project") is not None:
+        workflow_config.project = options["project"]
     if options.get("queue") is not None:
-        pipeline_config.queue = options["queue"]
+        workflow_config.queue = options["queue"]
     if output_directory is not None:
-        pipeline_config.output_directory = output_directory
+        workflow_config.output_directory = output_directory
 
     # Validate required fields
-    if not pipeline_config.output_directory:
+    if not workflow_config.project:
+        raise click.UsageError(
+            "Project is required. Provide it in the config file or via --project/-P."
+        )
+    if not workflow_config.output_directory:
         raise click.UsageError(
             "Output directory is required. Provide it in the config file or via --output-directory/-o."
         )
 
-    # Set default queue if not provided (matching behavior of other psimulate commands)
-    if not pipeline_config.queue:
-        pipeline_config.queue = "all.q"
+    # Set default queue if not provided
+    if not workflow_config.queue:
+        workflow_config.queue = "all.q"
         logger.debug("No queue specified, defaulting to 'all.q'.")
 
     main = handle_exceptions(runner.workflow_main, logger, options["with_debugger"])
 
     main(
-        pipeline_config=pipeline_config,
+        workflow_config=workflow_config,
         verbose=options["verbose"],
     )

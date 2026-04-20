@@ -41,22 +41,22 @@ from vivarium_cluster_tools.vipin.perf_report import report_performance
 
 
 def workflow_main(
-    pipeline_config: Any,  # Will be WorkflowConfig type
+    workflow_config: Any,  # Will be WorkflowConfig type
     verbose: int = 0,
 ) -> None:
     """Entry point for the psimulate workflow subcommand.
 
     Parameters
     ----------
-    pipeline_config
+    workflow_config
         The parsed and validated workflow configuration (with CLI overrides applied).
     verbose
         Verbosity level.
     """
-    logger.info(f"Starting workflow: {pipeline_config.name}")
+    logger.info(f"Starting workflow: {workflow_config.name}")
 
     # Create output directory if it doesn't exist
-    output_root = pipeline_config.output_directory
+    output_root = workflow_config.output_directory
     output_root.mkdir(parents=True, exist_ok=True)
 
     # Write the requested configuration to output directory
@@ -65,9 +65,9 @@ def workflow_main(
         command="workflow",
         input_paths=None,
         native_specification=cluster.NativeSpecification(
-            job_name=pipeline_config.name,
-            project=pipeline_config.project,
-            queue=pipeline_config.queue,
+            job_name=workflow_config.name,
+            project=workflow_config.project,
+            queue=workflow_config.queue,
             peak_memory=4,  # Default, steps have their own resources
             max_runtime="01:00:00",
             hardware=[],
@@ -75,12 +75,12 @@ def workflow_main(
         max_workers=None,  # Not used for workflow command
         max_attempts=3,
         backup_freq=None,
-        extra_args={"pipeline_config": pipeline_config},
+        extra_args={"workflow_config": workflow_config},
     )
 
     # Build the workflow
     logger.debug("Building workflow.")
-    builder = WorkflowBuilder(pipeline_config)
+    builder = WorkflowBuilder(workflow_config)
     workflow = builder.build()
 
     # Bind and run
@@ -198,7 +198,7 @@ def write_configuration(
         Interval in seconds between saving backups, or ``None`` to disable.
     extra_args
         Additional command-specific arguments (e.g. ``sim_verbosity``,
-        ``num_draws``, ``num_seeds``, ``pipeline_config``).
+        ``num_draws``, ``num_seeds``, ``workflow_config``).
 
     """
     config: dict[str, Any] = {}
@@ -207,10 +207,10 @@ def write_configuration(
     if command == "workflow":
         # For workflow, write the complete workflow definition (with CLI overrides applied)
         # so the configuration.yaml can be reused directly with: psimulate workflow -c configuration.yaml
-        pipeline_config = extra_args.get("pipeline_config")
-        if pipeline_config:
+        workflow_config = extra_args.get("workflow_config")
+        if workflow_config:
             # Use the WorkflowConfig.to_dict() method to serialize
-            config["workflow"] = pipeline_config.to_dict()
+            config["workflow"] = workflow_config.to_dict()
     # Input paths – keys match the names accepted by --run-config
     elif command == COMMANDS.run:
         if input_paths is not None:

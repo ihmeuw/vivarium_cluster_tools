@@ -368,7 +368,7 @@ def test_write_configuration_workflow_command(tmp_path: Path) -> None:
         WorkflowConfig,
     )
 
-    pipeline_config = WorkflowConfig(
+    workflow_config = WorkflowConfig(
         name="test_workflow",
         project="proj_simscience",
         queue="all.q",
@@ -379,7 +379,7 @@ def test_write_configuration_workflow_command(tmp_path: Path) -> None:
                 name="test_step",
                 type="pytest",
                 path="tests/",
-                resources=ResourceConfig(memory=4, runtime="01:00:00"),
+                resources=ResourceConfig(memory_gb=4, runtime="01:00:00"),
             )
         ],
     )
@@ -389,13 +389,13 @@ def test_write_configuration_workflow_command(tmp_path: Path) -> None:
         command="workflow",
         input_paths=None,  # workflow doesn't use InputPaths
         native_specification=_make_native_spec(
-            project=pipeline_config.project,
-            queue=pipeline_config.queue,
+            project=workflow_config.project,
+            queue=workflow_config.queue,
         ),
         max_workers=None,
         max_attempts=3,
         backup_freq=None,
-        extra_args={"pipeline_config": pipeline_config},
+        extra_args={"workflow_config": workflow_config},
     )
 
     config = _read_configuration_yaml(output_dir)
@@ -444,13 +444,13 @@ def test_workflow_configuration_includes_cli_overrides(tmp_path: Path) -> None:
                 command="workflow",
                 input_paths=None,
                 native_specification=_make_native_spec(
-                    project=kwargs["pipeline_config"].project,
-                    queue=kwargs["pipeline_config"].queue,
+                    project=kwargs["workflow_config"].project,
+                    queue=kwargs["workflow_config"].queue,
                 ),
                 max_workers=None,
                 max_attempts=3,
                 backup_freq=None,
-                extra_args={"pipeline_config": kwargs["pipeline_config"]},
+                extra_args={"workflow_config": kwargs["workflow_config"]},
             )
 
         mock_workflow_main.side_effect = mock_impl
