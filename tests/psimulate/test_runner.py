@@ -377,8 +377,7 @@ def test_write_configuration_workflow_command(tmp_path: Path) -> None:
         steps=[
             StepConfig(
                 name="test_step",
-                type="pytest",
-                path="tests/",
+                command="pytest tests/",
                 resources=ResourceConfig(memory_gb=4, runtime="01:00:00"),
             )
         ],

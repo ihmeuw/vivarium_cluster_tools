@@ -16,12 +16,6 @@ from typing import Any
 
 import yaml
 
-SUPPORTED_STEP_TYPES = {"pytest", "notebook", "python", "shell"}
-# NOTE: Each step type will map to a specific execution strategy. Pytest will run pytest
-# test suites, notebook will execute Juypter notebooks, python will run Python scripts,
-# and shell will execute raw shell commands. Users will only need to know the support types,
-# and on the backend developers can choose how these are implemented, leaving room for future flexibility.
-
 REQUIRED_WORKFLOW_FIELDS = {"name", "steps"}
 
 
@@ -71,72 +65,16 @@ class StepConfig:
     """Unique name for this step within the workflow."""
     resources: ResourceConfig
     """Resource configuration for this step."""
-    command: str | None = None
-    """Raw command string to execute for this step. Mutually exclusive with 'type' and 'path'."""
-    type: str | None = None
-    """Structured step type (e.g. 'pytest', 'notebook'). Requires 'path' to be provided."""
-    path: str | list[str] | None = None
-    """Path(s) to the module or directory for structured steps. Required if 'type' is provided."""
-    args: str | None = None
-    """Optional additional arguments for structured steps, passed as a single string."""
+    command: str
+    """Command string to execute for this step."""
     environment: str | None = None
     """Optional environment name to use for this step."""
-
-    @property
-    def is_structured(self) -> bool:
-        """True if the step uses type + path."""
-        return self.type is not None and self.path is not None
-
-    @property
-    def is_raw_command(self) -> bool:
-        """True if the step uses a raw command string."""
-        return self.command is not None
-
-    def _validate(self) -> None:
-        """Validate this step's internal consistency."""
-        # Validate step type if provided
-        if self.type is not None and self.type not in SUPPORTED_STEP_TYPES:
-            raise ValueError(
-                f"Step '{self.name}': unsupported type '{self.type}'. "
-                f"Must be one of {sorted(SUPPORTED_STEP_TYPES)}."
-            )
-
-        # type requires path
-        if self.type is not None and self.path is None:
-            raise ValueError(f"Step '{self.name}': 'type' requires 'path' to be provided.")
-
-        # Must not have both command and type+path
-        if self.is_raw_command and self.is_structured:
-            raise ValueError(
-                f"Step '{self.name}': provide 'command' OR 'type'+'path', not both."
-            )
-
-        # Command should not be mixed with type, path, or args
-        if self.command is not None and (
-            self.type is not None or self.path is not None or self.args is not None
-        ):
-            raise ValueError(
-                f"Step '{self.name}': 'command' cannot be combined with 'type', 'path', or 'args'. "
-                "Use 'command' alone for raw commands, or 'type'+'path' for structured steps."
-            )
-
-        # Must have at least one of command or type+path
-        if not self.is_raw_command and not self.is_structured:
-            raise ValueError(f"Step '{self.name}': must provide 'command' or 'type'+'path'.")
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to a dictionary, omitting None values."""
         result: dict[str, Any] = {"name": self.name}
 
-        # Add command or type+path (only non-None values)
-        if self.command is not None:
-            result["command"] = self.command
-        if self.type is not None:
-            result["type"] = self.type
-        if self.path is not None:
-            result["path"] = self.path
-        if self.args is not None:
-            result["args"] = self.args
+        result["command"] = self.command
 
         # Add environment if specified
         if self.environment is not None:
@@ -175,9 +113,7 @@ class WorkflowConfig:
             raw = yaml.safe_load(f)
 
         if not isinstance(raw, dict) or "workflow" not in raw:
-            raise ValueError(
-                "Workflow configuration must contain a top-level 'workflow' key."
-            )
+            raise KeyError("Workflow configuration must contain a top-level 'workflow' key.")
 
         workflow = raw["workflow"]
 
@@ -198,16 +134,15 @@ class WorkflowConfig:
             raw_resources = step_dict.get("resources")
             if raw_resources is None:
                 raise ValueError(f"Step '{step_name}': 'resources' is required.")
+            command = step_dict.get("command")
+            if command is None:
+                raise ValueError(f"Step '{step_name}': 'command' is required.")
             step = StepConfig(
                 name=step_name,
                 resources=ResourceConfig.from_dict(raw_resources),
-                command=step_dict.get("command"),
-                type=step_dict.get("type"),
-                path=step_dict.get("path"),
-                args=step_dict.get("args"),
+                command=command,
                 environment=step_dict.get("environment"),
             )
-            step._validate()
             steps.append(step)
 
         config = cls(
