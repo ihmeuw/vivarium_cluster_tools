@@ -291,15 +291,15 @@ class TestResourceConfigValidation:
         with pytest.raises(ValueError, match="hh:mm:ss"):
             ResourceConfig(runtime="1:00:00")
 
-    def test_accepts_none_runtime(self) -> None:
-        rc = ResourceConfig(runtime=None)
-        assert rc.runtime is None
+    def test_uses_default_runtime(self) -> None:
+        rc = ResourceConfig()
+        assert rc.runtime == "01:00:00"
 
     def test_from_dict_defaults(self) -> None:
         rc = ResourceConfig.from_dict({})
         assert rc is not None
-        assert rc.memory_gb is None
-        assert rc.runtime is None
+        assert rc.memory_gb == 4
+        assert rc.runtime == "01:00:00"
         assert rc.cores == 1
 
     def test_from_dict_all_fields(self) -> None:

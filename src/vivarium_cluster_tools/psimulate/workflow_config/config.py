@@ -29,25 +29,25 @@ REQUIRED_WORKFLOW_FIELDS = {"name", "project", "queue", "output_directory", "ste
 class ResourceConfig:
     """Compute resource specification for a workflow step."""
 
-    memory_gb: float | None = None
-    """Memory in GB."""
-    runtime: str | None = None
-    """Maximum runtime in 'hh:mm:ss' format."""
+    memory_gb: float = 4
+    """Memory in GB. Default is 4."""
+    runtime: str = "01:00:00"
+    """Maximum runtime in 'hh:mm:ss' format. Default is '01:00:00'."""
     cores: int = 1
     """Number of CPU cores to request. Default is 1."""
 
     _RUNTIME_RE = re.compile(r"^\d{2}:\d{2}:\d{2}$")
 
     def __post_init__(self) -> None:
-        if self.runtime is not None and not self._RUNTIME_RE.match(self.runtime):
+        if not self._RUNTIME_RE.match(self.runtime):
             raise ValueError(f"Invalid runtime '{self.runtime}'. Expected format 'hh:mm:ss'.")
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> ResourceConfig:
         """Create a ResourceConfig from a dictionary."""
         return cls(
-            memory_gb=data.get("memory_gb"),
-            runtime=data.get("runtime"),
+            memory_gb=data.get("memory_gb", 4),
+            runtime=data.get("runtime", "01:00:00"),
             cores=data.get("cores", 1),
         )
 
@@ -129,7 +129,7 @@ class WorkflowConfig:
     default_environment: str | None
     """Default environment to use for steps that do not specify one."""
     steps: list[StepConfig]
-    """List of steps in the workflow."""
+    """List of sequential steps in the workflow."""
 
     @classmethod
     def from_yaml(cls, path: Path) -> WorkflowConfig:

@@ -1,8 +1,6 @@
 **3.2.0 - TBD/TBD/TBD**
 
-- Psimulate workflow epic
-  - Parse configuration to for workflow
-  - Build Jobmon workflow from configuration 
+- Implement serial workflows via "psimulate workflow" command
 
 **3.1.0 - 04/16/26**
 
