@@ -23,9 +23,9 @@ REQUIRED_WORKFLOW_FIELDS = {"name", "project", "queue", "output_directory", "ste
 class ResourceConfig:
     """Compute resource specification for a workflow step."""
 
-    memory_gb: float | None = None
+    memory_gb: int
     """Memory in GB."""
-    runtime: str | None = None
+    runtime: str = "01:00:00"
     """Maximum runtime in 'hh:mm:ss' format."""
     cores: int = 1
     """Number of CPU cores to request. Default is 1."""
@@ -33,15 +33,15 @@ class ResourceConfig:
     _RUNTIME_RE = re.compile(r"^\d{2}:\d{2}:\d{2}$")
 
     def __post_init__(self) -> None:
-        if self.runtime is not None and not self._RUNTIME_RE.match(self.runtime):
+        if not self._RUNTIME_RE.match(self.runtime):
             raise ValueError(f"Invalid runtime '{self.runtime}'. Expected format 'hh:mm:ss'.")
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> ResourceConfig:
         """Create a ResourceConfig from a dictionary."""
         return cls(
-            memory_gb=data.get("memory_gb"),
-            runtime=data.get("runtime"),
+            memory_gb=data["memory_gb"],
+            runtime=data.get("runtime", "01:00:00"),
             cores=data.get("cores", 1),
         )
 
@@ -91,27 +91,20 @@ class WorkflowConfig:
         # Check required top-level fields
         for field_name in REQUIRED_WORKFLOW_FIELDS:
             if field_name not in workflow:
-                raise ValueError(
+                raise KeyError(
                     f"Workflow configuration is missing required field '{field_name}'."
                 )
 
         raw_steps = workflow["steps"]
         if not raw_steps:
-            raise ValueError("Workflow 'steps' must not be empty.")
+            raise KeyError("Workflow 'steps' must not be empty.")
 
         steps = []
         for step_dict in raw_steps:
-            step_name = step_dict["name"]
-            raw_resources = step_dict.get("resources")
-            if raw_resources is None:
-                raise ValueError(f"Step '{step_name}': 'resources' is required.")
-            command = step_dict.get("command")
-            if command is None:
-                raise ValueError(f"Step '{step_name}': 'command' is required.")
             step = StepConfig(
-                name=step_name,
-                resources=ResourceConfig.from_dict(raw_resources),
-                command=command,
+                name=step_dict["name"],
+                resources=ResourceConfig.from_dict(step_dict["resources"]),
+                command=step_dict["command"],
                 environment=step_dict.get("environment"),
             )
             steps.append(step)
@@ -124,14 +117,13 @@ class WorkflowConfig:
             default_environment=workflow.get("default_environment"),
             steps=steps,
         )
-        config._validate()
         return config
 
-    def _validate(self) -> None:
+    def __post_init__(self) -> None:
         """Validate workflow-level constraints."""
         # Unique step names
         names = [step.name for step in self.steps]
         if len(names) != len(set(names)):
-            raise ValueError(
+            raise KeyError(
                 f"Step names must be unique. Duplicate names found: {[name for name in names if names.count(name) > 1]}"
             )
