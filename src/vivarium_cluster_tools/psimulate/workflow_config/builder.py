@@ -102,6 +102,11 @@ def _get_single_path(path: str | list[str] | None) -> str:
     if path is None:
         return ""
     if isinstance(path, list):
+        if len(path) > 1:
+            raise ValueError(
+                f"Expected a single path but received {len(path)}: {path}. "
+                "Notebook steps only support a single path."
+            )
         return str(path[0]) if path else ""
     return str(path)
 
