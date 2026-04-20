@@ -623,7 +623,7 @@ class TestWorkflowSubcommand:
 
     def test_workflow_with_config_file(self, tmp_path: Path) -> None:
         """Workflow subcommand accepts -c flag with workflow config."""
-        pipeline_config = _write_yaml(
+        workflow_yaml = _write_yaml(
             tmp_path,
             {
                 "workflow": {
@@ -648,7 +648,7 @@ class TestWorkflowSubcommand:
         with patch(
             "vivarium_cluster_tools.psimulate.runner.workflow_main"
         ) as mock_workflow_main:
-            result = cli_runner.invoke(psimulate, ["workflow", "-c", str(pipeline_config)])
+            result = cli_runner.invoke(psimulate, ["workflow", "-c", str(workflow_yaml)])
 
         assert result.exit_code == 0, result.output
         mock_workflow_main.assert_called_once()
@@ -681,7 +681,7 @@ class TestWorkflowSubcommand:
 
         Tests both individual flag overrides and multiple simultaneous overrides.
         """
-        pipeline_config = _write_yaml(
+        workflow_yaml = _write_yaml(
             tmp_path,
             {
                 "workflow": {
@@ -703,7 +703,7 @@ class TestWorkflowSubcommand:
         ) as mock_workflow_main:
             result = cli_runner.invoke(
                 psimulate,
-                ["workflow", "-c", str(pipeline_config)] + cli_args,
+                ["workflow", "-c", str(workflow_yaml)] + cli_args,
             )
 
         assert result.exit_code == 0, result.output
@@ -719,7 +719,7 @@ class TestWorkflowSubcommand:
         override_output = tmp_path / "output_override"
         override_output.mkdir()
 
-        pipeline_config = _write_yaml(
+        workflow_yaml = _write_yaml(
             tmp_path,
             {
                 "workflow": {
@@ -741,7 +741,7 @@ class TestWorkflowSubcommand:
         ) as mock_workflow_main:
             result = cli_runner.invoke(
                 psimulate,
-                ["workflow", "-c", str(pipeline_config), "-o", str(override_output)],
+                ["workflow", "-c", str(workflow_yaml), "-o", str(override_output)],
             )
 
         assert result.exit_code == 0, result.output
@@ -762,7 +762,7 @@ class TestWorkflowSubcommand:
 
     def test_workflow_queue_optional_defaults_to_all_q(self, tmp_path: Path) -> None:
         """Queue is optional in config; defaults to 'all.q' if not provided."""
-        pipeline_config = _write_yaml(
+        workflow_yaml = _write_yaml(
             tmp_path,
             {
                 "workflow": {
@@ -786,7 +786,7 @@ class TestWorkflowSubcommand:
         with patch(
             "vivarium_cluster_tools.psimulate.runner.workflow_main"
         ) as mock_workflow_main:
-            result = cli_runner.invoke(psimulate, ["workflow", "-c", str(pipeline_config)])
+            result = cli_runner.invoke(psimulate, ["workflow", "-c", str(workflow_yaml)])
 
         assert result.exit_code == 0, result.output
         call_kwargs = mock_workflow_main.call_args.kwargs
@@ -795,7 +795,7 @@ class TestWorkflowSubcommand:
 
     def test_workflow_project_required(self, tmp_path: Path) -> None:
         """Project is required; error if missing from both config and CLI."""
-        pipeline_config = _write_yaml(
+        workflow_yaml = _write_yaml(
             tmp_path,
             {
                 "workflow": {
@@ -815,14 +815,14 @@ class TestWorkflowSubcommand:
         )
 
         cli_runner = CliRunner()
-        result = cli_runner.invoke(psimulate, ["workflow", "-c", str(pipeline_config)])
+        result = cli_runner.invoke(psimulate, ["workflow", "-c", str(workflow_yaml)])
         assert result.exit_code != 0
         assert "project" in result.output.lower()
         assert "required" in result.output.lower() or "missing" in result.output.lower()
 
     def test_workflow_output_directory_required(self, tmp_path: Path) -> None:
         """Output directory is required; error if missing from both config and CLI."""
-        pipeline_config = _write_yaml(
+        workflow_yaml = _write_yaml(
             tmp_path,
             {
                 "workflow": {
@@ -842,7 +842,7 @@ class TestWorkflowSubcommand:
         )
 
         cli_runner = CliRunner()
-        result = cli_runner.invoke(psimulate, ["workflow", "-c", str(pipeline_config)])
+        result = cli_runner.invoke(psimulate, ["workflow", "-c", str(workflow_yaml)])
         assert result.exit_code != 0
         assert "output" in result.output.lower()
         assert "required" in result.output.lower() or "missing" in result.output.lower()
