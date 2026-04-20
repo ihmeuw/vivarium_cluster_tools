@@ -9,6 +9,7 @@ Parse and validate workflow YAML configuration files.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -16,6 +17,10 @@ from typing import Any
 import yaml
 
 SUPPORTED_STEP_TYPES = {"pytest", "notebook", "python", "shell"}
+# NOTE: Each step type will map to a specific execution strategy. Pytest will run pytest
+# test suites, notebook will execute Juypter notebooks, python will run Python scripts,
+# and shell will execute raw shell commands. Users will only need to know the support types,
+# and on the backend developers can choose how these are implemented, leaving room for future flexibility.
 
 REQUIRED_WORKFLOW_FIELDS = {"name", "project", "queue", "output_directory", "steps"}
 
@@ -24,9 +29,18 @@ REQUIRED_WORKFLOW_FIELDS = {"name", "project", "queue", "output_directory", "ste
 class ResourceConfig:
     """Compute resource specification for a workflow step."""
 
-    memory: float | None = None
+    memory_gb: float | None = None
+    """Memory in GB."""
     runtime: str | None = None
+    """Maximum runtime in 'hh:mm:ss' format."""
     cores: int = 1
+    """Number of CPU cores to request. Default is 1."""
+
+    _RUNTIME_RE = re.compile(r"^\d{2}:\d{2}:\d{2}$")
+
+    def __post_init__(self) -> None:
+        if self.runtime is not None and not self._RUNTIME_RE.match(self.runtime):
+            raise ValueError(f"Invalid runtime '{self.runtime}'. Expected format 'hh:mm:ss'.")
 
     @classmethod
     def from_dict(cls, data: dict[str, Any] | None) -> ResourceConfig | None:
@@ -34,7 +48,7 @@ class ResourceConfig:
         if data is None:
             return None
         return cls(
-            memory=data.get("memory"),
+            memory_gb=data.get("memory_gb"),
             runtime=data.get("runtime"),
             cores=data.get("cores", 1),
         )
@@ -45,12 +59,19 @@ class StepConfig:
     """Configuration for a single workflow step."""
 
     name: str
+    """Unique name for this step within the workflow."""
     command: str | None = None
+    """Raw command string to execute for this step. Mutually exclusive with 'type' and 'path'."""
     type: str | None = None
+    """Structured step type (e.g. 'pytest', 'notebook'). Requires 'path' to be provided."""
     path: str | list[str] | None = None
+    """Path(s) to the module or directory for structured steps. Required if 'type' is provided."""
     args: str | None = None
+    """Optional additional arguments for structured steps, passed as a single string."""
     environment: str | None = None
+    """Optional environment name to use for this step."""
     resources: ResourceConfig | None = None
+    """Optional resource configuration for this step."""
 
     @property
     def is_structured(self) -> bool:
@@ -63,7 +84,7 @@ class StepConfig:
         return self.command is not None
 
     def _validate(self) -> None:
-        """Validate this step's internal consistency. Raise on errors."""
+        """Validate this step's internal consistency."""
         # Validate step type if provided
         if self.type is not None and self.type not in SUPPORTED_STEP_TYPES:
             raise ValueError(
@@ -98,11 +119,17 @@ class WorkflowConfig:
     """Parsed and validated workflow configuration."""
 
     name: str
+    """Name of the workflow. This is what will be displayed in Jobmon"""
     project: str
+    """Project that this workflow will be run under. E.g. 'proj_simscience'."""
     queue: str
+    """Queue to submit the workflow to."""
     output_directory: Path
+    """Directory where workflow outputs will be stored."""
     default_environment: str | None
+    """Default environment to use for steps that do not specify one."""
     steps: list[StepConfig]
+    """List of steps in the workflow."""
 
     @classmethod
     def from_yaml(cls, path: Path) -> WorkflowConfig:
@@ -149,7 +176,7 @@ class WorkflowConfig:
         return config
 
     def _validate(self) -> None:
-        """Validate workflow-level constraints. Raise on errors."""
+        """Validate workflow-level constraints."""
         # Unique step names
         names = [s.name for s in self.steps]
         if len(names) != len(set(names)):

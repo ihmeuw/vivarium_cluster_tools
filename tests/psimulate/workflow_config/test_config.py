@@ -76,7 +76,7 @@ class TestWorkflowConfigFromYaml:
         config = WorkflowConfig.from_yaml(valid_workflow_yaml)
         res = config.steps[0].resources
         assert res is not None
-        assert res.memory == 10
+        assert res.memory_gb == 10
         assert res.runtime == "01:00:00"
 
     def test_parses_step_resources_cores(self, valid_workflow_yaml: Path) -> None:
@@ -210,7 +210,7 @@ class TestWorkflowConfigValidation:
             WorkflowConfig.from_yaml(yaml_path)
 
     def test_rejects_step_with_neither_command_nor_type(self, tmp_path: Path) -> None:
-        steps = [{"name": "empty_step", "resources": {"memory": 4}}]
+        steps = [{"name": "empty_step", "resources": {"memory_gb": 4}}]
         data = make_workflow_dict(steps=steps)
         yaml_path = write_workflow_yaml(tmp_path, data)
         with pytest.raises(ValueError, match="empty_step"):
@@ -234,7 +234,7 @@ class TestWorkflowConfigValidation:
             WorkflowConfig.from_yaml(yaml_path)
 
     def test_rejects_step_with_type_but_no_path(self, tmp_path: Path) -> None:
-        steps = [{"name": "no_path", "type": "pytest", "resources": {"memory": 4}}]
+        steps = [{"name": "no_path", "type": "pytest", "resources": {"memory_gb": 4}}]
         data = make_workflow_dict(steps=steps)
         yaml_path = write_workflow_yaml(tmp_path, data)
         with pytest.raises(ValueError, match="no_path"):
