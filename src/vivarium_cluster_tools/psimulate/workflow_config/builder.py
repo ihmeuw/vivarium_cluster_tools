@@ -21,10 +21,12 @@ if TYPE_CHECKING:
     from jobmon.client.workflow import Workflow
 
 # Mapping of types to functions that resolve a command string from the step's configuration
-COMMAND_RESOLVERS: dict[str, Callable[[str | list[str] | None, str | None, Path], str]] = {
+COMMAND_RESOLVERS: dict[
+    str, Callable[[str | list[str] | None, str | None, Path | None], str]
+] = {
     "pytest": lambda path, args, output_directory: f"pytest {_join_paths(path)} {args or ''}".strip(),
     "notebook": lambda path, args, output_directory: (
-        f"papermill {_get_single_path(path)} {output_directory}/executed/"
+        f"papermill {_get_single_path(path)} {_require_output_directory(output_directory)}/executed/"
         f"{Path(_get_single_path(path)).name} {args or ''}"
     ).strip(),
     "python": lambda path, args, output_directory: f"python {_join_paths(path)} {args or ''}".strip(),
@@ -98,11 +100,23 @@ class WorkflowBuilder:
         return workflow
 
 
+def _require_output_directory(output_directory: Path | None) -> Path:
+    """Return the output directory or raise if it is None."""
+    if output_directory is None:
+        raise ValueError("output_directory is required for notebook steps.")
+    return output_directory
+
+
 def _get_single_path(path: str | list[str] | None) -> str:
     """Extract a single path string from various path formats."""
     if path is None:
         return ""
     if isinstance(path, list):
+        if len(path) > 1:
+            raise ValueError(
+                f"Expected a single path but received {len(path)}: {path}. "
+                "Notebook steps only support a single path."
+            )
         return str(path[0]) if path else ""
     return str(path)
 
@@ -116,7 +130,7 @@ def _join_paths(path: str | list[str] | None) -> str:
     return str(path)
 
 
-def resolve_command(step: StepConfig, output_directory: Path) -> str:
+def resolve_command(step: StepConfig, output_directory: Path | None) -> str:
     """Resolve a step's configuration into a shell command string.
 
     For raw command steps, returns the command as-is.
