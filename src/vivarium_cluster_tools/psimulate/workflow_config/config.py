@@ -100,10 +100,12 @@ class StepConfig:
                 f"Step '{self.name}': provide 'command' OR 'type'+'path', not both."
             )
 
-        # Command should not be mixed with type or path
-        if self.command is not None and (self.type is not None or self.path is not None):
+        # Command should not be mixed with type, path, or args
+        if self.command is not None and (
+            self.type is not None or self.path is not None or self.args is not None
+        ):
             raise ValueError(
-                f"Step '{self.name}': 'command' cannot be combined with 'type' or 'path'. "
+                f"Step '{self.name}': 'command' cannot be combined with 'type', 'path', or 'args'. "
                 "Use 'command' alone for raw commands, or 'type'+'path' for structured steps."
             )
 
@@ -132,7 +134,7 @@ class WorkflowConfig:
     @classmethod
     def from_yaml(cls, path: Path) -> WorkflowConfig:
         """Load, validate, and return a WorkflowConfig from a YAML file."""
-        with open(path) as f:
+        with path.open() as f:
             raw = yaml.safe_load(f)
 
         if not isinstance(raw, dict) or "workflow" not in raw:
@@ -185,8 +187,8 @@ class WorkflowConfig:
     def _validate(self) -> None:
         """Validate workflow-level constraints."""
         # Unique step names
-        names = [s.name for s in self.steps]
+        names = [step.name for step in self.steps]
         if len(names) != len(set(names)):
             raise ValueError(
-                f"Step names must be unique. Duplicate names found: {set([name for name in names if names.count(name) > 1])}"
+                f"Step names must be unique. Duplicate names found: {[name for name in names if names.count(name) > 1]}"
             )

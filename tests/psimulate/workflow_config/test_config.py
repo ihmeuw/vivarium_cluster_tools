@@ -242,6 +242,20 @@ class TestWorkflowConfigValidation:
         with pytest.raises(ValueError, match="no_path"):
             WorkflowConfig.from_yaml(yaml_path)
 
+    def test_rejects_command_step_with_args(self, tmp_path: Path) -> None:
+        steps = [
+            {
+                "name": "bad_step",
+                "command": "echo hello",
+                "args": "--verbose",
+                "resources": {"memory_gb": 4, "runtime": "01:00:00"},
+            }
+        ]
+        data = make_workflow_dict(steps=steps)
+        yaml_path = write_workflow_yaml(tmp_path, data)
+        with pytest.raises(ValueError, match="bad_step"):
+            WorkflowConfig.from_yaml(yaml_path)
+
     def test_rejects_step_without_resources(self, tmp_path: Path) -> None:
         steps = [
             {
