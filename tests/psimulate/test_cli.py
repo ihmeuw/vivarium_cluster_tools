@@ -634,9 +634,8 @@ class TestWorkflowSubcommand:
                     "steps": [
                         {
                             "name": "test_step",
-                            "type": "pytest",
-                            "path": "tests/",
-                            "resources": {"memory": 4, "runtime": "01:00:00"},
+                            "command": "pytest tests/",
+                            "resources": {"memory_gb": 4, "runtime": "01:00:00"},
                         }
                     ],
                 }
@@ -690,7 +689,7 @@ class TestWorkflowSubcommand:
                     "queue": "all.q",
                     "output_directory": str(tmp_path / "output"),
                     "steps": [
-                        {"name": "s1", "command": "echo test", "resources": {"memory": 2}}
+                        {"name": "s1", "command": "echo test", "resources": {"memory_gb": 2}}
                     ],
                 }
             },
@@ -728,7 +727,7 @@ class TestWorkflowSubcommand:
                     "queue": "all.q",
                     "output_directory": str(original_output),
                     "steps": [
-                        {"name": "s1", "command": "echo test", "resources": {"memory": 2}}
+                        {"name": "s1", "command": "echo test", "resources": {"memory_gb": 2}}
                     ],
                 }
             },
@@ -774,7 +773,7 @@ class TestWorkflowSubcommand:
                         {
                             "name": "test_step",
                             "command": "echo test",
-                            "resources": {"memory": 2},
+                            "resources": {"memory_gb": 2},
                         }
                     ],
                 }
@@ -806,7 +805,7 @@ class TestWorkflowSubcommand:
                         {
                             "name": "test_step",
                             "command": "echo test",
-                            "resources": {"memory": 2},
+                            "resources": {"memory_gb": 2},
                         }
                     ],
                 }
@@ -833,7 +832,7 @@ class TestWorkflowSubcommand:
                         {
                             "name": "test_step",
                             "command": "echo test",
-                            "resources": {"memory": 2},
+                            "resources": {"memory_gb": 2},
                         }
                     ],
                 }

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
 
 import pytest
 
@@ -90,13 +89,13 @@ class TestWorkflowConfigFromYaml:
 
 
 class TestWorkflowConfigValidation:
-    """Verify that invalid configurations raise ``ValueError``."""
+    """Verify that invalid configurations raise ``KeyError``."""
 
     def test_rejects_missing_name(self, tmp_path: Path) -> None:
         data = make_workflow_dict()
         del data["workflow"]["name"]
         yaml_path = write_workflow_yaml(tmp_path, data)
-        with pytest.raises(ValueError, match="name"):
+        with pytest.raises(KeyError, match="name"):
             WorkflowConfig.from_yaml(yaml_path)
 
     def test_parses_missing_project_as_none(self, tmp_path: Path) -> None:
@@ -124,13 +123,13 @@ class TestWorkflowConfigValidation:
         data = make_workflow_dict()
         del data["workflow"]["steps"]
         yaml_path = write_workflow_yaml(tmp_path, data)
-        with pytest.raises(ValueError, match="steps"):
+        with pytest.raises(KeyError, match="steps"):
             WorkflowConfig.from_yaml(yaml_path)
 
     def test_rejects_empty_steps(self, tmp_path: Path) -> None:
         data = make_workflow_dict(steps=[])
         yaml_path = write_workflow_yaml(tmp_path, data)
-        with pytest.raises(ValueError, match="steps"):
+        with pytest.raises(KeyError, match="steps"):
             WorkflowConfig.from_yaml(yaml_path)
 
     def test_rejects_duplicate_step_names(self, tmp_path: Path) -> None:
@@ -140,14 +139,14 @@ class TestWorkflowConfigValidation:
         ]
         data = make_workflow_dict(steps=steps)
         yaml_path = write_workflow_yaml(tmp_path, data)
-        with pytest.raises(ValueError, match="unique"):
+        with pytest.raises(KeyError, match="unique"):
             WorkflowConfig.from_yaml(yaml_path)
 
     def test_rejects_step_without_command(self, tmp_path: Path) -> None:
         steps = [{"name": "no_cmd", "resources": {"memory_gb": 4}}]
         data = make_workflow_dict(steps=steps)
         yaml_path = write_workflow_yaml(tmp_path, data)
-        with pytest.raises(ValueError, match="command"):
+        with pytest.raises(KeyError, match="command"):
             WorkflowConfig.from_yaml(yaml_path)
 
     def test_rejects_step_without_resources(self, tmp_path: Path) -> None:
@@ -159,7 +158,7 @@ class TestWorkflowConfigValidation:
         ]
         data = make_workflow_dict(steps=steps)
         yaml_path = write_workflow_yaml(tmp_path, data)
-        with pytest.raises(ValueError, match="resources"):
+        with pytest.raises(KeyError, match="resources"):
             WorkflowConfig.from_yaml(yaml_path)
 
     def test_rejects_missing_workflow_key(self, tmp_path: Path) -> None:
@@ -173,23 +172,23 @@ class TestResourceConfigValidation:
     """Verify ``ResourceConfig`` validation."""
 
     def test_accepts_valid_runtime(self) -> None:
-        rc = ResourceConfig(runtime="01:30:00")
+        rc = ResourceConfig(memory_gb=1, runtime="01:30:00")
         assert rc.runtime == "01:30:00"
 
     def test_rejects_invalid_runtime_format(self) -> None:
         with pytest.raises(ValueError, match="hh:mm:ss"):
-            ResourceConfig(runtime="90m")
+            ResourceConfig(memory_gb=1, runtime="90m")
 
     def test_rejects_runtime_missing_leading_zeros(self) -> None:
         with pytest.raises(ValueError, match="hh:mm:ss"):
-            ResourceConfig(runtime="1:00:00")
+            ResourceConfig(memory_gb=1, runtime="1:00:00")
 
     def test_uses_default_runtime(self) -> None:
-        rc = ResourceConfig()
+        rc = ResourceConfig(memory_gb=1)
         assert rc.runtime == "01:00:00"
 
     def test_from_dict_defaults(self) -> None:
-        rc = ResourceConfig.from_dict({})
+        rc = ResourceConfig.from_dict({"memory_gb": 4})
         assert rc is not None
         assert rc.memory_gb == 4
         assert rc.runtime == "01:00:00"

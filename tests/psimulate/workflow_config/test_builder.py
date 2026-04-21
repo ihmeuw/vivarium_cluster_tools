@@ -29,9 +29,15 @@ def three_step_config() -> WorkflowConfig:
         output_directory=Path("/tmp/results"),
         default_environment=None,
         steps=[
-            StepConfig(name="step1", resources=ResourceConfig(), command="echo step1"),
-            StepConfig(name="step2", resources=ResourceConfig(), command="echo step2"),
-            StepConfig(name="step3", resources=ResourceConfig(), command="echo step3"),
+            StepConfig(
+                name="step1", resources=ResourceConfig(memory_gb=1), command="echo step1"
+            ),
+            StepConfig(
+                name="step2", resources=ResourceConfig(memory_gb=1), command="echo step2"
+            ),
+            StepConfig(
+                name="step3", resources=ResourceConfig(memory_gb=1), command="echo step3"
+            ),
         ],
     )
 
@@ -91,7 +97,7 @@ class TestResolveCommand:
         """A raw-command step returns the command as-is."""
         step = StepConfig(
             name="raw",
-            resources=ResourceConfig(),
+            resources=ResourceConfig(memory_gb=1),
             command="python scripts/analyze.py --input /results",
         )
         assert (
@@ -102,7 +108,9 @@ class TestResolveCommand:
     def test_pytest_single_path(self) -> None:
         """A pytest step with a single path."""
         step = StepConfig(
-            name="tests", resources=ResourceConfig(), type="pytest", path="tests/test_foo.py"
+            name="tests",
+            resources=ResourceConfig(memory_gb=1),
+            command="pytest tests/test_foo.py",
         )
         assert resolve_command(step, Path("/tmp")) == "pytest tests/test_foo.py"
 
@@ -110,9 +118,8 @@ class TestResolveCommand:
         """A pytest step with multiple paths."""
         step = StepConfig(
             name="tests",
-            resources=ResourceConfig(),
-            type="pytest",
-            path=["tests/test_a.py", "tests/test_b.py"],
+            resources=ResourceConfig(memory_gb=1),
+            command="pytest tests/test_a.py tests/test_b.py",
         )
         assert resolve_command(step, Path("/tmp")) == "pytest tests/test_a.py tests/test_b.py"
 
@@ -120,10 +127,8 @@ class TestResolveCommand:
         """A pytest step with extra args."""
         step = StepConfig(
             name="tests",
-            resources=ResourceConfig(),
-            type="pytest",
-            path="tests/",
-            args="--runslow -x",
+            resources=ResourceConfig(memory_gb=1),
+            command="pytest tests/ --runslow -x",
         )
         assert resolve_command(step, Path("/tmp")) == "pytest tests/ --runslow -x"
 
@@ -131,9 +136,8 @@ class TestResolveCommand:
         """A notebook step produces a papermill command."""
         step = StepConfig(
             name="nb",
-            resources=ResourceConfig(),
-            type="notebook",
-            path="notebooks/results.ipynb",
+            resources=ResourceConfig(memory_gb=1),
+            command="papermill notebooks/results.ipynb /tmp/results/executed/results.ipynb",
         )
         result = resolve_command(step, Path("/tmp/results"))
         assert (
@@ -143,7 +147,7 @@ class TestResolveCommand:
     def test_python(self) -> None:
         """A python step produces a python command."""
         step = StepConfig(
-            name="py", resources=ResourceConfig(), type="python", path="scripts/run.py"
+            name="py", resources=ResourceConfig(memory_gb=1), command="python scripts/run.py"
         )
         assert resolve_command(step, Path("/tmp")) == "python scripts/run.py"
 
@@ -151,10 +155,8 @@ class TestResolveCommand:
         """A shell step with args."""
         step = StepConfig(
             name="sh",
-            resources=ResourceConfig(),
-            type="shell",
-            path="scripts/setup.sh",
-            args="--env prod",
+            resources=ResourceConfig(memory_gb=1),
+            command="bash scripts/setup.sh --env prod",
         )
         assert resolve_command(step, Path("/tmp")) == "bash scripts/setup.sh --env prod"
 
@@ -170,14 +172,18 @@ class TestResourceDefaults:
             queue="all.q",
             output_directory=Path("/tmp/results"),
             default_environment=None,
-            steps=[StepConfig(name="s1", resources=ResourceConfig(), command="echo hi")],
+            steps=[
+                StepConfig(
+                    name="s1", resources=ResourceConfig(memory_gb=1), command="echo hi"
+                )
+            ],
         )
         template_mock = mock_tool_cls.return_value.get_task_template.return_value
 
         WorkflowBuilder(config).build()
 
         call_kwargs = template_mock.create_task.call_args[1]
-        assert call_kwargs["compute_resources"]["memory"] == 4
+        assert call_kwargs["compute_resources"]["memory"] == 1
         assert call_kwargs["compute_resources"]["runtime"] == "01:00:00"
         assert call_kwargs["compute_resources"]["cores"] == 1
 
@@ -221,7 +227,7 @@ class TestEnvironmentResolution:
             steps=[
                 StepConfig(
                     name="s1",
-                    resources=ResourceConfig(),
+                    resources=ResourceConfig(memory_gb=1),
                     command="echo hi",
                     environment="step_env",
                 ),
@@ -242,7 +248,11 @@ class TestEnvironmentResolution:
             queue="all.q",
             output_directory=Path("/tmp/results"),
             default_environment="workflow_env",
-            steps=[StepConfig(name="s1", resources=ResourceConfig(), command="echo hi")],
+            steps=[
+                StepConfig(
+                    name="s1", resources=ResourceConfig(memory_gb=1), command="echo hi"
+                )
+            ],
         )
         template_mock = mock_tool_cls.return_value.get_task_template.return_value
 
@@ -262,7 +272,11 @@ class TestEnvironmentResolution:
             queue="all.q",
             output_directory=Path("/tmp/results"),
             default_environment=None,
-            steps=[StepConfig(name="s1", resources=ResourceConfig(), command="echo hi")],
+            steps=[
+                StepConfig(
+                    name="s1", resources=ResourceConfig(memory_gb=1), command="echo hi"
+                )
+            ],
         )
         template_mock = mock_tool_cls.return_value.get_task_template.return_value
 
@@ -274,7 +288,7 @@ class TestEnvironmentResolution:
     def test_base_fallback(
         self, mock_tool_cls: MagicMock, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """When nothing is set, falls back to 'base'."""
+        """When nothing is set, raises ValueError for base environment."""
         monkeypatch.delenv("CONDA_DEFAULT_ENV", raising=False)
         config = WorkflowConfig(
             name="test",
@@ -282,11 +296,12 @@ class TestEnvironmentResolution:
             queue="all.q",
             output_directory=Path("/tmp/results"),
             default_environment=None,
-            steps=[StepConfig(name="s1", resources=ResourceConfig(), command="echo hi")],
+            steps=[
+                StepConfig(
+                    name="s1", resources=ResourceConfig(memory_gb=1), command="echo hi"
+                )
+            ],
         )
-        template_mock = mock_tool_cls.return_value.get_task_template.return_value
 
-        WorkflowBuilder(config).build()
-
-        call_kwargs = template_mock.create_task.call_args[1]
-        assert call_kwargs["env"] == "base"
+        with pytest.raises(ValueError, match="non-base conda environment is required"):
+            WorkflowBuilder(config).build()

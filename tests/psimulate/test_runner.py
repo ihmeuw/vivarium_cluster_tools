@@ -405,7 +405,7 @@ def test_write_configuration_workflow_command(tmp_path: Path) -> None:
     # Verify steps are included
     assert len(config["workflow"]["steps"]) == 1
     assert config["workflow"]["steps"][0]["name"] == "test_step"
-    assert config["workflow"]["steps"][0]["type"] == "pytest"
+    assert config["workflow"]["steps"][0]["command"] == "pytest tests/"
 
 
 def test_workflow_configuration_includes_cli_overrides(tmp_path: Path) -> None:
@@ -426,7 +426,7 @@ def test_workflow_configuration_includes_cli_overrides(tmp_path: Path) -> None:
                         {
                             "name": "test_step",
                             "command": "echo test",
-                            "resources": {"memory": 4},
+                            "resources": {"memory_gb": 4},
                         }
                     ],
                 }

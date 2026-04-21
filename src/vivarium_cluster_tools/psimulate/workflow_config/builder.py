@@ -72,8 +72,14 @@ class WorkflowBuilder:
             env = (
                 step.environment
                 or self.config.default_environment
-                or os.environ.get("CONDA_DEFAULT_ENV", "base")
+                or os.environ.get("CONDA_DEFAULT_ENV")
             )
+            if not env or env == "base":
+                raise ValueError(
+                    f"Step '{step.name}': a non-base conda environment is required. "
+                    "Set 'environment' on the step, 'default_environment' on the workflow, "
+                    "or activate a conda environment before running."
+                )
             resources = step.resources
             compute_resources = {
                 "queue": self.config.queue,
