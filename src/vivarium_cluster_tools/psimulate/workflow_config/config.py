@@ -76,6 +76,14 @@ class StepConfig:
     environment: str | None = None
     """Optional environment name to use for this step."""
 
+    def __post_init__(self) -> None:
+        if not self.name:
+            raise ValueError("Step 'name' is required.")
+        if not self.resources:
+            raise ValueError(f"Step '{self.name}': 'resources' is required.")
+        if not self.command:
+            raise ValueError(f"Step '{self.name}': 'command' is required.")
+
     def to_dict(self) -> dict[str, Any]:
         """Serialize to a dictionary, omitting None values."""
         result: dict[str, Any] = {"name": self.name}
@@ -166,30 +174,6 @@ class WorkflowConfig:
             )
             steps.append(step)
         return steps
-
-    @classmethod
-    def from_yaml(cls, path: Path) -> WorkflowConfig:
-        """Load, validate, and return a WorkflowConfig from a YAML file.
-
-        The YAML must contain ``project``, ``queue``, and ``output_directory``.
-        Use :meth:`from_yaml_with_cli_overrides` when these values may be
-        supplied via command-line arguments.
-        """
-        workflow = cls._parse_yaml_file(
-            path,
-            extra_required_fields={"project", "queue", "output_directory"},
-        )
-        steps = cls._parse_steps(workflow["steps"])
-
-        return cls(
-            name=workflow["name"],
-            project=workflow["project"],
-            queue=workflow["queue"],
-            output_directory=Path(workflow["output_directory"]),
-            default_environment=workflow.get("default_environment"),
-            steps=steps,
-            max_attempts=workflow.get("max_attempts", DEFAULT_MAX_ATTEMPTS),
-        )
 
     @classmethod
     def from_yaml_with_cli_overrides(
