@@ -59,6 +59,14 @@ class StepConfig:
     environment: str | None = None
     """Optional environment name to use for this step."""
 
+    def __post_init__(self) -> None:
+        if not self.name:
+            raise ValueError("Step 'name' is required.")
+        if not self.resources:
+            raise ValueError(f"Step '{self.name}': 'resources' is required.")
+        if not self.command:
+            raise ValueError(f"Step '{self.name}': 'command' is required.")
+
 
 @dataclass
 class WorkflowConfig:
