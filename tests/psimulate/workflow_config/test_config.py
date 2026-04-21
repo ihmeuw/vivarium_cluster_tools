@@ -91,39 +91,15 @@ class TestWorkflowConfigFromYaml:
 class TestWorkflowConfigValidation:
     """Verify that invalid configurations raise ``KeyError``."""
 
-    def test_rejects_missing_name(self, tmp_path: Path) -> None:
+    @pytest.mark.parametrize(
+        "field",
+        ["name", "project", "queue", "output_directory", "steps"],
+    )
+    def test_rejects_missing_required_field(self, tmp_path: Path, field: str) -> None:
         data = make_workflow_dict()
-        del data["workflow"]["name"]
+        del data["workflow"][field]
         yaml_path = write_workflow_yaml(tmp_path, data)
-        with pytest.raises(KeyError, match="name"):
-            WorkflowConfig.from_yaml(yaml_path)
-
-    def test_parses_missing_project_as_none(self, tmp_path: Path) -> None:
-        data = make_workflow_dict()
-        del data["workflow"]["project"]
-        yaml_path = write_workflow_yaml(tmp_path, data)
-        config = WorkflowConfig.from_yaml(yaml_path)
-        assert config.project is None
-
-    def test_parses_missing_queue_as_none(self, tmp_path: Path) -> None:
-        data = make_workflow_dict()
-        del data["workflow"]["queue"]
-        yaml_path = write_workflow_yaml(tmp_path, data)
-        config = WorkflowConfig.from_yaml(yaml_path)
-        assert config.queue is None
-
-    def test_parses_missing_output_directory_as_none(self, tmp_path: Path) -> None:
-        data = make_workflow_dict()
-        del data["workflow"]["output_directory"]
-        yaml_path = write_workflow_yaml(tmp_path, data)
-        config = WorkflowConfig.from_yaml(yaml_path)
-        assert config.output_directory is None
-
-    def test_rejects_missing_steps(self, tmp_path: Path) -> None:
-        data = make_workflow_dict()
-        del data["workflow"]["steps"]
-        yaml_path = write_workflow_yaml(tmp_path, data)
-        with pytest.raises(KeyError, match="steps"):
+        with pytest.raises(KeyError, match=field):
             WorkflowConfig.from_yaml(yaml_path)
 
     def test_rejects_empty_steps(self, tmp_path: Path) -> None:
@@ -166,6 +142,65 @@ class TestWorkflowConfigValidation:
         yaml_path.write_text("not_workflow:\n  name: oops\n")
         with pytest.raises(KeyError, match="workflow"):
             WorkflowConfig.from_yaml(yaml_path)
+
+
+class TestWorkflowConfigFromYamlWithCliOverrides:
+    """Verify that ``from_yaml_with_cli_overrides`` merges CLI args and validates."""
+
+    def test_cli_project_overrides_yaml(self, valid_workflow_yaml: Path) -> None:
+        config = WorkflowConfig.from_yaml_with_cli_overrides(
+            valid_workflow_yaml, project="proj_simscience_prod"
+        )
+        assert config.project == "proj_simscience_prod"
+
+    def test_cli_queue_overrides_yaml(self, valid_workflow_yaml: Path) -> None:
+        config = WorkflowConfig.from_yaml_with_cli_overrides(
+            valid_workflow_yaml, queue="long.q"
+        )
+        assert config.queue == "long.q"
+
+    def test_cli_output_directory_overrides_yaml(self, valid_workflow_yaml: Path) -> None:
+        config = WorkflowConfig.from_yaml_with_cli_overrides(
+            valid_workflow_yaml, output_directory=Path("/cli/output")
+        )
+        assert config.output_directory == Path("/cli/output")
+
+    def test_falls_back_to_yaml_values(self, valid_workflow_yaml: Path) -> None:
+        config = WorkflowConfig.from_yaml_with_cli_overrides(valid_workflow_yaml)
+        assert config.project == "proj_simscience"
+        assert config.queue == "all.q"
+        assert config.output_directory == Path("/tmp/results")
+
+    @pytest.mark.parametrize(
+        "field",
+        ["project", "queue", "output_directory"],
+    )
+    def test_rejects_missing_field_everywhere(self, tmp_path: Path, field: str) -> None:
+        data = make_workflow_dict()
+        del data["workflow"][field]
+        yaml_path = write_workflow_yaml(tmp_path, data)
+        with pytest.raises(
+            KeyError, match=f"{field.replace('_', ' ').title().split()[0]}.*required"
+        ):
+            WorkflowConfig.from_yaml_with_cli_overrides(yaml_path)
+
+    @pytest.mark.parametrize(
+        "field, cli_value",
+        [
+            ("project", "proj_simscience"),
+            ("queue", "long.q"),
+            ("output_directory", Path("/from/cli")),
+        ],
+    )
+    def test_cli_fills_missing_yaml_field(
+        self, tmp_path: Path, field: str, cli_value: str | Path
+    ) -> None:
+        data = make_workflow_dict()
+        del data["workflow"][field]
+        yaml_path = write_workflow_yaml(tmp_path, data)
+        kwargs: dict[str, str | Path | None] = {field: cli_value}
+        config = WorkflowConfig.from_yaml_with_cli_overrides(yaml_path, **kwargs)  # type: ignore[arg-type]
+        assert getattr(config, field) == cli_value
 
 
 class TestResourceConfigValidation:

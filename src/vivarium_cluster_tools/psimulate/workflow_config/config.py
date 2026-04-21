@@ -96,30 +96,45 @@ class WorkflowConfig:
 
     name: str
     """Name of the workflow. This is what will be displayed in Jobmon"""
-    project: str | None
+    project: str
     """Project that this workflow will be run under. E.g. 'proj_simscience'."""
-    queue: str | None
+    queue: str
     """Queue to submit the workflow to."""
-    output_directory: Path | None
+    output_directory: Path
     """Directory where workflow outputs will be stored."""
     default_environment: str | None
     """Default environment to use for steps that do not specify one."""
     steps: list[StepConfig]
     """List of sequential steps in the workflow."""
 
-    @classmethod
-    def from_yaml(cls, path: Path) -> WorkflowConfig:
-        """Load, validate, and return a WorkflowConfig from a YAML file."""
+    @staticmethod
+    def _parse_yaml_file(
+        path: Path,
+        extra_required_fields: set[str] | None = None,
+    ) -> dict[str, Any]:
+        """Read and perform basic structural validation on a workflow YAML file.
+
+        Returns the ``workflow`` dict from inside the top-level key.
+
+        Parameters
+        ----------
+        path
+            Path to the YAML file.
+        extra_required_fields
+            Additional field names (beyond ``name`` and ``steps``) that
+            must be present in the workflow dict.
+        """
         with path.open() as f:
             raw = yaml.safe_load(f)
 
         if not isinstance(raw, dict) or "workflow" not in raw:
             raise KeyError("Workflow configuration must contain a top-level 'workflow' key.")
 
-        workflow = raw["workflow"]
+        workflow: dict[str, Any] = raw["workflow"]
 
         # Check required top-level fields
-        for field_name in REQUIRED_WORKFLOW_FIELDS:
+        required = REQUIRED_WORKFLOW_FIELDS | (extra_required_fields or set())
+        for field_name in required:
             if field_name not in workflow:
                 raise KeyError(
                     f"Workflow configuration is missing required field '{field_name}'."
@@ -129,6 +144,11 @@ class WorkflowConfig:
         if not raw_steps:
             raise KeyError("Workflow 'steps' must not be empty.")
 
+        return workflow
+
+    @staticmethod
+    def _parse_steps(raw_steps: list[dict[str, Any]]) -> list[StepConfig]:
+        """Parse a list of raw step dicts into ``StepConfig`` objects."""
         steps = []
         for step_dict in raw_steps:
             step = StepConfig(
@@ -138,18 +158,95 @@ class WorkflowConfig:
                 environment=step_dict.get("environment"),
             )
             steps.append(step)
+        return steps
 
-        config = cls(
+    @classmethod
+    def from_yaml(cls, path: Path) -> WorkflowConfig:
+        """Load, validate, and return a WorkflowConfig from a YAML file.
+
+        The YAML must contain ``project``, ``queue``, and ``output_directory``.
+        Use :meth:`from_yaml_with_cli_overrides` when these values may be
+        supplied via command-line arguments.
+        """
+        workflow = cls._parse_yaml_file(
+            path,
+            extra_required_fields={"project", "queue", "output_directory"},
+        )
+        steps = cls._parse_steps(workflow["steps"])
+
+        return cls(
             name=workflow["name"],
-            project=workflow.get("project"),
-            queue=workflow.get("queue"),
-            output_directory=Path(workflow["output_directory"])
-            if "output_directory" in workflow
-            else None,
+            project=workflow["project"],
+            queue=workflow["queue"],
+            output_directory=Path(workflow["output_directory"]),
             default_environment=workflow.get("default_environment"),
             steps=steps,
         )
-        return config
+
+    @classmethod
+    def from_yaml_with_cli_overrides(
+        cls,
+        path: Path,
+        *,
+        project: str | None = None,
+        queue: str | None = None,
+        output_directory: Path | None = None,
+    ) -> WorkflowConfig:
+        """Load a WorkflowConfig from YAML, merging CLI overrides.
+
+        CLI arguments take precedence over values in the YAML file.
+        Validates that ``project`` and ``output_directory`` are provided
+        by at least one source, and defaults ``queue`` to ``'all.q'``
+        if not specified anywhere.
+
+        Parameters
+        ----------
+        path
+            Path to the workflow YAML configuration file.
+        project
+            CLI override for the project field.
+        queue
+            CLI override for the queue field.
+        output_directory
+            CLI override for the output directory.
+
+        Raises
+        ------
+        KeyError
+            If ``project``, ``queue``, or ``output_directory`` cannot be resolved
+            from either the YAML file or CLI arguments.
+        """
+        workflow = cls._parse_yaml_file(path)
+        steps = cls._parse_steps(workflow["steps"])
+
+        resolved_project = project or workflow.get("project")
+        resolved_queue = queue or workflow.get("queue")
+        resolved_output_directory = output_directory or (
+            Path(workflow["output_directory"]) if "output_directory" in workflow else None
+        )
+
+        if not resolved_project:
+            raise KeyError(
+                "Project is required. Provide it in the config file or via --project/-P."
+            )
+        if not resolved_queue:
+            raise KeyError(
+                "Queue is required. Provide it in the config file or via --queue/-q."
+            )
+        if not resolved_output_directory:
+            raise KeyError(
+                "Output directory is required. Provide it in the config file "
+                "or via --output-directory/-o."
+            )
+
+        return cls(
+            name=workflow["name"],
+            project=resolved_project,
+            queue=resolved_queue,
+            output_directory=resolved_output_directory,
+            default_environment=workflow.get("default_environment"),
+            steps=steps,
+        )
 
     def __post_init__(self) -> None:
         """Validate workflow-level constraints."""
@@ -164,20 +261,12 @@ class WorkflowConfig:
         """Serialize to a dictionary suitable for YAML output."""
         result: dict[str, Any] = {
             "name": self.name,
+            "project": self.project,
+            "queue": self.queue,
+            "output_directory": str(self.output_directory),
         }
-
-        if self.project is not None:
-            result["project"] = self.project
-
-        if self.queue is not None:
-            result["queue"] = self.queue
-
-        if self.output_directory is not None:
-            result["output_directory"] = str(self.output_directory)
-
         if self.default_environment is not None:
             result["default_environment"] = self.default_environment
-
         result["steps"] = [step.to_dict() for step in self.steps]
 
         return result
