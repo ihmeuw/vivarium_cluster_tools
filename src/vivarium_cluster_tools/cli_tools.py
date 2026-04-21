@@ -189,63 +189,15 @@ def with_run_config(func: CLIFunction) -> CLIFunction:
     )(func)
 
 
-def load_workflow_config(
-    ctx: click.Context, param: click.Parameter | None, value: str | None
-) -> Path | None:
-    """Parse a workflow YAML config and populate ctx.default_map with top-level options.
-
-    This callback is used by the `with_workflow_config` decorator to enable
-    workflow configuration files to provide defaults for CLI options like
-    --project, --queue, and --output-directory.
-    """
-    if value is None:
-        return None
-
-    config_path = Path(value).resolve()
-
-    # Parse the workflow YAML
-    with open(config_path) as f:
-        raw = yaml.safe_load(f)
-
-    if "workflow" not in raw:
-        raise click.BadParameter(
-            f"Invalid workflow configuration: missing 'workflow' key in {config_path}",
-            param=param,
-        )
-
-    workflow = raw["workflow"]
-
-    # Extract top-level options that map to CLI parameters
-    # Map workflow config keys to CLI parameter names
-    config = {}
-    if "project" in workflow:
-        config["project"] = workflow["project"]
-    if "queue" in workflow:
-        config["queue"] = workflow["queue"]
-    if "output_directory" in workflow:
-        config["output_directory"] = workflow["output_directory"]
-
-    # Use default_map so CLI values automatically win
-    ctx.default_map = {**(ctx.default_map or {}), **config}
-
-    # Store the full config path for the command to access
-    return config_path
-
-
 def with_workflow_config(func: CLIFunction) -> CLIFunction:
-    """Decorator that adds the ``--config/-c`` option for workflow YAML files.
-
-    This decorator parses a workflow configuration YAML file and extracts
-    top-level settings (project, queue, output_directory) to use as defaults
-    for their corresponding CLI options. CLI flags will override these defaults.
-    """
+    """Decorator that adds the ``--config/-c`` option for workflow YAML files."""
     return click.option(
         "--config",
         "-c",
         "config_path",
         type=click.Path(exists=True, dir_okay=False),
         required=True,
-        callback=load_workflow_config,
+        callback=coerce_to_full_path,
         is_eager=True,
         help="Path to the workflow configuration YAML file.",
     )(func)

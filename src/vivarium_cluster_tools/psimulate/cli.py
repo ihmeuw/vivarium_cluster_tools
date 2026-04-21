@@ -420,19 +420,12 @@ def test(
 @click.option(
     "--project",
     "-P",
-    type=click.Choice(
-        [
-            "proj_simscience",
-            "proj_simscience_prod",
-        ]
-    ),
     default=None,
     help="Override project from config file.",
 )
 @click.option(
     "--queue",
     "-q",
-    type=click.Choice(["all.q", "long.q"]),
     default=None,
     help="Override queue from config file.",
 )
@@ -443,6 +436,13 @@ def test(
     default=None,
     help="Override output directory from config file.",
     callback=cli_tools.coerce_to_full_path,
+)
+@click.option(
+    "--max-attempts",
+    "-m",
+    type=click.IntRange(min=1),
+    default=None,
+    help="Override maximum Jobmon task attempts from config file.",
 )
 @cli_tools.with_verbose_and_pdb
 def workflow(
@@ -467,6 +467,7 @@ def workflow(
         project=options.get("project"),
         queue=options.get("queue"),
         output_directory=output_directory,
+        max_attempts=options.get("max_attempts"),
     )
 
     main = handle_exceptions(runner.workflow_main, logger, options["with_debugger"])

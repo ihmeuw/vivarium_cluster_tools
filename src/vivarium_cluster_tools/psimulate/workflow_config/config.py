@@ -18,6 +18,11 @@ import yaml
 
 REQUIRED_WORKFLOW_FIELDS = {"name", "steps"}
 
+DEFAULT_MAX_ATTEMPTS = 2
+
+VALID_PROJECTS = {"proj_simscience", "proj_simscience_prod"}
+VALID_QUEUES = {"all.q", "long.q"}
+
 
 @dataclass
 class ResourceConfig:
@@ -106,6 +111,8 @@ class WorkflowConfig:
     """Default environment to use for steps that do not specify one."""
     steps: list[StepConfig]
     """List of sequential steps in the workflow."""
+    max_attempts: int = DEFAULT_MAX_ATTEMPTS
+    """Maximum number of Jobmon task attempts. Default is 2."""
 
     @staticmethod
     def _parse_yaml_file(
@@ -181,6 +188,7 @@ class WorkflowConfig:
             output_directory=Path(workflow["output_directory"]),
             default_environment=workflow.get("default_environment"),
             steps=steps,
+            max_attempts=workflow.get("max_attempts", DEFAULT_MAX_ATTEMPTS),
         )
 
     @classmethod
@@ -191,6 +199,7 @@ class WorkflowConfig:
         project: str | None = None,
         queue: str | None = None,
         output_directory: Path | None = None,
+        max_attempts: int | None = None,
     ) -> WorkflowConfig:
         """Load a WorkflowConfig from YAML, merging CLI overrides.
 
@@ -209,6 +218,8 @@ class WorkflowConfig:
             CLI override for the queue field.
         output_directory
             CLI override for the output directory.
+        max_attempts
+            CLI override for the maximum number of Jobmon task attempts.
 
         Raises
         ------
@@ -246,10 +257,22 @@ class WorkflowConfig:
             output_directory=resolved_output_directory,
             default_environment=workflow.get("default_environment"),
             steps=steps,
+            max_attempts=max_attempts or workflow.get("max_attempts", DEFAULT_MAX_ATTEMPTS),
         )
 
     def __post_init__(self) -> None:
         """Validate workflow-level constraints."""
+        # Validate project
+        if self.project not in VALID_PROJECTS:
+            raise ValueError(
+                f"Invalid project '{self.project}'. "
+                f"Must be one of: {sorted(VALID_PROJECTS)}."
+            )
+        # Validate queue
+        if self.queue not in VALID_QUEUES:
+            raise ValueError(
+                f"Invalid queue '{self.queue}'. " f"Must be one of: {sorted(VALID_QUEUES)}."
+            )
         # Unique step names
         names = [step.name for step in self.steps]
         if len(names) != len(set(names)):
@@ -264,6 +287,7 @@ class WorkflowConfig:
             "project": self.project,
             "queue": self.queue,
             "output_directory": str(self.output_directory),
+            "max_attempts": self.max_attempts,
         }
         if self.default_environment is not None:
             result["default_environment"] = self.default_environment
