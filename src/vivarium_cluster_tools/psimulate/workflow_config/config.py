@@ -31,7 +31,7 @@ class ResourceConfig:
     memory_gb: int
     """Memory in GB."""
     runtime: str = "01:00:00"
-    """Maximum runtime in 'hh:mm:ss' format."""
+    """Maximum runtime in ``hh:mm:ss`` format."""
     cores: int = 1
     """Number of CPU cores to request. Default is 1."""
 
@@ -39,7 +39,9 @@ class ResourceConfig:
 
     def __post_init__(self) -> None:
         if not self._RUNTIME_RE.match(self.runtime):
-            raise ValueError(f"Invalid runtime '{self.runtime}'. Expected format 'hh:mm:ss'.")
+            raise ValueError(
+                f"Invalid runtime '{self.runtime}'. Expected format ``hh:mm:ss``."
+            )
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> ResourceConfig:
