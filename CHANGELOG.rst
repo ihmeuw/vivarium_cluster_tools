@@ -1,3 +1,7 @@
+**3.2.0 - TBD/TBD/TBD**
+
+- Implement serial workflows via "psimulate workflow" command
+
 **3.1.0 - 04/16/26**
 
 - Tighten vivarium_build_utils pin
