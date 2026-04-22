@@ -10,8 +10,7 @@ Build Jobmon workflows from workflow configuration.
 from __future__ import annotations
 
 import os
-from pathlib import Path
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING
 
 from jobmon.client.api import Tool
 
@@ -19,19 +18,6 @@ from vivarium_cluster_tools.psimulate.workflow_config.config import StepConfig, 
 
 if TYPE_CHECKING:
     from jobmon.client.workflow import Workflow
-
-# Mapping of types to functions that resolve a command string from the step's configuration
-COMMAND_RESOLVERS: dict[
-    str, Callable[[str | list[str] | None, str | None, Path | None], str]
-] = {
-    "pytest": lambda path, args, output_directory: f"pytest {_join_paths(path)} {args or ''}".strip(),
-    "notebook": lambda path, args, output_directory: (
-        f"papermill {_get_single_path(path)} {_require_output_directory(output_directory)}/executed/"
-        f"{Path(_get_single_path(path)).name} {args or ''}"
-    ).strip(),
-    "python": lambda path, args, output_directory: f"python {_join_paths(path)} {args or ''}".strip(),
-    "shell": lambda path, args, output_directory: f"bash {_join_paths(path)} {args or ''}".strip(),
-}
 
 
 class WorkflowBuilder:
@@ -68,7 +54,6 @@ class WorkflowBuilder:
 
         tasks = []
         for step in self.config.steps:
-            command = resolve_command(step, self.config.output_directory)
             env = (
                 step.environment
                 or self.config.default_environment
@@ -93,7 +78,7 @@ class WorkflowBuilder:
                 name=step.name,
                 compute_resources=compute_resources,
                 env=env,
-                command=command,
+                command=step.command,
             )
             tasks.append(task)
 
@@ -104,51 +89,3 @@ class WorkflowBuilder:
         workflow.add_tasks(tasks)
 
         return workflow
-
-
-def _require_output_directory(output_directory: Path | None) -> Path:
-    """Return the output directory or raise if it is None."""
-    if output_directory is None:
-        raise ValueError("output_directory is required for notebook steps.")
-    return output_directory
-
-
-def _get_single_path(path: str | list[str] | None) -> str:
-    """Extract a single path string from various path formats."""
-    if path is None:
-        return ""
-    if isinstance(path, list):
-        if len(path) > 1:
-            raise ValueError(
-                f"Expected a single path but received {len(path)}: {path}. "
-                "Notebook steps only support a single path."
-            )
-        return str(path[0]) if path else ""
-    return str(path)
-
-
-def _join_paths(path: str | list[str] | None) -> str:
-    """Normalize path to a space-separated string."""
-    if path is None:
-        return ""
-    if isinstance(path, list):
-        return " ".join(str(p) for p in path)
-    return str(path)
-
-
-def resolve_command(step: StepConfig, output_directory: Path | None) -> str:
-    """Resolve a step's configuration into a shell command string.
-
-    For raw command steps, returns the command as-is.
-    For structured steps, uses the type to infer the command.
-    """
-    # Check command directly for type narrowing
-    if step.command is not None:
-        return step.command
-    # Check type and path directly for type narrowing
-    if step.type is not None and step.path is not None:
-        if step.type not in COMMAND_RESOLVERS:
-            raise ValueError(f"Step '{step.name}': unsupported step type '{step.type}'.")
-        resolver = COMMAND_RESOLVERS[step.type]
-        return resolver(step.path, step.args, output_directory)
-    raise ValueError(f"Step '{step.name}' has no command, type, or recognized bespoke name.")

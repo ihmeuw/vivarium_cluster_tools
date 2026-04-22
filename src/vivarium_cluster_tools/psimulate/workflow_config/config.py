@@ -31,7 +31,7 @@ class ResourceConfig:
     memory_gb: int
     """Memory in GB."""
     runtime: str = "01:00:00"
-    """Maximum runtime in ``hh:mm:ss`` format."""
+    """Maximum runtime in ``hh:mm:ss`` format. Default is ``01:00:00``."""
     cores: int = 1
     """Number of CPU cores to request. Default is 1."""
 

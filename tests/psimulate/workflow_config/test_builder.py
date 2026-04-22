@@ -8,10 +8,7 @@ from unittest.mock import MagicMock
 import pytest
 from pytest_mock import MockerFixture
 
-from vivarium_cluster_tools.psimulate.workflow_config.builder import (
-    WorkflowBuilder,
-    resolve_command,
-)
+from vivarium_cluster_tools.psimulate.workflow_config.builder import WorkflowBuilder
 from vivarium_cluster_tools.psimulate.workflow_config.config import (
     ResourceConfig,
     StepConfig,
@@ -88,77 +85,6 @@ class TestWorkflowBuilder:
         task2.add_upstream.assert_called_once_with(task1)
         # step3 depends on step2
         task3.add_upstream.assert_called_once_with(task2)
-
-
-class TestResolveCommand:
-    """Verify that ``resolve_command`` produces the correct shell command for each step type."""
-
-    def test_raw_command(self) -> None:
-        """A raw-command step returns the command as-is."""
-        step = StepConfig(
-            name="raw",
-            resources=ResourceConfig(memory_gb=1),
-            command="python scripts/analyze.py --input /results",
-        )
-        assert (
-            resolve_command(step, Path("/tmp"))
-            == "python scripts/analyze.py --input /results"
-        )
-
-    def test_pytest_single_path(self) -> None:
-        """A pytest step with a single path."""
-        step = StepConfig(
-            name="tests",
-            resources=ResourceConfig(memory_gb=1),
-            command="pytest tests/test_foo.py",
-        )
-        assert resolve_command(step, Path("/tmp")) == "pytest tests/test_foo.py"
-
-    def test_pytest_multiple_paths(self) -> None:
-        """A pytest step with multiple paths."""
-        step = StepConfig(
-            name="tests",
-            resources=ResourceConfig(memory_gb=1),
-            command="pytest tests/test_a.py tests/test_b.py",
-        )
-        assert resolve_command(step, Path("/tmp")) == "pytest tests/test_a.py tests/test_b.py"
-
-    def test_pytest_with_args(self) -> None:
-        """A pytest step with extra args."""
-        step = StepConfig(
-            name="tests",
-            resources=ResourceConfig(memory_gb=1),
-            command="pytest tests/ --runslow -x",
-        )
-        assert resolve_command(step, Path("/tmp")) == "pytest tests/ --runslow -x"
-
-    def test_notebook(self) -> None:
-        """A notebook step produces a papermill command."""
-        step = StepConfig(
-            name="nb",
-            resources=ResourceConfig(memory_gb=1),
-            command="papermill notebooks/results.ipynb /tmp/results/executed/results.ipynb",
-        )
-        result = resolve_command(step, Path("/tmp/results"))
-        assert (
-            result == "papermill notebooks/results.ipynb /tmp/results/executed/results.ipynb"
-        )
-
-    def test_python(self) -> None:
-        """A python step produces a python command."""
-        step = StepConfig(
-            name="py", resources=ResourceConfig(memory_gb=1), command="python scripts/run.py"
-        )
-        assert resolve_command(step, Path("/tmp")) == "python scripts/run.py"
-
-    def test_shell_with_args(self) -> None:
-        """A shell step with args."""
-        step = StepConfig(
-            name="sh",
-            resources=ResourceConfig(memory_gb=1),
-            command="bash scripts/setup.sh --env prod",
-        )
-        assert resolve_command(step, Path("/tmp")) == "bash scripts/setup.sh --env prod"
 
 
 class TestResourceDefaults:
