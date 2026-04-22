@@ -1,4 +1,4 @@
-**3.1.1 - 04/22/26*
+**3.1.1 - 04/22/26**
 
 - Remove hanging redis install in makefile
 
