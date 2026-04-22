@@ -16,5 +16,6 @@ from vivarium_cluster_tools.psimulate.cluster.cli_options import (
 )
 from vivarium_cluster_tools.psimulate.cluster.interface import (
     NativeSpecification,
+    get_runner_node_remaining_seconds,
     validate_cluster_environment,
 )

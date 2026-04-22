@@ -1,11 +1,17 @@
 import socket
+import subprocess
 from pathlib import Path
 from typing import Any
+from unittest.mock import patch
 
 import pytest
 
 from vivarium_cluster_tools.psimulate.cluster import validate_cluster_environment
-from vivarium_cluster_tools.psimulate.cluster.interface import NativeSpecification
+from vivarium_cluster_tools.psimulate.cluster.interface import (
+    NativeSpecification,
+    _parse_slurm_time,
+    get_runner_node_remaining_seconds,
+)
 
 
 @pytest.fixture(
@@ -124,3 +130,129 @@ class TestNativeSpecification:
     )
     def test_runtime_to_seconds(self, runtime_str: str, expected: int) -> None:
         assert NativeSpecification._runtime_to_seconds(runtime_str) == expected
+
+
+class TestParseSlurmTime:
+    """Tests for _parse_slurm_time."""
+
+    @pytest.mark.parametrize(
+        "time_str, expected",
+        [
+            ("10:00:00", 36000),
+            ("1:30:00", 5400),
+            ("00:05:00", 300),
+            ("5:00", 300),
+            ("59", 59),
+            ("0:59", 59),
+            ("1-00:00:00", 86400),
+            ("2-12:00:00", 2 * 86400 + 12 * 3600),
+            ("1-01:30:45", 86400 + 3600 + 30 * 60 + 45),
+        ],
+    )
+    def test_parse_slurm_time(self, time_str: str, expected: int) -> None:
+        assert _parse_slurm_time(time_str) == expected
+
+    @pytest.mark.parametrize(
+        "bad_value",
+        ["UNLIMITED", "NOT_SET", "abc", "1:2:3:4", "--:--", ""],
+    )
+    def test_parse_slurm_time_rejects_invalid(self, bad_value: str) -> None:
+        with pytest.raises(ValueError, match="Unrecognized SLURM time format"):
+            _parse_slurm_time(bad_value)
+
+
+class TestGetRunnerNodeRemainingSeconds:
+    """Tests for get_runner_node_remaining_seconds."""
+
+    @pytest.fixture(autouse=True)
+    def _set_slurm_job_id(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Set SLURM_JOB_ID for all tests; individual tests can override."""
+        monkeypatch.setenv("SLURM_JOB_ID", "12345")
+
+    def test_no_slurm_job_id(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Raise when not inside a SLURM allocation."""
+        monkeypatch.delenv("SLURM_JOB_ID")
+        with pytest.raises(RuntimeError, match="SLURM_JOB_ID is not set"):
+            get_runner_node_remaining_seconds()
+
+    def test_returns_remaining_minus_buffer(self) -> None:
+        """Return remaining seconds minus the safety buffer."""
+        completed = _make_squeue_result("10:00:00")
+        with patch("subprocess.run", return_value=completed):
+            result = get_runner_node_remaining_seconds()
+        assert result == 36000 - 120
+
+    def test_raises_for_unlimited(self) -> None:
+        """Raise when SLURM reports UNLIMITED time."""
+        completed = _make_squeue_result("UNLIMITED")
+        with patch("subprocess.run", return_value=completed):
+            with pytest.raises(ValueError, match="Unrecognized SLURM time format"):
+                get_runner_node_remaining_seconds()
+
+    @pytest.mark.parametrize(
+        "bad_value",
+        ["NOT_SET", "INVALID", "abc:def:ghi", "--:--:--", "inf"],
+        ids=["NOT_SET", "INVALID", "non-numeric-colons", "dashes", "inf"],
+    )
+    def test_raises_for_non_time_strings(self, bad_value: str) -> None:
+        """Raise when squeue returns a non-numeric time string."""
+        completed = _make_squeue_result(bad_value)
+        with patch("subprocess.run", return_value=completed):
+            with pytest.raises(ValueError, match="Unrecognized SLURM time format"):
+                get_runner_node_remaining_seconds()
+
+    def test_raises_when_remaining_less_than_buffer(self) -> None:
+        """Raise when remaining time is less than the safety buffer."""
+        completed = _make_squeue_result("00:01:00")  # 60 seconds < 120 buffer
+        with patch("subprocess.run", return_value=completed):
+            with pytest.raises(RuntimeError, match="Not enough time"):
+                get_runner_node_remaining_seconds()
+
+    def test_raises_when_remaining_exactly_equals_buffer(self) -> None:
+        """Raise when remaining time exactly equals the safety buffer."""
+        completed = _make_squeue_result("00:02:00")  # 120 seconds == buffer
+        with patch("subprocess.run", return_value=completed):
+            with pytest.raises(RuntimeError, match="Not enough time"):
+                get_runner_node_remaining_seconds()
+
+    def test_raises_on_subprocess_error(self) -> None:
+        """Raise when squeue fails."""
+        with patch("subprocess.run", side_effect=FileNotFoundError("squeue not found")):
+            with pytest.raises(RuntimeError, match="Could not determine"):
+                get_runner_node_remaining_seconds()
+
+    def test_raises_on_subprocess_timeout(self) -> None:
+        """Raise when squeue times out."""
+        with patch(
+            "subprocess.run",
+            side_effect=subprocess.TimeoutExpired(cmd="squeue", timeout=10),
+        ):
+            with pytest.raises(RuntimeError, match="Could not determine"):
+                get_runner_node_remaining_seconds()
+
+    def test_raises_on_empty_squeue_output(self) -> None:
+        """Raise when squeue returns empty output."""
+        completed = _make_squeue_result("")
+        with patch("subprocess.run", return_value=completed):
+            with pytest.raises(RuntimeError, match="no output"):
+                get_runner_node_remaining_seconds()
+
+    def test_handles_day_format(self) -> None:
+        """Handle D-HH:MM:SS format from squeue."""
+        completed = _make_squeue_result("1-12:00:00")
+        with patch("subprocess.run", return_value=completed):
+            result = get_runner_node_remaining_seconds()
+        expected = (86400 + 12 * 3600) - 120
+        assert result == expected
+
+
+def _make_squeue_result(time_str: str) -> Any:
+    """Create a mock subprocess.CompletedProcess for squeue output."""
+    from subprocess import CompletedProcess
+
+    return CompletedProcess(
+        args=["squeue", "-h", "-j", "12345", "-o", "%L"],
+        returncode=0,
+        stdout=f"{time_str}\n",
+        stderr="",
+    )
