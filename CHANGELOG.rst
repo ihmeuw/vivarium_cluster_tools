@@ -1,3 +1,7 @@
+**3.2.0 - TBD/TBD/TBD**
+
+- Implement serial workflows via "psimulate workflow" command
+
 **3.1.3 - 05/07/26**
 
 - Set VCT to run E2E tests on slurm weekly
