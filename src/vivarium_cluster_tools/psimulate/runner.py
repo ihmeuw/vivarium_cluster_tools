@@ -7,11 +7,13 @@ The main process loop for `psimulate` runs.
 
 """
 
+from __future__ import annotations
+
 import hashlib
 import os
 import shutil
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pandas as pd
 import yaml
@@ -37,11 +39,52 @@ from vivarium_cluster_tools.psimulate.performance_logger import (
 )
 from vivarium_cluster_tools.psimulate.results.writing import collect_metadata
 from vivarium_cluster_tools.psimulate.workflow_config.builder import WorkflowBuilder
+from vivarium_cluster_tools.psimulate.workflow_config.config import WorkflowConfig
 from vivarium_cluster_tools.vipin.perf_report import report_performance
+
+if TYPE_CHECKING:
+    from jobmon.client.workflow import Workflow
+
+
+def _bind_and_run_workflow(
+    workflow: Workflow,
+    output_root: Path,
+    *,
+    resume: bool = False,
+) -> str:
+    """Bind a Jobmon workflow, log the monitoring URL, and run it.
+
+    Parameters
+    ----------
+    workflow
+        The Jobmon workflow to submit.
+    output_root
+        Output directory to mention in log messages.
+    resume
+        Whether to resume a previously started workflow.
+
+    Returns
+    -------
+    str
+        The workflow status string from Jobmon (e.g. ``"D"`` for DONE).
+    """
+    workflow.bind()
+
+    gui_url = JobmonConfig().get("http", "gui_url")
+    monitoring_url = f"{gui_url}/#/workflow/{workflow.workflow_id}" if gui_url else ""
+
+    logger.info(f"Submitting Jobmon workflow. Results will be written to {output_root}")
+    if monitoring_url:
+        logger.info(f"Monitor progress at: {monitoring_url}")
+
+    wf_status = workflow.run(resume=resume)
+    if wf_status is None:
+        raise RuntimeError("Jobmon workflow.run() returned None unexpectedly.")
+    return wf_status
 
 
 def workflow_main(
-    workflow_config: Any,  # Will be WorkflowConfig type
+    workflow_config: WorkflowConfig,
     verbose: int = 0,
 ) -> None:
     """Entry point for the psimulate workflow subcommand.
@@ -60,40 +103,14 @@ def workflow_main(
     output_root.mkdir(parents=True, exist_ok=True)
 
     # Write the requested configuration to output directory
-    write_configuration(
-        output_root=output_root,
-        command="workflow",
-        input_paths=None,
-        native_specification=cluster.NativeSpecification(
-            job_name=workflow_config.name,
-            project=workflow_config.project,
-            queue=workflow_config.queue,
-            peak_memory=4,  # Default, steps have their own resources
-            max_runtime="01:00:00",
-            hardware=[],
-        ),
-        max_workers=None,  # Not used for workflow command
-        max_attempts=3,
-        backup_freq=None,
-        extra_args={"workflow_config": workflow_config},
-    )
+    write_workflow_configuration(output_root, workflow_config)
 
     # Build the workflow
     logger.debug("Building workflow.")
     builder = WorkflowBuilder(workflow_config)
     workflow = builder.build()
 
-    # Bind and run
-    workflow.bind()
-
-    gui_url = JobmonConfig().get("http", "gui_url")
-    monitoring_url = f"{gui_url}/#/workflow/{workflow.workflow_id}" if gui_url else ""
-
-    logger.info(f"Submitting workflow. Results will be written to {output_root}")
-    if monitoring_url:
-        logger.info(f"Monitor progress at: {monitoring_url}")
-
-    wf_status = workflow.run()
+    wf_status = _bind_and_run_workflow(workflow, output_root)
 
     if wf_status != "D":
         logger.warning(
@@ -163,12 +180,31 @@ def write_backup_metadata(
     )
 
 
+def write_workflow_configuration(output_root: Path, workflow_config: WorkflowConfig) -> None:
+    """Write workflow configuration to a YAML file in the output directory.
+
+    Creates a ``configuration.yaml`` that can be reused directly with
+    ``psimulate workflow -c configuration.yaml``.
+
+    Parameters
+    ----------
+    output_root
+        The root output directory for the workflow.
+    workflow_config
+        The parsed and validated workflow configuration.
+    """
+    config: dict[str, Any] = {"workflow": workflow_config.to_dict()}
+    config_file = output_root / "configuration.yaml"
+    config_file.write_text(yaml.dump(config, default_flow_style=False, sort_keys=False))
+    logger.info(f"Run configuration written to {config_file}")
+
+
 def write_configuration(
     output_root: Path,
     command: str,
-    input_paths: paths.InputPaths | None,
+    input_paths: paths.InputPaths,
     native_specification: cluster.NativeSpecification,
-    max_workers: int | None,
+    max_workers: int,
     max_attempts: int,
     backup_freq: int | None,
     extra_args: dict[str, Any],
@@ -185,66 +221,52 @@ def write_configuration(
     output_root
         The root output directory for the simulation run.
     command
-        The psimulate sub-command (e.g. ``"run"``, ``"restart"``, ``"expand"``, ``"workflow"``).
+        The psimulate sub-command (e.g. ``"run"``, ``"restart"``, ``"expand"``).
     input_paths
-        The resolved input file paths. None for workflow command.
+        The resolved input file paths.
     native_specification
         The cluster resource specification.
     max_workers
-        Maximum number of concurrent workers. Not used for workflow command.
+        Maximum number of concurrent workers.
     max_attempts
         Maximum number of Jobmon task attempts.
     backup_freq
         Interval in seconds between saving backups, or ``None`` to disable.
     extra_args
         Additional command-specific arguments (e.g. ``sim_verbosity``,
-        ``num_draws``, ``num_seeds``, ``workflow_config``).
+        ``num_draws``, ``num_seeds``).
 
     """
     config: dict[str, Any] = {}
 
-    # Handle workflow command
-    if command == "workflow":
-        # For workflow, write the complete workflow definition (with CLI overrides applied)
-        # so the configuration.yaml can be reused directly with: psimulate workflow -c configuration.yaml
-        workflow_config = extra_args.get("workflow_config")
-        if workflow_config:
-            # Use the WorkflowConfig.to_dict() method to serialize
-            config["workflow"] = workflow_config.to_dict()
     # Input paths – keys match the names accepted by --run-config
-    elif command == COMMANDS.run:
-        if input_paths is not None:
-            if input_paths.model_specification is not None:
-                config["model_specification"] = str(input_paths.model_specification)
-            if input_paths.branch_configuration is not None:
-                config["branch_configuration"] = str(input_paths.branch_configuration)
-            config["result_directory"] = str(input_paths.result_directory)
-            if input_paths.artifact is not None:
-                config["artifact_path"] = str(input_paths.artifact)
+    if command == COMMANDS.run:
+        if input_paths.model_specification is not None:
+            config["model_specification"] = str(input_paths.model_specification)
+        if input_paths.branch_configuration is not None:
+            config["branch_configuration"] = str(input_paths.branch_configuration)
+        config["result_directory"] = str(input_paths.result_directory)
+        if input_paths.artifact is not None:
+            config["artifact_path"] = str(input_paths.artifact)
     else:
         # restart / expand – the result directory *is* the results_root
-        if input_paths is not None:
-            config["results_root"] = str(input_paths.result_directory)
+        config["results_root"] = str(input_paths.result_directory)
 
-    # Cluster resources (not needed for workflow - they're in pipeline config)
-    # NOTE: # Cluster resources are already in the pipeline config, so don't duplicate them at root level
-    if command != "workflow":
-        if max_workers is None:
-            raise ValueError(f"max_workers is required for command '{command}'")
-        config["project"] = native_specification.project
-        config["queue"] = native_specification.queue
-        config["peak_memory"] = native_specification.peak_memory
-        config["max_runtime"] = native_specification.max_runtime
-        if native_specification.hardware:
-            config["hardware"] = ",".join(native_specification.hardware)
+    # Cluster resources
+    config["project"] = native_specification.project
+    config["queue"] = native_specification.queue
+    config["peak_memory"] = native_specification.peak_memory
+    config["max_runtime"] = native_specification.max_runtime
+    if native_specification.hardware:
+        config["hardware"] = ",".join(native_specification.hardware)
 
-        # Execution parameters
-        config["max_workers"] = max_workers
-        config["max_attempts"] = max_attempts
-        if backup_freq is not None:
-            # backup_freq is stored in seconds; convert back to minutes for the CLI.
-            # Written as a string so Click's MinutesOrNone type can parse it.
-            config["backup_freq"] = str(backup_freq / 60.0)
+    # Execution parameters
+    config["max_workers"] = max_workers
+    config["max_attempts"] = max_attempts
+    if backup_freq is not None:
+        # backup_freq is stored in seconds; convert back to minutes for the CLI.
+        # Written as a string so Click's MinutesOrNone type can parse it.
+        config["backup_freq"] = str(backup_freq / 60.0)
 
     # Command-specific extras
     if "sim_verbosity" in extra_args:
@@ -399,20 +421,7 @@ def main(
         max_attempts=max_attempts,
     )
 
-    # Bind the workflow to get its ID before running, so we can display the
-    # monitoring URL immediately rather than waiting for run() to finish.
-    workflow.bind()
-
-    gui_url = JobmonConfig().get("http", "gui_url")
-    monitoring_url = f"{gui_url}/#/workflow/{workflow.workflow_id}" if gui_url else ""
-
-    logger.info(
-        f"Submitting Jobmon workflow. Results will be written to {str(output_paths.root)}",
-    )
-    if monitoring_url:
-        logger.info(f"Monitor progress at: {monitoring_url}")
-
-    wf_status = workflow.run(resume=restart)
+    wf_status = _bind_and_run_workflow(workflow, output_paths.root, resume=restart)
 
     # Spit out a performance report for the workers.
     try_run_vipin(output_paths)

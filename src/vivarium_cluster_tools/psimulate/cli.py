@@ -420,21 +420,14 @@ def test(
 @click.option(
     "--project",
     "-P",
-    type=click.Choice(
-        [
-            "proj_simscience",
-            "proj_simscience_prod",
-        ]
-    ),
     default=None,
     help="Override project from config file.",
 )
 @click.option(
     "--queue",
     "-q",
-    type=click.Choice(["all.q", "long.q"]),
     default=None,
-    help="Override queue from config file. Defaults to 'all.q' if not specified.",
+    help="Override queue from config file.",
 )
 @click.option(
     "--output-directory",
@@ -443,6 +436,13 @@ def test(
     default=None,
     help="Override output directory from config file.",
     callback=cli_tools.coerce_to_full_path,
+)
+@click.option(
+    "--max-attempts",
+    "-m",
+    type=click.IntRange(min=1),
+    default=None,
+    help="Override maximum Jobmon task attempts from config file.",
 )
 @cli_tools.with_verbose_and_pdb
 def workflow(
@@ -461,31 +461,14 @@ def workflow(
     """
     logs.configure_main_process_logging_to_terminal(options["verbose"])
 
-    # Parse the workflow configuration
-    workflow_config = WorkflowConfig.from_yaml(config_path)
-
-    # Apply CLI overrides
-    if options.get("project") is not None:
-        workflow_config.project = options["project"]
-    if options.get("queue") is not None:
-        workflow_config.queue = options["queue"]
-    if output_directory is not None:
-        workflow_config.output_directory = output_directory
-
-    # Validate required fields
-    if not workflow_config.project:
-        raise click.UsageError(
-            "Project is required. Provide it in the config file or via --project/-P."
-        )
-    if not workflow_config.output_directory:
-        raise click.UsageError(
-            "Output directory is required. Provide it in the config file or via --output-directory/-o."
-        )
-
-    # Set default queue if not provided
-    if not workflow_config.queue:
-        workflow_config.queue = "all.q"
-        logger.debug("No queue specified, defaulting to 'all.q'.")
+    # Parse the workflow configuration, merging CLI overrides
+    workflow_config = WorkflowConfig.from_yaml_with_cli_overrides(
+        config_path,
+        project=options.get("project"),
+        queue=options.get("queue"),
+        output_directory=output_directory,
+        max_attempts=options.get("max_attempts"),
+    )
 
     main = handle_exceptions(runner.workflow_main, logger, options["with_debugger"])
 

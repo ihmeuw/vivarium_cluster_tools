@@ -9,11 +9,10 @@ import yaml
 
 
 def make_step_dict(**overrides: Any) -> dict[str, Any]:
-    """Create a minimal valid structured step dict with sensible defaults."""
+    """Create a minimal valid step dict with sensible defaults."""
     defaults: dict[str, Any] = {
         "name": "test_step",
-        "type": "pytest",
-        "path": "tests/test_something.py",
+        "command": "echo test",
         "resources": {
             "memory_gb": 4,
             "runtime": "01:00:00",
@@ -35,12 +34,7 @@ def make_workflow_dict(**overrides: Any) -> dict[str, Any]:
         steps = [
             {
                 "name": "pre_tests",
-                "type": "pytest",
-                "path": [
-                    "tests/test_lbwsg.py",
-                    "tests/test_mortality.py",
-                ],
-                "args": "--runslow",
+                "command": "pytest tests/test_lbwsg.py tests/test_mortality.py --runslow",
                 "resources": {
                     "memory_gb": 10,
                     "runtime": "01:00:00",

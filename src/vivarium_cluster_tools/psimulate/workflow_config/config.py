@@ -16,23 +16,22 @@ from typing import Any
 
 import yaml
 
-SUPPORTED_STEP_TYPES = {"pytest", "notebook", "python", "shell"}
-# NOTE: Each step type will map to a specific execution strategy. Pytest will run pytest
-# test suites, notebook will execute Juypter notebooks, python will run Python scripts,
-# and shell will execute raw shell commands. Users will only need to know the support types,
-# and on the backend developers can choose how these are implemented, leaving room for future flexibility.
-
 REQUIRED_WORKFLOW_FIELDS = {"name", "steps"}
+
+DEFAULT_MAX_ATTEMPTS = 2
+
+VALID_PROJECTS = {"proj_simscience", "proj_simscience_prod"}
+VALID_QUEUES = {"all.q", "long.q"}
 
 
 @dataclass
 class ResourceConfig:
     """Compute resource specification for a workflow step."""
 
-    memory_gb: float = 4
-    """Memory in GB. Default is 4."""
+    memory_gb: int
+    """Memory in GB."""
     runtime: str = "01:00:00"
-    """Maximum runtime in 'hh:mm:ss' format. Default is '01:00:00'."""
+    """Maximum runtime in ``hh:mm:ss`` format. Default is ``01:00:00``."""
     cores: int = 1
     """Number of CPU cores to request. Default is 1."""
 
@@ -40,16 +39,19 @@ class ResourceConfig:
 
     def __post_init__(self) -> None:
         if not self._RUNTIME_RE.match(self.runtime):
-            raise ValueError(f"Invalid runtime '{self.runtime}'. Expected format 'hh:mm:ss'.")
+            raise ValueError(
+                f"Invalid runtime '{self.runtime}'. Expected format ``hh:mm:ss``."
+            )
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> ResourceConfig:
         """Create a ResourceConfig from a dictionary."""
-        return cls(
-            memory_gb=data.get("memory_gb", 4),
-            runtime=data.get("runtime", "01:00:00"),
-            cores=data.get("cores", 1),
-        )
+        kwargs: dict[str, Any] = {"memory_gb": data["memory_gb"]}
+        if "runtime" in data:
+            kwargs["runtime"] = data["runtime"]
+        if "cores" in data:
+            kwargs["cores"] = data["cores"]
+        return cls(**kwargs)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to a dictionary, omitting None values and default cores."""
@@ -71,72 +73,24 @@ class StepConfig:
     """Unique name for this step within the workflow."""
     resources: ResourceConfig
     """Resource configuration for this step."""
-    command: str | None = None
-    """Raw command string to execute for this step. Mutually exclusive with 'type' and 'path'."""
-    type: str | None = None
-    """Structured step type (e.g. 'pytest', 'notebook'). Requires 'path' to be provided."""
-    path: str | list[str] | None = None
-    """Path(s) to the module or directory for structured steps. Required if 'type' is provided."""
-    args: str | None = None
-    """Optional additional arguments for structured steps, passed as a single string."""
+    command: str
+    """Command string to execute for this step."""
     environment: str | None = None
     """Optional environment name to use for this step."""
 
-    @property
-    def is_structured(self) -> bool:
-        """True if the step uses type + path."""
-        return self.type is not None and self.path is not None
-
-    @property
-    def is_raw_command(self) -> bool:
-        """True if the step uses a raw command string."""
-        return self.command is not None
-
-    def _validate(self) -> None:
-        """Validate this step's internal consistency."""
-        # Validate step type if provided
-        if self.type is not None and self.type not in SUPPORTED_STEP_TYPES:
-            raise ValueError(
-                f"Step '{self.name}': unsupported type '{self.type}'. "
-                f"Must be one of {sorted(SUPPORTED_STEP_TYPES)}."
-            )
-
-        # type requires path
-        if self.type is not None and self.path is None:
-            raise ValueError(f"Step '{self.name}': 'type' requires 'path' to be provided.")
-
-        # Must not have both command and type+path
-        if self.is_raw_command and self.is_structured:
-            raise ValueError(
-                f"Step '{self.name}': provide 'command' OR 'type'+'path', not both."
-            )
-
-        # Command should not be mixed with type, path, or args
-        if self.command is not None and (
-            self.type is not None or self.path is not None or self.args is not None
-        ):
-            raise ValueError(
-                f"Step '{self.name}': 'command' cannot be combined with 'type', 'path', or 'args'. "
-                "Use 'command' alone for raw commands, or 'type'+'path' for structured steps."
-            )
-
-        # Must have at least one of command or type+path
-        if not self.is_raw_command and not self.is_structured:
-            raise ValueError(f"Step '{self.name}': must provide 'command' or 'type'+'path'.")
+    def __post_init__(self) -> None:
+        if not self.name:
+            raise ValueError("Step 'name' is required.")
+        if not self.resources:
+            raise ValueError(f"Step '{self.name}': 'resources' is required.")
+        if not self.command:
+            raise ValueError(f"Step '{self.name}': 'command' is required.")
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to a dictionary, omitting None values."""
         result: dict[str, Any] = {"name": self.name}
 
-        # Add command or type+path (only non-None values)
-        if self.command is not None:
-            result["command"] = self.command
-        if self.type is not None:
-            result["type"] = self.type
-        if self.path is not None:
-            result["path"] = self.path
-        if self.args is not None:
-            result["args"] = self.args
+        result["command"] = self.command
 
         # Add environment if specified
         if self.environment is not None:
@@ -157,78 +111,150 @@ class WorkflowConfig:
 
     name: str
     """Name of the workflow. This is what will be displayed in Jobmon"""
-    project: str | None
+    project: str
     """Project that this workflow will be run under. E.g. 'proj_simscience'."""
-    queue: str | None
+    queue: str
     """Queue to submit the workflow to."""
-    output_directory: Path | None
+    output_directory: Path
     """Directory where workflow outputs will be stored."""
     default_environment: str | None
     """Default environment to use for steps that do not specify one."""
     steps: list[StepConfig]
     """List of sequential steps in the workflow."""
+    max_attempts: int = DEFAULT_MAX_ATTEMPTS
+    """Maximum number of Jobmon task attempts. Default is 2."""
 
-    @classmethod
-    def from_yaml(cls, path: Path) -> WorkflowConfig:
-        """Load, validate, and return a WorkflowConfig from a YAML file."""
+    @staticmethod
+    def _parse_yaml_file(path: Path) -> dict[str, Any]:
+        """Read and perform basic structural validation on a workflow YAML file.
+
+        Returns the ``workflow`` dict from inside the top-level key.
+
+        Parameters
+        ----------
+        path
+            Path to the YAML file.
+        """
         with path.open() as f:
             raw = yaml.safe_load(f)
 
         if not isinstance(raw, dict) or "workflow" not in raw:
-            raise ValueError(
-                "Workflow configuration must contain a top-level 'workflow' key."
-            )
+            raise KeyError("Workflow configuration must contain a top-level 'workflow' key.")
 
-        workflow = raw["workflow"]
+        workflow: dict[str, Any] = raw["workflow"]
 
         # Check required top-level fields
         for field_name in REQUIRED_WORKFLOW_FIELDS:
             if field_name not in workflow:
-                raise ValueError(
+                raise KeyError(
                     f"Workflow configuration is missing required field '{field_name}'."
                 )
 
         raw_steps = workflow["steps"]
         if not raw_steps:
-            raise ValueError("Workflow 'steps' must not be empty.")
+            raise KeyError("Workflow 'steps' must not be empty.")
 
+        return workflow
+
+    @staticmethod
+    def _parse_steps(raw_steps: list[dict[str, Any]]) -> list[StepConfig]:
+        """Parse a list of raw step dicts into ``StepConfig`` objects."""
         steps = []
         for step_dict in raw_steps:
-            step_name = step_dict["name"]
-            raw_resources = step_dict.get("resources")
-            if raw_resources is None:
-                raise ValueError(f"Step '{step_name}': 'resources' is required.")
             step = StepConfig(
-                name=step_name,
-                resources=ResourceConfig.from_dict(raw_resources),
-                command=step_dict.get("command"),
-                type=step_dict.get("type"),
-                path=step_dict.get("path"),
-                args=step_dict.get("args"),
+                name=step_dict["name"],
+                resources=ResourceConfig.from_dict(step_dict["resources"]),
+                command=step_dict["command"],
                 environment=step_dict.get("environment"),
             )
-            step._validate()
             steps.append(step)
+        return steps
 
-        config = cls(
+    @classmethod
+    def from_yaml_with_cli_overrides(
+        cls,
+        path: Path,
+        *,
+        project: str | None = None,
+        queue: str | None = None,
+        output_directory: Path | None = None,
+        max_attempts: int | None = None,
+    ) -> WorkflowConfig:
+        """Load a WorkflowConfig from YAML, merging CLI overrides.
+
+        CLI arguments take precedence over values in the YAML file.
+        Validates that ``project``, ``queue``, and ``output_directory`` are provided
+        by at least one source
+
+        Parameters
+        ----------
+        path
+            Path to the workflow YAML configuration file.
+        project
+            CLI override for the project field.
+        queue
+            CLI override for the queue field.
+        output_directory
+            CLI override for the output directory.
+        max_attempts
+            CLI override for the maximum number of Jobmon task attempts.
+
+        Raises
+        ------
+        KeyError
+            If ``project``, ``queue``, or ``output_directory`` cannot be resolved
+            from either the YAML file or CLI arguments.
+        """
+        workflow = cls._parse_yaml_file(path)
+        steps = cls._parse_steps(workflow["steps"])
+
+        resolved_project = project or workflow.get("project")
+        resolved_queue = queue or workflow.get("queue")
+        resolved_output_directory = output_directory or (
+            Path(workflow["output_directory"]) if "output_directory" in workflow else None
+        )
+
+        if not resolved_project:
+            raise KeyError(
+                "Project is required. Provide it in the config file or via --project/-P."
+            )
+        if not resolved_queue:
+            raise KeyError(
+                "Queue is required. Provide it in the config file or via --queue/-q."
+            )
+        if not resolved_output_directory:
+            raise KeyError(
+                "Output directory is required. Provide it in the config file "
+                "or via --output-directory/-o."
+            )
+
+        return cls(
             name=workflow["name"],
-            project=workflow.get("project"),
-            queue=workflow.get("queue"),
-            output_directory=Path(workflow["output_directory"])
-            if "output_directory" in workflow
-            else None,
+            project=resolved_project,
+            queue=resolved_queue,
+            output_directory=resolved_output_directory,
             default_environment=workflow.get("default_environment"),
             steps=steps,
+            max_attempts=max_attempts or workflow.get("max_attempts", DEFAULT_MAX_ATTEMPTS),
         )
-        config._validate()
-        return config
 
-    def _validate(self) -> None:
+    def __post_init__(self) -> None:
         """Validate workflow-level constraints."""
+        # Validate project
+        if self.project not in VALID_PROJECTS:
+            raise ValueError(
+                f"Invalid project '{self.project}'. "
+                f"Must be one of: {sorted(VALID_PROJECTS)}."
+            )
+        # Validate queue
+        if self.queue not in VALID_QUEUES:
+            raise ValueError(
+                f"Invalid queue '{self.queue}'. " f"Must be one of: {sorted(VALID_QUEUES)}."
+            )
         # Unique step names
         names = [step.name for step in self.steps]
         if len(names) != len(set(names)):
-            raise ValueError(
+            raise KeyError(
                 f"Step names must be unique. Duplicate names found: {[name for name in names if names.count(name) > 1]}"
             )
 
@@ -236,20 +262,13 @@ class WorkflowConfig:
         """Serialize to a dictionary suitable for YAML output."""
         result: dict[str, Any] = {
             "name": self.name,
+            "project": self.project,
+            "queue": self.queue,
+            "output_directory": str(self.output_directory),
+            "max_attempts": self.max_attempts,
         }
-
-        if self.project is not None:
-            result["project"] = self.project
-
-        if self.queue is not None:
-            result["queue"] = self.queue
-
-        if self.output_directory is not None:
-            result["output_directory"] = str(self.output_directory)
-
         if self.default_environment is not None:
             result["default_environment"] = self.default_environment
-
         result["steps"] = [step.to_dict() for step in self.steps]
 
         return result

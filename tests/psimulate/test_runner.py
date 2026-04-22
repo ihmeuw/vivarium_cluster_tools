@@ -16,6 +16,7 @@ from vivarium_cluster_tools.psimulate.runner import (
     report_initial_status,
     write_backup_metadata,
     write_configuration,
+    write_workflow_configuration,
 )
 
 _RUNNER_MAIN = "vivarium_cluster_tools.psimulate.runner.main"
@@ -357,7 +358,7 @@ def test_reuse_configuration_yaml(tmp_path: Path) -> None:
 
 
 def test_write_configuration_workflow_command(tmp_path: Path) -> None:
-    """Verify that write_configuration works for the 'workflow' command."""
+    """Verify that write_workflow_configuration works for the 'workflow' command."""
     output_dir = tmp_path / "workflow_output"
     output_dir.mkdir()
 
@@ -377,36 +378,24 @@ def test_write_configuration_workflow_command(tmp_path: Path) -> None:
         steps=[
             StepConfig(
                 name="test_step",
-                type="pytest",
-                path="tests/",
+                command="pytest tests/",
                 resources=ResourceConfig(memory_gb=4, runtime="01:00:00"),
             )
         ],
     )
 
-    write_configuration(
-        output_root=output_dir,
-        command="workflow",
-        input_paths=None,  # workflow doesn't use InputPaths
-        native_specification=_make_native_spec(
-            project=workflow_config.project,
-            queue=workflow_config.queue,
-        ),
-        max_workers=None,
-        max_attempts=3,
-        backup_freq=None,
-        extra_args={"workflow_config": workflow_config},
-    )
+    write_workflow_configuration(output_dir, workflow_config)
 
     config = _read_configuration_yaml(output_dir)
     assert config["workflow"]["name"] == "test_workflow"
     assert config["workflow"]["project"] == "proj_simscience"
     assert config["workflow"]["queue"] == "all.q"
     assert config["workflow"]["output_directory"] == str(output_dir)
+    assert config["workflow"]["max_attempts"] == 2
     # Verify steps are included
     assert len(config["workflow"]["steps"]) == 1
     assert config["workflow"]["steps"][0]["name"] == "test_step"
-    assert config["workflow"]["steps"][0]["type"] == "pytest"
+    assert config["workflow"]["steps"][0]["command"] == "pytest tests/"
 
 
 def test_workflow_configuration_includes_cli_overrides(tmp_path: Path) -> None:
@@ -427,7 +416,7 @@ def test_workflow_configuration_includes_cli_overrides(tmp_path: Path) -> None:
                         {
                             "name": "test_step",
                             "command": "echo test",
-                            "resources": {"memory": 4},
+                            "resources": {"memory_gb": 4},
                         }
                     ],
                 }
@@ -437,21 +426,9 @@ def test_workflow_configuration_includes_cli_overrides(tmp_path: Path) -> None:
 
     cli_runner = CliRunner()
     with patch("vivarium_cluster_tools.psimulate.runner.workflow_main") as mock_workflow_main:
-        # Mock workflow_main to call write_configuration
+        # Mock workflow_main to call write_workflow_configuration
         def mock_impl(**kwargs: Any) -> None:
-            write_configuration(
-                output_root=output_dir,
-                command="workflow",
-                input_paths=None,
-                native_specification=_make_native_spec(
-                    project=kwargs["workflow_config"].project,
-                    queue=kwargs["workflow_config"].queue,
-                ),
-                max_workers=None,
-                max_attempts=3,
-                backup_freq=None,
-                extra_args={"workflow_config": kwargs["workflow_config"]},
-            )
+            write_workflow_configuration(output_dir, kwargs["workflow_config"])
 
         mock_workflow_main.side_effect = mock_impl
 
