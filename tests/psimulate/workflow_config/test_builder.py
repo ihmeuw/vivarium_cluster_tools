@@ -10,8 +10,8 @@ from pytest_mock import MockerFixture
 
 from vivarium_cluster_tools.psimulate.workflow_config.builder import WorkflowBuilder
 from vivarium_cluster_tools.psimulate.workflow_config.config import (
+    CommandStepConfig,
     ResourceConfig,
-    StepConfig,
     WorkflowConfig,
 )
 
@@ -26,13 +26,13 @@ def three_step_config() -> WorkflowConfig:
         output_directory=Path("/tmp/results"),
         default_environment=None,
         steps=[
-            StepConfig(
+            CommandCommandStepConfig(
                 name="step1", resources=ResourceConfig(memory_gb=1), command="echo step1"
             ),
-            StepConfig(
+            CommandCommandStepConfig(
                 name="step2", resources=ResourceConfig(memory_gb=1), command="echo step2"
             ),
-            StepConfig(
+            CommandCommandStepConfig(
                 name="step3", resources=ResourceConfig(memory_gb=1), command="echo step3"
             ),
         ],
@@ -99,7 +99,7 @@ class TestResourceDefaults:
             output_directory=Path("/tmp/results"),
             default_environment=None,
             steps=[
-                StepConfig(
+                CommandStepConfig(
                     name="s1", resources=ResourceConfig(memory_gb=1), command="echo hi"
                 )
             ],
@@ -122,7 +122,7 @@ class TestResourceDefaults:
             output_directory=Path("/tmp/results"),
             default_environment=None,
             steps=[
-                StepConfig(
+                CommandStepConfig(
                     name="s1",
                     resources=ResourceConfig(memory_gb=16, runtime="04:00:00", cores=8),
                     command="echo hi",
@@ -151,7 +151,7 @@ class TestEnvironmentResolution:
             output_directory=Path("/tmp/results"),
             default_environment="workflow_env",
             steps=[
-                StepConfig(
+                CommandStepConfig(
                     name="s1",
                     resources=ResourceConfig(memory_gb=1),
                     command="echo hi",
@@ -175,7 +175,7 @@ class TestEnvironmentResolution:
             output_directory=Path("/tmp/results"),
             default_environment="workflow_env",
             steps=[
-                StepConfig(
+                CommandStepConfig(
                     name="s1", resources=ResourceConfig(memory_gb=1), command="echo hi"
                 )
             ],
@@ -199,7 +199,7 @@ class TestEnvironmentResolution:
             output_directory=Path("/tmp/results"),
             default_environment=None,
             steps=[
-                StepConfig(
+                CommandStepConfig(
                     name="s1", resources=ResourceConfig(memory_gb=1), command="echo hi"
                 )
             ],
@@ -223,7 +223,7 @@ class TestEnvironmentResolution:
             output_directory=Path("/tmp/results"),
             default_environment=None,
             steps=[
-                StepConfig(
+                CommandStepConfig(
                     name="s1", resources=ResourceConfig(memory_gb=1), command="echo hi"
                 )
             ],

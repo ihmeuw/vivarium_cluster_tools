@@ -10,6 +10,7 @@ Parse and validate workflow YAML configuration files.
 from __future__ import annotations
 
 import re
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -65,9 +66,174 @@ class ResourceConfig:
         return result
 
 
+class BaseStepConfig(ABC):
+    """Abstract base class for all workflow step configurations.
+
+    Defines the interface that all step types must implement. Concrete
+    subclasses should be decorated with @dataclass and define their own
+    fields (name, resources, environment, plus any type-specific fields).
+
+    The base class provides a concrete __post_init__ that performs common
+    validation and then calls the abstract _validate() method for
+    subclass-specific validation.
+    """
+
+    def __post_init__(self) -> None:
+        """Common validation for all step types, then call subclass validation.
+
+        This method is called automatically by @dataclass after __init__.
+        It performs validation common to all steps, then dispatches to the
+        subclass-specific _validate() method.
+        """
+        # Access fields via getattr since this is not a dataclass itself
+        name = getattr(self, "name", None)
+        resources = getattr(self, "resources", None)
+
+        if not name:
+            raise ValueError("Step 'name' is required.")
+        if not resources:
+            raise ValueError(f"Step '{name}': 'resources' is required.")
+
+        # Call subclass-specific validation
+        self._validate()
+
+    @abstractmethod
+    def _validate(self) -> None:
+        """Subclass-specific validation logic.
+
+        Called at the end of __post_init__ after common validation.
+        Subclasses should validate their type-specific fields here.
+        This includes checking that any provided arguments are in the
+        set returned by supported_arguments().
+        """
+        pass
+
+    @abstractmethod
+    def supported_arguments(self) -> set[str] | None:
+        """Return the set of argument names valid in the 'args' section.
+
+        For command-based steps (no 'type' field), returns None since they
+        don't have an 'args' section - they just have a 'command' field.
+
+        For typed steps (with 'type' field), returns the set of valid keys
+        that can appear in the 'args' section. These correspond to CLI options
+        users can pass to that step type's command.
+
+        The _validate() method should check that any provided args are in this
+        set (for typed steps) or that no args are provided (for command steps).
+
+        Returns
+        -------
+            None for command-based steps, or set of supported argument names
+            for typed steps (e.g., {"config", "model_specification",
+            "branch_configuration", "artifact_path", "hardware", ...}).
+        """
+        pass
+
+    @staticmethod
+    def _validate_command_type_exclusivity(data: dict[str, Any]) -> None:
+        """Validate that a step dict doesn't have both 'command' and 'type'.
+
+        Called automatically by from_dict() before construction.
+
+        Parameters
+        ----------
+        data
+            Raw step dictionary from YAML.
+
+        Raises
+        ------
+        ValueError
+            If both 'command' and 'type' fields are present.
+        """
+        if "command" in data and "type" in data:
+            step_name = data.get("name", "<unnamed>")
+            raise ValueError(
+                f"Step '{step_name}': Cannot specify both 'command' and 'type'. "
+                "Use 'command' for command-based steps or 'type' for typed steps."
+            )
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> BaseStepConfig:
+        """Create a step config from a dictionary.
+
+        This is a concrete method that validates command/type exclusivity
+        before delegating to the subclass-specific _create_from_dict().
+        Subclasses should override _create_from_dict(), not this method.
+
+        Parameters
+        ----------
+        data
+            Dictionary from workflow YAML.
+
+        Returns
+        -------
+            A new step config instance of the appropriate type.
+        """
+        # Always validate command/type exclusivity first
+        cls._validate_command_type_exclusivity(data)
+
+        # Delegate to subclass-specific implementation
+        return cls._create_from_dict(data)
+
+    @classmethod
+    @abstractmethod
+    def _create_from_dict(cls, data: dict[str, Any]) -> BaseStepConfig:
+        """Subclass-specific deserialization logic.
+
+        Called by from_dict() after validation. Subclasses implement this
+        to construct instances from dictionaries.
+
+        Parameters
+        ----------
+        data
+            Dictionary from workflow YAML.
+
+        Returns
+        -------
+            A new step config instance.
+        """
+        pass
+
+    @abstractmethod
+    def resolve_command(self) -> str:
+        """Generate the raw command string for this step.
+
+        Returns the command that will be passed to the task template.
+        WorkflowBuilder will wrap this with conda run and add workflow-level
+        arguments (project, queue, output directory, etc.).
+
+        For command-based steps (no 'type' field), this simply returns the
+        provided command string as-is. For typed steps like SimulationStepConfig,
+        this builds a command from the step's configuration (e.g., building
+        "psimulate run -M ... -B ..." from model_specification, branch_configuration, etc.).
+
+        Returns
+        -------
+            The raw command string (e.g., "echo hello" or "psimulate run -M ... -B ...").
+        """
+        pass
+
+    @abstractmethod
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the step configuration to a dictionary.
+
+        Returns a dict suitable for writing to a workflow YAML file.
+
+        Returns
+        -------
+            Dictionary representation of the step configuration.
+        """
+        pass
+
+
 @dataclass
-class StepConfig:
-    """Configuration for a single workflow step."""
+class CommandStepConfig(BaseStepConfig):
+    """Configuration for a command-based workflow step.
+
+    Step type for steps that provide a raw command string.
+    The command is executed as-is (wrapped with conda run by WorkflowBuilder).
+    """
 
     name: str
     """Unique name for this step within the workflow."""
@@ -78,36 +244,281 @@ class StepConfig:
     environment: str | None = None
     """Optional environment name to use for this step."""
 
-    def __post_init__(self) -> None:
-        if not self.name:
-            raise ValueError("Step 'name' is required.")
-        if not self.resources:
-            raise ValueError(f"Step '{self.name}': 'resources' is required.")
+    def _validate(self) -> None:
+        """Validate that command is not empty."""
         if not self.command:
             raise ValueError(f"Step '{self.name}': 'command' is required.")
 
+    def supported_arguments(self) -> None:
+        """Command-based steps don't have an 'args' section."""
+        return None
+
+    def resolve_command(self) -> str:
+        """Return the command string as-is."""
+        return self.command
+
     def to_dict(self) -> dict[str, Any]:
         """Serialize to a dictionary, omitting None values."""
-        result: dict[str, Any] = {"name": self.name}
-
-        result["command"] = self.command
+        result: dict[str, Any] = {
+            "name": self.name,
+            "command": self.command,
+            "resources": self.resources.to_dict(),
+        }
 
         # Add environment if specified
         if self.environment is not None:
             result["environment"] = self.environment
 
-        # Add resources if specified and non-empty
-        if self.resources is not None:
-            resources_dict = self.resources.to_dict()
-            if resources_dict:  # Only add if there are non-default values
-                result["resources"] = resources_dict
-
         return result
+
+    @classmethod
+    def _create_from_dict(cls, data: dict[str, Any]) -> CommandStepConfig:
+        """Create a CommandStepConfig from a dictionary.
+
+        Called by BaseStepConfig.from_dict() after validation.
+
+        Parameters
+        ----------
+        data
+            Dictionary from workflow YAML (a step dict without 'type' field).
+
+        Returns
+        -------
+            A new CommandStepConfig instance.
+        """
+        return cls(
+            name=data["name"],
+            resources=ResourceConfig.from_dict(data["resources"]),
+            command=data["command"],
+            environment=data.get("environment"),
+        )
+
+
+@dataclass
+class SimulationStepConfig(BaseStepConfig):
+    """Configuration for a parallel simulation workflow step.
+
+    This step type is designed for parallel simulation execution using
+    psimulate run. Configuration arguments are provided in an 'args' section,
+    which can reference a config file, provide inline arguments, or both.
+
+    Configuration modes:
+
+    1. **Inline args**: Provide model_specification, branch_configuration,
+       and optional arguments in the 'args' section.
+    2. **Config file**: Provide a path to a psimulate run config file in 'args'.
+    3. **Mixed**: Combine both approaches; inline args override config file
+       values when both are provided (same behavior as CLI args overriding
+       config file in psimulate run).
+
+    The step validates all configuration during __post_init__, parsing the
+    config file if provided, merging inline and config file values, and
+    checking that all required fields are present and valid.
+
+    Step Structure
+    --------------
+    Top-level fields: name, type, resources, environment (optional), args
+
+    - **name**: Step identifier (string)
+    - **type**: Must be "simulation"
+    - **resources**: Resource configuration dict (memory_gb, runtime, cores)
+    - **environment**: Optional conda environment name
+    - **args**: Dict containing simulation-specific arguments
+
+    Examples
+    --------
+    Inline configuration::
+
+        steps:
+          - name: model_sims
+            type: simulation
+            args:
+              model_specification: /path/to/model.yaml
+              branch_configuration: /path/to/branches.yaml
+              artifact_path: /path/to/artifact.hdf
+              peak_memory: 3  # GB per simulation job
+              queue: all.q
+              max_runtime: "24:00:00"  # Runtime per simulation job
+              hardware: [r650, r650v2]
+            resources:  # Resources for the task runner
+              memory_gb: 2
+              runtime: "00:10:00"
+
+    Config file only::
+
+        steps:
+          - name: model_sims
+            type: simulation
+            args:
+              config: /path/to/psimulate_config.yaml
+            resources:  # Resources for the task runner
+              memory_gb: 2
+              runtime: "00:10:00"
+
+    Mixed (inline args override config file)::
+
+        steps:
+          - name: model_sims
+            type: simulation
+            args:
+              config: /path/to/psimulate_config.yaml
+              hardware: [r650xs]  # Overrides hardware from config
+            resources:  # Resources for the task runner
+              memory_gb: 2
+              runtime: "00:10:00"
+
+    With optional environment::
+
+        steps:
+          - name: model_sims
+            type: simulation
+            environment: my_sim_env
+            args:
+              model_specification: /path/to/model.yaml
+              branch_configuration: /path/to/branches.yaml
+            resources:  # Resources for the task runner
+              memory_gb: 2
+              runtime: "00:10:00"
+    """
+
+    name: str
+    """Unique name for this step within the workflow."""
+    resources: ResourceConfig
+    """Resource configuration for this step."""
+    environment: str | None = None
+    """Optional environment name to use for this step."""
+
+    # Config file OR inline args (or both)
+    config: Path | None = None
+    """Path to psimulate run config file."""
+
+    # Inline args for psimulate run
+    model_specification: Path | None = None
+    """Path to model specification YAML file."""
+    branch_configuration: Path | None = None
+    """Path to branch configuration YAML file."""
+    artifact_path: Path | None = None
+    """Optional path to artifact file."""
+
+    # Resource args for simulation jobs (separate from task runner resources)
+    peak_memory: int | None = None
+    """Optional peak memory in GB for each simulation job."""
+    queue: str | None = None
+    """Optional queue for simulation jobs (all.q or long.q)."""
+    max_runtime: str | None = None
+    """Optional max runtime for each simulation job (hh:mm:ss format)."""
+
+    # Other optional args
+    hardware: list[str] | None = None
+    """Optional list of hardware types to request."""
+    max_workers: int | None = None
+    """Optional maximum number of concurrent workers."""
+    backup_freq: str | None = None
+    """Optional backup frequency in minutes or 'None'/'none'."""
+    sim_verbosity: int | None = None
+    """Optional simulation verbosity level."""
+
+    def _validate(self) -> None:
+        """Validate simulation step configuration.
+
+        This method:
+        1. Parses config file if provided
+        2. Merges inline args with config file values (inline takes precedence)
+        3. Validates all resolved values
+        4. Stores resolved values for use by resolve_command()
+
+        Raises
+        ------
+        ValueError
+            If required fields are missing or validation fails.
+        FileNotFoundError
+            If any specified paths do not exist.
+        """
+        # TODO: Implement config parsing and validation
+        # For now, this stub will cause all tests to fail
+        raise NotImplementedError("SimulationStepConfig._validate() not yet implemented")
+
+    def supported_arguments(self) -> set[str]:
+        """Return valid keys for the 'args' section of simulation steps.
+
+        These correspond to psimulate run CLI arguments and config file fields.
+        Note: 'environment' is a top-level field, not in args.
+        """
+        return {
+            "config",  # Path to psimulate run config file
+            "model_specification",
+            "branch_configuration",
+            "artifact_path",
+            # Simulation job resource args (separate from task runner resources)
+            "peak_memory",
+            "queue",
+            "max_runtime",
+            # Other args
+            "hardware",
+            "max_workers",
+            "backup_freq",
+            "sim_verbosity",
+        }
+
+    def resolve_command(self) -> str:
+        """Generate the psimulate run command.
+
+        Builds a command string of the form:
+        ``psimulate run -M <model> -B <branches> [optional args...]``
+
+        WorkflowBuilder will wrap this with conda and add workflow-level args.
+
+        Returns
+        -------
+            The raw psimulate run command string.
+        """
+        # TODO: Implement command generation
+        # For now, this stub will cause all tests to fail
+        raise NotImplementedError(
+            "SimulationStepConfig.resolve_command() not yet implemented"
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize to a dictionary with type: simulation.
+
+        Returns
+        -------
+            Dictionary representation suitable for workflow YAML.
+        """
+        # TODO: Implement serialization
+        # For now, this stub will cause all tests to fail
+        raise NotImplementedError("SimulationStepConfig.to_dict() not yet implemented")
+
+    @classmethod
+    def _create_from_dict(cls, data: dict[str, Any]) -> SimulationStepConfig:
+        """Create a SimulationStepConfig from a dictionary.
+
+        Called by BaseStepConfig.from_dict() after validation.
+
+        Parameters
+        ----------
+        data
+            Dictionary from workflow YAML (a step dict with type: simulation).
+
+        Returns
+        -------
+            A new SimulationStepConfig instance.
+        """
+        # TODO: Implement deserialization from args section
+        # For now, this stub will cause all tests to fail
+        raise NotImplementedError(
+            "SimulationStepConfig._create_from_dict() not yet implemented"
+        )
 
 
 @dataclass
 class WorkflowConfig:
     """Parsed and validated workflow configuration."""
+
+    # Step type mappings - add new step types here as they are implemented
+    SUPPORTED_STEP_TYPES = {
+        "simulation": SimulationStepConfig,
+    }
 
     name: str
     """Name of the workflow. This is what will be displayed in Jobmon"""
@@ -119,7 +530,7 @@ class WorkflowConfig:
     """Directory where workflow outputs will be stored."""
     default_environment: str | None
     """Default environment to use for steps that do not specify one."""
-    steps: list[StepConfig]
+    steps: list[BaseStepConfig]
     """List of sequential steps in the workflow."""
     max_attempts: int = DEFAULT_MAX_ATTEMPTS
     """Maximum number of Jobmon task attempts. Default is 2."""
@@ -157,16 +568,24 @@ class WorkflowConfig:
         return workflow
 
     @staticmethod
-    def _parse_steps(raw_steps: list[dict[str, Any]]) -> list[StepConfig]:
-        """Parse a list of raw step dicts into ``StepConfig`` objects."""
-        steps = []
+    def _parse_steps(raw_steps: list[dict[str, Any]]) -> list[BaseStepConfig]:
+        """Parse a list of raw step dicts into step config objects.
+
+        Routes to the appropriate step type based on the 'type' field using
+        WorkflowConfig.STEP_TYPES. Falls back to CommandStepConfig (command-based)
+        if no type is specified or if the type is not registered.
+        """
+        steps: list[BaseStepConfig] = []
         for step_dict in raw_steps:
-            step = StepConfig(
-                name=step_dict["name"],
-                resources=ResourceConfig.from_dict(step_dict["resources"]),
-                command=step_dict["command"],
-                environment=step_dict.get("environment"),
-            )
+            step_type = step_dict.get("type")
+
+            if step_type and step_type in WorkflowConfig.SUPPORTED_STEP_TYPES:
+                # Use one of the supported step type class
+                step_class = WorkflowConfig.SUPPORTED_STEP_TYPES[step_type]
+                step = step_class.from_dict(step_dict)
+            else:
+                # Default command-based step
+                step = CommandStepConfig.from_dict(step_dict)
             steps.append(step)
         return steps
 

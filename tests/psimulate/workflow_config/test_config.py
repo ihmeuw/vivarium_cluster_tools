@@ -5,15 +5,18 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+import yaml
 
 from tests.psimulate.workflow_config.utilities import (
     make_step_dict,
     make_workflow_dict,
+    write_psimulate_config,
     write_workflow_yaml,
 )
 from vivarium_cluster_tools.psimulate.workflow_config.config import (
+    CommandStepConfig,
     ResourceConfig,
-    StepConfig,
+    SimulationStepConfig,
     WorkflowConfig,
 )
 
@@ -87,6 +90,30 @@ class TestWorkflowConfigFromYaml:
         config = WorkflowConfig.from_yaml_with_cli_overrides(valid_workflow_yaml)
         assert config.steps[0].environment is None
 
+    @pytest.mark.xfail(reason="SimulationStepConfig not yet implemented", strict=True)
+    def test_routes_to_simulation_step(
+        self, tmp_path: Path, valid_model_spec_file: Path, valid_branch_config_file: Path
+    ) -> None:
+        """WorkflowConfig routes type=simulation to SimulationStepConfig."""
+        steps = [
+            {
+                "name": "sim",
+                "type": "simulation",
+                "args": {
+                    "model_specification": str(valid_model_spec_file),
+                    "branch_configuration": str(valid_branch_config_file),
+                },
+                "resources": {"memory_gb": 5, "runtime": "03:00:00"},
+            }
+        ]
+        workflow_dict = make_workflow_dict(steps=steps)
+        yaml_path = write_workflow_yaml(tmp_path, workflow_dict)
+
+        config = WorkflowConfig.from_yaml_with_cli_overrides(yaml_path)
+        assert len(config.steps) == 1
+        assert isinstance(config.steps[0], SimulationStepConfig)
+        assert config.steps[0].name == "sim"
+
 
 class TestWorkflowConfigValidation:
     """Verify that invalid configurations raise ``KeyError``."""
@@ -141,6 +168,21 @@ class TestWorkflowConfigValidation:
         yaml_path = tmp_path / "workflow.yaml"
         yaml_path.write_text("not_workflow:\n  name: oops\n")
         with pytest.raises(KeyError, match="workflow"):
+            WorkflowConfig.from_yaml_with_cli_overrides(yaml_path)
+
+    def test_rejects_step_with_both_command_and_type(self, tmp_path: Path) -> None:
+        """Steps cannot have both 'command' and 'type' fields."""
+        steps = [
+            {
+                "name": "bad_step",
+                "command": "echo hello",
+                "type": "simulation",
+                "resources": {"memory_gb": 4},
+            }
+        ]
+        data = make_workflow_dict(steps=steps)
+        yaml_path = write_workflow_yaml(tmp_path, data)
+        with pytest.raises(ValueError, match="Cannot specify both 'command' and 'type'"):
             WorkflowConfig.from_yaml_with_cli_overrides(yaml_path)
 
 
@@ -235,3 +277,277 @@ class TestResourceConfigValidation:
         assert rc.memory_gb == 8
         assert rc.runtime == "02:00:00"
         assert rc.cores == 4
+
+
+class TestCommandStepConfig:
+    """Tests for CommandStepConfig - the default command-based step type."""
+
+    def test_supported_arguments(self) -> None:
+        """CommandStepConfig doesn't have an args section, returns None."""
+        config = CommandStepConfig(
+            name="test_step",
+            resources=ResourceConfig(memory_gb=4),
+            command="echo test",
+        )
+        supported = config.supported_arguments()
+        assert supported is None
+
+    def test_resolve_command_returns_command(self) -> None:
+        """resolve_command returns the command string as-is."""
+        config = CommandStepConfig(
+            name="test_step",
+            resources=ResourceConfig(memory_gb=4),
+            command="echo hello world",
+        )
+        assert config.resolve_command() == "echo hello world"
+
+    def test_to_dict(self) -> None:
+        """to_dict includes environment when provided."""
+        config = CommandStepConfig(
+            name="test_step",
+            resources=ResourceConfig(memory_gb=4),
+            command="echo test",
+            environment="my_env",
+        )
+        result = config.to_dict()
+        assert result == {
+            "name": "test_step",
+            "command": "echo test",
+            "resources": {
+                "memory_gb": 4,
+                "runtime": "01:00:00",
+            },
+            "environment": "my_env",
+        }
+
+    @pytest.mark.parametrize(
+        "missing_field,kwargs",
+        [
+            ("name", {"resources": ResourceConfig(memory_gb=4), "command": "echo test"}),
+            ("resources", {"name": "test_step", "command": "echo test"}),
+        ],
+        ids=["missing_name", "missing_resources"],
+    )
+    def test_requires_required_fields(self, missing_field: str, kwargs: dict) -> None:
+        """CommandStepConfig requires name and resources."""
+        with pytest.raises(TypeError, match=missing_field):
+            CommandStepConfig(**kwargs)
+
+
+class TestSimulationStepConfig:
+    """Tests for SimulationStepConfig - the simulation step type.
+
+    All tests marked with xfail until implementation is complete.
+    """
+
+    @pytest.mark.xfail(reason="SimulationStepConfig not yet implemented", strict=True)
+    def test_requires_model_specification_or_config(self, tmp_path: Path) -> None:
+        """SimulationStepConfig requires either model_specification or config file."""
+        with pytest.raises(ValueError, match="model_specification"):
+            SimulationStepConfig(
+                name="sim",
+                resources=ResourceConfig(memory_gb=5),
+                branch_configuration=tmp_path / "branches.yaml",
+            )
+
+    @pytest.mark.xfail(reason="SimulationStepConfig not yet implemented", strict=True)
+    def test_accepts_model_specification_inline(
+        self, valid_model_spec_file: Path, valid_branch_config_file: Path
+    ) -> None:
+        """SimulationStepConfig accepts inline model_specification."""
+        config = SimulationStepConfig(
+            name="sim",
+            resources=ResourceConfig(memory_gb=5),
+            model_specification=valid_model_spec_file,
+            branch_configuration=valid_branch_config_file,
+        )
+        assert config.model_specification == valid_model_spec_file
+        assert config.branch_configuration == valid_branch_config_file
+
+    @pytest.mark.xfail(reason="SimulationStepConfig not yet implemented", strict=True)
+    def test_parses_config_file_fields(
+        self, tmp_path: Path, valid_model_spec_file: Path, valid_branch_config_file: Path
+    ) -> None:
+        """SimulationStepConfig accepts and parses config file, extracting required fields."""
+        config_file = write_psimulate_config(
+            tmp_path,
+            model_specification=str(valid_model_spec_file),
+            branch_configuration=str(valid_branch_config_file),
+        )
+        step_config = SimulationStepConfig(
+            name="sim",
+            resources=ResourceConfig(memory_gb=5),
+            config=config_file,
+        )
+
+        assert step_config.model_specification == valid_model_spec_file
+        assert step_config.branch_configuration == valid_branch_config_file
+
+    @pytest.mark.xfail(reason="SimulationStepConfig not yet implemented", strict=True)
+    def test_parse_args_from_multiple_sources(
+        self,
+        tmp_path: Path,
+        valid_model_spec_file: Path,
+        valid_branch_config_file: Path,
+        valid_artifact_file: Path,
+    ) -> None:
+        """Inline args merge with and override config file values."""
+        # Config has model_spec and branch_config
+        inline_model_spec = tmp_path / "inline_model.yaml"
+        inline_model_spec.write_text("inline model")
+
+        config_file = write_psimulate_config(
+            tmp_path,
+            model_specification=str(valid_model_spec_file),
+            branch_configuration=str(valid_branch_config_file),
+        )
+
+        step_config = SimulationStepConfig(
+            name="sim",
+            resources=ResourceConfig(memory_gb=5),
+            config=config_file,
+            model_specification=inline_model_spec,  # Override config file value
+            artifact_path=valid_artifact_file,  # Merge: not in config file
+        )
+        command = step_config.resolve_command()
+
+        # Inline model_specification overrides config file value
+        assert str(inline_model_spec) in command
+        assert str(valid_model_spec_file) not in command
+        # branch_configuration comes from config file
+        assert str(valid_branch_config_file) in command
+        # artifact_path comes from inline (not in config file)
+        assert str(valid_artifact_file) in command
+
+    @pytest.mark.xfail(reason="SimulationStepConfig not yet implemented", strict=True)
+    def test_validates_required_fields_after_merge(self, tmp_path: Path) -> None:
+        """Raises ValueError if model_spec or branch_config missing after merge."""
+        # Config file missing branch_configuration
+        config_file = write_psimulate_config(
+            tmp_path,
+            model_specification=str(tmp_path / "model.yaml"),
+        )
+        (tmp_path / "model.yaml").write_text("model")
+
+        with pytest.raises(ValueError, match="branch_configuration"):
+            SimulationStepConfig(
+                name="sim",
+                resources=ResourceConfig(memory_gb=5),
+                config=config_file,
+            )
+
+    @pytest.mark.xfail(reason="SimulationStepConfig not yet implemented", strict=True)
+    def test_resolve_command_generates_psimulate_run(
+        self,
+        tmp_path: Path,
+        valid_model_spec_file: Path,
+        valid_branch_config_file: Path,
+        valid_artifact_file: Path,
+    ) -> None:
+        """resolve_command() generates psimulate run command with args."""
+        # Test with inline args
+        config = SimulationStepConfig(
+            name="sim",
+            resources=ResourceConfig(memory_gb=5),
+            model_specification=valid_model_spec_file,
+            branch_configuration=valid_branch_config_file,
+            artifact_path=valid_artifact_file,
+        )
+        command = config.resolve_command()
+        assert command.startswith("psimulate run")
+        assert str(valid_model_spec_file) in command
+        assert str(valid_branch_config_file) in command
+        assert str(valid_artifact_file) in command
+
+        # Test with config file
+        config_file = write_psimulate_config(
+            tmp_path,
+            model_specification=str(valid_model_spec_file),
+            branch_configuration=str(valid_branch_config_file),
+        )
+        config2 = SimulationStepConfig(
+            name="sim",
+            resources=ResourceConfig(memory_gb=5),
+            config=config_file,
+        )
+        command2 = config2.resolve_command()
+        assert command2.startswith("psimulate run")
+        assert str(valid_model_spec_file) in command2
+
+    def test_from_dict_rejects_both_command_and_type(self) -> None:
+        """from_dict() rejects step dicts with both 'command' and 'type'."""
+        step_dict = {
+            "name": "bad_step",
+            "type": "simulation",
+            "command": "echo hello",
+            "resources": {"memory_gb": 5, "runtime": "03:00:00"},
+        }
+        with pytest.raises(ValueError, match="Cannot specify both 'command' and 'type'"):
+            SimulationStepConfig.from_dict(step_dict)
+
+    @pytest.mark.xfail(reason="SimulationStepConfig not yet implemented", strict=True)
+    @pytest.mark.parametrize("config_source", ["inline_args", "config_file"])
+    def test_from_dict_deserialization(
+        self,
+        valid_model_spec_file: Path,
+        valid_branch_config_file: Path,
+        psimulate_config_file: Path,
+        config_source: str,
+    ) -> None:
+        """SimulationStepConfig.from_dict deserializes various configurations."""
+        base_dict = {
+            "name": "sim",
+            "type": "simulation",
+            "resources": {"memory_gb": 5, "runtime": "03:00:00"},
+        }
+
+        if config_source == "inline_args":
+            base_dict["model_specification"] = str(valid_model_spec_file)
+            base_dict["branch_configuration"] = str(valid_branch_config_file)
+        elif config_source == "config_file":
+            base_dict["config"] = str(psimulate_config_file)
+
+        config = SimulationStepConfig.from_dict(base_dict)
+        assert config.name == "sim"
+
+        # Validate fields were deserialized correctly
+        if config_source == "inline_args":
+            assert config.model_specification == valid_model_spec_file
+            assert config.branch_configuration == valid_branch_config_file
+        elif config_source == "config_file":
+            assert config.config == psimulate_config_file
+
+    @pytest.mark.xfail(reason="SimulationStepConfig not yet implemented", strict=True)
+    @pytest.mark.parametrize("config_source", ["inline_args", "config_file"])
+    def test_to_dict_serialization(
+        self,
+        valid_model_spec_file: Path,
+        valid_branch_config_file: Path,
+        psimulate_config_file: Path,
+        config_source: str,
+    ) -> None:
+        """to_dict() serializes configuration with type: simulation."""
+        if config_source == "inline_args":
+            constructor_kwargs = {
+                "model_specification": valid_model_spec_file,
+                "branch_configuration": valid_branch_config_file,
+            }
+            expected_fields = {
+                "model_specification": str(valid_model_spec_file),
+                "branch_configuration": str(valid_branch_config_file),
+            }
+        else:  # config_file
+            constructor_kwargs = {"config": psimulate_config_file}
+            expected_fields = {"config": str(psimulate_config_file)}
+
+        config = SimulationStepConfig(
+            name="sim",
+            resources=ResourceConfig(memory_gb=5, runtime="03:00:00"),
+            **constructor_kwargs,
+        )
+        result = config.to_dict()
+        assert result["type"] == "simulation"
+        assert result["name"] == "sim"
+
+        for field_name, expected_value in expected_fields.items():
+            assert result[field_name] == expected_value
