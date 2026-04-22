@@ -125,10 +125,7 @@ class WorkflowConfig:
     """Maximum number of Jobmon task attempts. Default is 2."""
 
     @staticmethod
-    def _parse_yaml_file(
-        path: Path,
-        extra_required_fields: set[str] | None = None,
-    ) -> dict[str, Any]:
+    def _parse_yaml_file(path: Path) -> dict[str, Any]:
         """Read and perform basic structural validation on a workflow YAML file.
 
         Returns the ``workflow`` dict from inside the top-level key.
@@ -137,9 +134,6 @@ class WorkflowConfig:
         ----------
         path
             Path to the YAML file.
-        extra_required_fields
-            Additional field names (beyond ``name`` and ``steps``) that
-            must be present in the workflow dict.
         """
         with path.open() as f:
             raw = yaml.safe_load(f)
@@ -150,8 +144,7 @@ class WorkflowConfig:
         workflow: dict[str, Any] = raw["workflow"]
 
         # Check required top-level fields
-        required = REQUIRED_WORKFLOW_FIELDS | (extra_required_fields or set())
-        for field_name in required:
+        for field_name in REQUIRED_WORKFLOW_FIELDS:
             if field_name not in workflow:
                 raise KeyError(
                     f"Workflow configuration is missing required field '{field_name}'."
@@ -190,9 +183,8 @@ class WorkflowConfig:
         """Load a WorkflowConfig from YAML, merging CLI overrides.
 
         CLI arguments take precedence over values in the YAML file.
-        Validates that ``project`` and ``output_directory`` are provided
-        by at least one source, and defaults ``queue`` to ``'all.q'``
-        if not specified anywhere.
+        Validates that ``project``, ``queue``, and ``output_directory`` are provided
+        by at least one source
 
         Parameters
         ----------
