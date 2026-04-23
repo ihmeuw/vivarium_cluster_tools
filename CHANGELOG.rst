@@ -2,6 +2,10 @@
 
 - Implement serial workflows via "psimulate workflow" command
 
+**3.1.1 - 04/22/26**
+
+- Remove hanging redis install in makefile
+
 **3.1.0 - 04/16/26**
 
 - Tighten vivarium_build_utils pin
