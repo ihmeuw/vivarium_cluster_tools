@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import pytest
 import yaml
@@ -62,11 +63,13 @@ class TestWorkflowConfigFromYaml:
     def test_parses_command_step(self, valid_workflow_yaml: Path) -> None:
         config = WorkflowConfig.from_yaml_with_cli_overrides(valid_workflow_yaml)
         step = config.steps[0]
+        assert isinstance(step, CommandStepConfig)
         assert step.command == "pytest tests/test_lbwsg.py tests/test_mortality.py --runslow"
 
     def test_parses_raw_command_step(self, valid_workflow_yaml: Path) -> None:
         config = WorkflowConfig.from_yaml_with_cli_overrides(valid_workflow_yaml)
         step = config.steps[1]
+        assert isinstance(step, CommandStepConfig)
         assert step.command == "python scripts/analyze.py --input /results"
 
     def test_parses_step_resources(self, valid_workflow_yaml: Path) -> None:
@@ -328,7 +331,9 @@ class TestCommandStepConfig:
         ],
         ids=["missing_name", "missing_resources"],
     )
-    def test_requires_required_fields(self, missing_field: str, kwargs: dict) -> None:
+    def test_requires_required_fields(
+        self, missing_field: str, kwargs: dict[str, Any]
+    ) -> None:
         """CommandStepConfig requires name and resources."""
         with pytest.raises(TypeError, match=missing_field):
             CommandStepConfig(**kwargs)
@@ -508,6 +513,7 @@ class TestSimulationStepConfig:
             base_dict["config"] = str(psimulate_config_file)
 
         config = SimulationStepConfig.from_dict(base_dict)
+        assert isinstance(config, SimulationStepConfig)
         assert config.name == "sim"
 
         # Validate fields were deserialized correctly
@@ -528,7 +534,7 @@ class TestSimulationStepConfig:
     ) -> None:
         """to_dict() serializes configuration with type: simulation."""
         if config_source == "inline_args":
-            constructor_kwargs = {
+            constructor_kwargs: dict[str, Any] = {
                 "model_specification": valid_model_spec_file,
                 "branch_configuration": valid_branch_config_file,
             }

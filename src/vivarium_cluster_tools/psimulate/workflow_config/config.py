@@ -78,6 +78,10 @@ class BaseStepConfig(ABC):
     subclass-specific validation.
     """
 
+    name: str
+    resources: ResourceConfig
+    environment: str | None
+
     def __post_init__(self) -> None:
         """Common validation for all step types, then call subclass validation.
 
@@ -85,14 +89,10 @@ class BaseStepConfig(ABC):
         It performs validation common to all steps, then dispatches to the
         subclass-specific _validate() method.
         """
-        # Access fields via getattr since this is not a dataclass itself
-        name = getattr(self, "name", None)
-        resources = getattr(self, "resources", None)
-
-        if not name:
+        if not self.name:
             raise ValueError("Step 'name' is required.")
-        if not resources:
-            raise ValueError(f"Step '{name}': 'resources' is required.")
+        if not self.resources:
+            raise ValueError(f"Step '{self.name}': 'resources' is required.")
 
         # Call subclass-specific validation
         self._validate()
@@ -249,7 +249,7 @@ class CommandStepConfig(BaseStepConfig):
         if not self.command:
             raise ValueError(f"Step '{self.name}': 'command' is required.")
 
-    def supported_arguments(self) -> None:
+    def supported_arguments(self) -> set[str] | None:
         """Command-based steps don't have an 'args' section."""
         return None
 

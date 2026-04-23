@@ -364,8 +364,8 @@ def test_write_configuration_workflow_command(tmp_path: Path) -> None:
 
     # Create a mock WorkflowConfig to simulate workflow input
     from vivarium_cluster_tools.psimulate.workflow_config.config import (
+        CommandStepConfig,
         ResourceConfig,
-        StepConfig,
         WorkflowConfig,
     )
 
@@ -376,7 +376,7 @@ def test_write_configuration_workflow_command(tmp_path: Path) -> None:
         output_directory=output_dir,
         default_environment=None,
         steps=[
-            StepConfig(
+            CommandStepConfig(
                 name="test_step",
                 command="pytest tests/",
                 resources=ResourceConfig(memory_gb=4, runtime="01:00:00"),
