@@ -13,7 +13,7 @@ import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 import yaml
 
@@ -381,6 +381,25 @@ class SimulationStepConfig(BaseStepConfig):
               runtime: "00:10:00"
     """
 
+    # Metadata for each supported arg: (cli_flag, is_path)
+    # cli_flag is the flag passed to `psimulate run`.
+    # is_path indicates the value should be converted to/from Path.
+    _ARG_METADATA: ClassVar[dict[str, tuple[str, bool]]] = {
+        "config": ("--run-config", True),
+        "model_specification": ("-M", True),
+        "branch_configuration": ("-B", True),
+        "artifact_path": ("--artifact_path", True),
+        "peak_memory": ("--peak-memory", False),
+        "queue": ("--queue", False),
+        "max_runtime": ("--max-runtime", False),
+        "hardware": ("--hardware", False),  # list; handled specially
+        "max_workers": ("--max-workers", False),
+        "backup_freq": ("--backup-freq", False),
+        "sim_verbosity": ("--sim-verbosity", False),
+    }
+
+    _SUPPORTED_ARGS: ClassVar[set[str]] = set(_ARG_METADATA)
+
     name: str
     """Unique name for this step within the workflow."""
     resources: ResourceConfig
@@ -434,9 +453,34 @@ class SimulationStepConfig(BaseStepConfig):
         FileNotFoundError
             If any specified paths do not exist.
         """
-        # TODO: Implement config parsing and validation
-        # For now, this stub will cause all tests to fail
-        raise NotImplementedError("SimulationStepConfig._validate() not yet implemented")
+        # Parse config file if provided
+        if self.config is not None:
+            if not self.config.exists():
+                raise FileNotFoundError(
+                    f"Step '{self.name}': config file '{self.config}' does not exist."
+                )
+            with self.config.open() as f:
+                config_data = yaml.safe_load(f) or {}
+
+            # Command-line args take precedence over config file values
+            for field_name, (_flag, is_path) in self._ARG_METADATA.items():
+                if field_name == "config":
+                    continue  # Don't override config with itself
+                if getattr(self, field_name) is None and field_name in config_data:
+                    value = config_data[field_name]
+                    setattr(self, field_name, Path(value) if is_path else value)
+
+        # Validate required fields
+        if not self.model_specification:
+            raise ValueError(
+                f"Step '{self.name}': simulation type requires 'model_specification'. "
+                "Provide it inline or in the config file."
+            )
+        if not self.branch_configuration:
+            raise ValueError(
+                f"Step '{self.name}': simulation type requires 'branch_configuration'. "
+                "Provide it inline or in the config file."
+            )
 
     def supported_arguments(self) -> set[str]:
         """Return valid keys for the 'args' section of simulation steps.
@@ -444,21 +488,7 @@ class SimulationStepConfig(BaseStepConfig):
         These correspond to psimulate run CLI arguments and config file fields.
         Note: 'environment' is a top-level field, not in args.
         """
-        return {
-            "config",  # Path to psimulate run config file
-            "model_specification",
-            "branch_configuration",
-            "artifact_path",
-            # Simulation job resource args (separate from task runner resources)
-            "peak_memory",
-            "queue",
-            "max_runtime",
-            # Other args
-            "hardware",
-            "max_workers",
-            "backup_freq",
-            "sim_verbosity",
-        }
+        return self._SUPPORTED_ARGS
 
     def resolve_command(self) -> str:
         """Generate the psimulate run command.
@@ -472,11 +502,25 @@ class SimulationStepConfig(BaseStepConfig):
         -------
             The raw psimulate run command string.
         """
-        # TODO: Implement command generation
-        # For now, this stub will cause all tests to fail
-        raise NotImplementedError(
-            "SimulationStepConfig.resolve_command() not yet implemented"
-        )
+        parts = ["psimulate run"]
+        # Required args are always present (enforced by _validate)
+        parts.append(f"-M {self.model_specification}")
+        parts.append(f"-B {self.branch_configuration}")
+
+        # Optional args — skip the two required args already added
+        for field_name, (cli_flag, _is_path) in self._ARG_METADATA.items():
+            if field_name in {"model_specification", "branch_configuration"}:
+                continue
+            value = getattr(self, field_name)
+            if value is None:
+                continue
+            if isinstance(value, list):
+                for item in value:
+                    parts.append(f"{cli_flag} {item}")
+            else:
+                parts.append(f"{cli_flag} {value}")
+
+        return " ".join(parts)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to a dictionary with type: simulation.
@@ -485,9 +529,22 @@ class SimulationStepConfig(BaseStepConfig):
         -------
             Dictionary representation suitable for workflow YAML.
         """
-        # TODO: Implement serialization
-        # For now, this stub will cause all tests to fail
-        raise NotImplementedError("SimulationStepConfig.to_dict() not yet implemented")
+        result: dict[str, Any] = {
+            "name": self.name,
+            "type": "simulation",
+            "resources": self.resources.to_dict(),
+        }
+        if self.environment is not None:
+            result["environment"] = self.environment
+
+        args: dict[str, Any] = {}
+        for field_name, (_flag, is_path) in self._ARG_METADATA.items():
+            value = getattr(self, field_name)
+            if value is not None:
+                args[field_name] = str(value) if is_path else value
+        if args:
+            result["args"] = args
+        return result
 
     @classmethod
     def _create_from_dict(cls, data: dict[str, Any]) -> SimulationStepConfig:
@@ -504,11 +561,29 @@ class SimulationStepConfig(BaseStepConfig):
         -------
             A new SimulationStepConfig instance.
         """
-        # TODO: Implement deserialization from args section
-        # For now, this stub will cause all tests to fail
-        raise NotImplementedError(
-            "SimulationStepConfig._create_from_dict() not yet implemented"
-        )
+        args = data.get("args", {}) or {}
+
+        # Validate that only supported arguments are in args
+        unsupported = set(args) - cls._SUPPORTED_ARGS
+        if unsupported:
+            step_name = data.get("name", "<unnamed>")
+            raise ValueError(
+                f"Step '{step_name}': unsupported args {sorted(unsupported)}. "
+                f"Supported args: {sorted(cls._SUPPORTED_ARGS)}."
+            )
+
+        kwargs: dict[str, Any] = {
+            "name": data["name"],
+            "resources": ResourceConfig.from_dict(data["resources"]),
+            "environment": data.get("environment"),
+        }
+
+        for field_name, (_flag, is_path) in cls._ARG_METADATA.items():
+            value = args.get(field_name)
+            if value is not None:
+                kwargs[field_name] = Path(value) if is_path else value
+
+        return cls(**kwargs)
 
 
 @dataclass
@@ -572,15 +647,19 @@ class WorkflowConfig:
         """Parse a list of raw step dicts into step config objects.
 
         Routes to the appropriate step type based on the 'type' field using
-        WorkflowConfig.STEP_TYPES. Falls back to CommandStepConfig (command-based)
+        WorkflowConfig.SUPPORTED_STEP_TYPES. Falls back to CommandStepConfig (command-based)
         if no type is specified or if the type is not registered.
         """
         steps: list[BaseStepConfig] = []
         for step_dict in raw_steps:
             step_type = step_dict.get("type")
-
-            if step_type and step_type in WorkflowConfig.SUPPORTED_STEP_TYPES:
-                # Use one of the supported step type class
+            if step_type is not None:
+                if step_type not in WorkflowConfig.SUPPORTED_STEP_TYPES:
+                    step_name = step_dict.get("name", "<unnamed>")
+                    raise ValueError(
+                        f"Step '{step_name}': unsupported type '{step_type}'. "
+                        f"Must be one of: {sorted(WorkflowConfig.SUPPORTED_STEP_TYPES)}."
+                    )
                 step_class = WorkflowConfig.SUPPORTED_STEP_TYPES[step_type]
                 step = step_class.from_dict(step_dict)
             else:

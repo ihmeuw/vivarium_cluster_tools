@@ -81,7 +81,7 @@ class WorkflowBuilder:
                 name=step.name,
                 compute_resources=compute_resources,
                 env=env,
-                command=step.command,
+                command=step.resolve_command(),
             )
             tasks.append(task)
 
