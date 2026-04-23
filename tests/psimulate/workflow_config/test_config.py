@@ -93,7 +93,6 @@ class TestWorkflowConfigFromYaml:
         config = WorkflowConfig.from_yaml_with_cli_overrides(valid_workflow_yaml)
         assert config.steps[0].environment is None
 
-    @pytest.mark.xfail(reason="SimulationStepConfig not yet implemented", strict=True)
     def test_routes_to_simulation_step(
         self, tmp_path: Path, valid_model_spec_file: Path, valid_branch_config_file: Path
     ) -> None:
@@ -340,12 +339,8 @@ class TestCommandStepConfig:
 
 
 class TestSimulationStepConfig:
-    """Tests for SimulationStepConfig - the simulation step type.
+    """Tests for SimulationStepConfig - the simulation step type."""
 
-    All tests marked with xfail until implementation is complete.
-    """
-
-    @pytest.mark.xfail(reason="SimulationStepConfig not yet implemented", strict=True)
     def test_requires_model_specification_or_config(self, tmp_path: Path) -> None:
         """SimulationStepConfig requires either model_specification or config file."""
         with pytest.raises(ValueError, match="model_specification"):
@@ -355,7 +350,6 @@ class TestSimulationStepConfig:
                 branch_configuration=tmp_path / "branches.yaml",
             )
 
-    @pytest.mark.xfail(reason="SimulationStepConfig not yet implemented", strict=True)
     def test_accepts_model_specification_inline(
         self, valid_model_spec_file: Path, valid_branch_config_file: Path
     ) -> None:
@@ -369,7 +363,6 @@ class TestSimulationStepConfig:
         assert config.model_specification == valid_model_spec_file
         assert config.branch_configuration == valid_branch_config_file
 
-    @pytest.mark.xfail(reason="SimulationStepConfig not yet implemented", strict=True)
     def test_parses_config_file_fields(
         self, tmp_path: Path, valid_model_spec_file: Path, valid_branch_config_file: Path
     ) -> None:
@@ -388,7 +381,6 @@ class TestSimulationStepConfig:
         assert step_config.model_specification == valid_model_spec_file
         assert step_config.branch_configuration == valid_branch_config_file
 
-    @pytest.mark.xfail(reason="SimulationStepConfig not yet implemented", strict=True)
     def test_parse_args_from_multiple_sources(
         self,
         tmp_path: Path,
@@ -424,7 +416,6 @@ class TestSimulationStepConfig:
         # artifact_path comes from inline (not in config file)
         assert str(valid_artifact_file) in command
 
-    @pytest.mark.xfail(reason="SimulationStepConfig not yet implemented", strict=True)
     def test_validates_required_fields_after_merge(self, tmp_path: Path) -> None:
         """Raises ValueError if model_spec or branch_config missing after merge."""
         # Config file missing branch_configuration
@@ -441,7 +432,6 @@ class TestSimulationStepConfig:
                 config=config_file,
             )
 
-    @pytest.mark.xfail(reason="SimulationStepConfig not yet implemented", strict=True)
     def test_resolve_command_generates_psimulate_run(
         self,
         tmp_path: Path,
@@ -490,7 +480,6 @@ class TestSimulationStepConfig:
         with pytest.raises(ValueError, match="Cannot specify both 'command' and 'type'"):
             SimulationStepConfig.from_dict(step_dict)
 
-    @pytest.mark.xfail(reason="SimulationStepConfig not yet implemented", strict=True)
     @pytest.mark.parametrize("config_source", ["inline_args", "config_file"])
     def test_from_dict_deserialization(
         self,
@@ -500,17 +489,21 @@ class TestSimulationStepConfig:
         config_source: str,
     ) -> None:
         """SimulationStepConfig.from_dict deserializes various configurations."""
-        base_dict = {
+        base_dict: dict[str, Any] = {
             "name": "sim",
             "type": "simulation",
             "resources": {"memory_gb": 5, "runtime": "03:00:00"},
         }
 
         if config_source == "inline_args":
-            base_dict["model_specification"] = str(valid_model_spec_file)
-            base_dict["branch_configuration"] = str(valid_branch_config_file)
+            base_dict["args"] = {
+                "model_specification": str(valid_model_spec_file),
+                "branch_configuration": str(valid_branch_config_file),
+            }
         elif config_source == "config_file":
-            base_dict["config"] = str(psimulate_config_file)
+            base_dict["args"] = {
+                "config": str(psimulate_config_file),
+            }
 
         config = SimulationStepConfig.from_dict(base_dict)
         assert isinstance(config, SimulationStepConfig)
@@ -523,7 +516,6 @@ class TestSimulationStepConfig:
         elif config_source == "config_file":
             assert config.config == psimulate_config_file
 
-    @pytest.mark.xfail(reason="SimulationStepConfig not yet implemented", strict=True)
     @pytest.mark.parametrize("config_source", ["inline_args", "config_file"])
     def test_to_dict_serialization(
         self,
@@ -538,13 +530,13 @@ class TestSimulationStepConfig:
                 "model_specification": valid_model_spec_file,
                 "branch_configuration": valid_branch_config_file,
             }
-            expected_fields = {
+            expected_args = {
                 "model_specification": str(valid_model_spec_file),
                 "branch_configuration": str(valid_branch_config_file),
             }
         else:  # config_file
             constructor_kwargs = {"config": psimulate_config_file}
-            expected_fields = {"config": str(psimulate_config_file)}
+            expected_args = {"config": str(psimulate_config_file)}
 
         config = SimulationStepConfig(
             name="sim",
@@ -554,6 +546,7 @@ class TestSimulationStepConfig:
         result = config.to_dict()
         assert result["type"] == "simulation"
         assert result["name"] == "sim"
+        assert "args" in result
 
-        for field_name, expected_value in expected_fields.items():
-            assert result[field_name] == expected_value
+        for field_name, expected_value in expected_args.items():
+            assert result["args"][field_name] == expected_value
