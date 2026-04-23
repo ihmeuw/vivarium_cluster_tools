@@ -155,7 +155,7 @@ class TestParseSlurmTime:
 
     @pytest.mark.parametrize(
         "bad_value",
-        ["UNLIMITED", "NOT_SET", "abc", "1:2:3:4", "--:--", ""],
+        ["UNLIMITED", "NOT_SET", "abc", "1:2:3:4", "--:--", "", "1-30", "1-10:30"],
     )
     def test_parse_slurm_time_rejects_invalid(self, bad_value: str) -> None:
         with pytest.raises(ValueError, match="Unrecognized SLURM time format"):
@@ -186,14 +186,20 @@ class TestGetRunnerNodeRemainingSeconds:
     def test_returns_remaining_minus_buffer(self) -> None:
         """Return remaining seconds minus the safety buffer."""
         completed = _make_squeue_result("10:00:00")
-        with patch("subprocess.run", return_value=completed):
+        with patch(
+            "vivarium_cluster_tools.psimulate.cluster.interface.subprocess.run",
+            return_value=completed,
+        ):
             result = get_workflow_timeout_seconds()
         assert result == 36000 - _SLURM_TIMEOUT_BUFFER_SECONDS
 
     def test_raises_for_unlimited(self) -> None:
         """Raise when SLURM reports UNLIMITED time."""
         completed = _make_squeue_result("UNLIMITED")
-        with patch("subprocess.run", return_value=completed):
+        with patch(
+            "vivarium_cluster_tools.psimulate.cluster.interface.subprocess.run",
+            return_value=completed,
+        ):
             with pytest.raises(ValueError, match="Unrecognized SLURM time format"):
                 get_workflow_timeout_seconds()
 
@@ -205,7 +211,10 @@ class TestGetRunnerNodeRemainingSeconds:
     def test_raises_for_non_time_strings(self, bad_value: str) -> None:
         """Raise when squeue returns a non-numeric time string."""
         completed = _make_squeue_result(bad_value)
-        with patch("subprocess.run", return_value=completed):
+        with patch(
+            "vivarium_cluster_tools.psimulate.cluster.interface.subprocess.run",
+            return_value=completed,
+        ):
             with pytest.raises(ValueError, match="Unrecognized SLURM time format"):
                 get_workflow_timeout_seconds()
 
@@ -213,7 +222,10 @@ class TestGetRunnerNodeRemainingSeconds:
         """Raise when remaining time is less than the safety buffer."""
         remaining_seconds = _SLURM_TIMEOUT_BUFFER_SECONDS - 1
         completed = _make_squeue_result(self.convert_seconds_to_time_str(remaining_seconds))
-        with patch("subprocess.run", return_value=completed):
+        with patch(
+            "vivarium_cluster_tools.psimulate.cluster.interface.subprocess.run",
+            return_value=completed,
+        ):
             with pytest.raises(RuntimeError, match="Not enough time"):
                 get_workflow_timeout_seconds()
 
@@ -223,19 +235,28 @@ class TestGetRunnerNodeRemainingSeconds:
         completed = _make_squeue_result(
             self.convert_seconds_to_time_str(_SLURM_TIMEOUT_BUFFER_SECONDS)
         )
-        with patch("subprocess.run", return_value=completed):
+        with patch(
+            "vivarium_cluster_tools.psimulate.cluster.interface.subprocess.run",
+            return_value=completed,
+        ):
             with pytest.raises(RuntimeError, match="Not enough time"):
                 get_workflow_timeout_seconds()
 
     def test_returns_one_second_when_just_above_buffer(self) -> None:
         remaining_seconds = _SLURM_TIMEOUT_BUFFER_SECONDS + 1
         completed = _make_squeue_result(self.convert_seconds_to_time_str(remaining_seconds))
-        with patch("subprocess.run", return_value=completed):
+        with patch(
+            "vivarium_cluster_tools.psimulate.cluster.interface.subprocess.run",
+            return_value=completed,
+        ):
             assert get_workflow_timeout_seconds() == 1
 
     def test_raises_on_subprocess_error(self) -> None:
         """Raise when squeue fails."""
-        with patch("subprocess.run", side_effect=FileNotFoundError("squeue not found")):
+        with patch(
+            "vivarium_cluster_tools.psimulate.cluster.interface.subprocess.run",
+            side_effect=FileNotFoundError("squeue not found"),
+        ):
             with pytest.raises(RuntimeError, match="Could not determine"):
                 get_workflow_timeout_seconds()
 
@@ -248,17 +269,38 @@ class TestGetRunnerNodeRemainingSeconds:
             with pytest.raises(RuntimeError, match="Could not determine"):
                 get_workflow_timeout_seconds()
 
+    def test_raises_on_nonzero_returncode(self) -> None:
+        """Raise when squeue exits with a non-zero return code."""
+        completed = subprocess.CompletedProcess(
+            args=["squeue", "-h", "-j", "12345", "-o", "%L"],
+            returncode=1,  # non-zero return code
+            stdout="",
+            stderr="slurm_load_jobs error: Invalid job id specified\n",
+        )
+        with patch(
+            "vivarium_cluster_tools.psimulate.cluster.interface.subprocess.run",
+            return_value=completed,
+        ):
+            with pytest.raises(RuntimeError, match="squeue failed"):
+                get_workflow_timeout_seconds()
+
     def test_raises_on_empty_squeue_output(self) -> None:
         """Raise when squeue returns empty output."""
         completed = _make_squeue_result("")
-        with patch("subprocess.run", return_value=completed):
+        with patch(
+            "vivarium_cluster_tools.psimulate.cluster.interface.subprocess.run",
+            return_value=completed,
+        ):
             with pytest.raises(RuntimeError, match="no output"):
                 get_workflow_timeout_seconds()
 
     def test_handles_day_format(self) -> None:
         """Handle D-HH:MM:SS format from squeue."""
         completed = _make_squeue_result("1-12:00:00")
-        with patch("subprocess.run", return_value=completed):
+        with patch(
+            "vivarium_cluster_tools.psimulate.cluster.interface.subprocess.run",
+            return_value=completed,
+        ):
             result = get_workflow_timeout_seconds()
         expected = (86400 + 12 * 3600) - _SLURM_TIMEOUT_BUFFER_SECONDS
         assert result == expected

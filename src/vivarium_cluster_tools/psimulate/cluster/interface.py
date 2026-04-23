@@ -131,6 +131,16 @@ def get_workflow_timeout_seconds() -> int:
             f"Could not determine remaining SLURM time for job {job_id}: {e}"
         ) from e
 
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"squeue failed for SLURM job {job_id} "
+            f"(exit {result.returncode}): {result.stderr.strip()}"
+        )
+
+    stderr_output = result.stderr.strip()
+    if stderr_output:
+        logger.warning(f"squeue stderr for job {job_id}: {stderr_output}")
+
     if not remaining_str:
         raise RuntimeError(
             f"squeue returned no output for SLURM job {job_id}. "
@@ -172,8 +182,9 @@ def _parse_slurm_time(time_str: str) -> int:
     ValueError
         If ``time_str`` does not match a recognized SLURM time format.
     """
-    # Match optional "D-" prefix followed by colon-separated numeric fields.
-    if not re.fullmatch(r"(\d+-)?\d+(:\d+){0,2}", time_str):
+    # When a day prefix is present, squeue always uses D-HH:MM:SS.
+    # Without a day prefix the format is HH:MM:SS, MM:SS, or SS.
+    if not re.fullmatch(r"(\d+-\d+:\d+:\d+|\d+(:\d+){0,2})", time_str):
         raise ValueError(
             f"Unrecognized SLURM time format: '{time_str}'. "
             "Expected D-HH:MM:SS, HH:MM:SS, MM:SS, or SS."
