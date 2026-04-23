@@ -80,6 +80,7 @@ class BaseStepConfig(ABC):
 
     name: str
     resources: ResourceConfig
+    output_directory: Path
     environment: str | None
 
     def __post_init__(self) -> None:
@@ -154,7 +155,7 @@ class BaseStepConfig(ABC):
             )
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> BaseStepConfig:
+    def from_dict(cls, data: dict[str, Any], output_directory: Path) -> BaseStepConfig:
         """Create a step config from a dictionary.
 
         This is a concrete method that validates command/type exclusivity
@@ -165,6 +166,8 @@ class BaseStepConfig(ABC):
         ----------
         data
             Dictionary from workflow YAML.
+        output_directory
+            Workflow-level output directory.
 
         Returns
         -------
@@ -174,11 +177,13 @@ class BaseStepConfig(ABC):
         cls._validate_command_type_exclusivity(data)
 
         # Delegate to subclass-specific implementation
-        return cls._create_from_dict(data)
+        return cls._create_from_dict(data, output_directory=output_directory)
 
     @classmethod
     @abstractmethod
-    def _create_from_dict(cls, data: dict[str, Any]) -> BaseStepConfig:
+    def _create_from_dict(
+        cls, data: dict[str, Any], output_directory: Path
+    ) -> BaseStepConfig:
         """Subclass-specific deserialization logic.
 
         Called by from_dict() after validation. Subclasses implement this
@@ -241,6 +246,8 @@ class CommandStepConfig(BaseStepConfig):
     """Resource configuration for this step."""
     command: str
     """Command string to execute for this step."""
+    output_directory: Path
+    """Output directory for this step. Inherited from the workflow's output_directory."""
     environment: str | None = None
     """Optional environment name to use for this step."""
 
@@ -272,7 +279,9 @@ class CommandStepConfig(BaseStepConfig):
         return result
 
     @classmethod
-    def _create_from_dict(cls, data: dict[str, Any]) -> CommandStepConfig:
+    def _create_from_dict(
+        cls, data: dict[str, Any], output_directory: Path
+    ) -> CommandStepConfig:
         """Create a CommandStepConfig from a dictionary.
 
         Called by BaseStepConfig.from_dict() after validation.
@@ -281,6 +290,8 @@ class CommandStepConfig(BaseStepConfig):
         ----------
         data
             Dictionary from workflow YAML (a step dict without 'type' field).
+        output_directory
+            Workflow-level output directory.
 
         Returns
         -------
@@ -290,6 +301,7 @@ class CommandStepConfig(BaseStepConfig):
             name=data["name"],
             resources=ResourceConfig.from_dict(data["resources"]),
             command=data["command"],
+            output_directory=output_directory,
             environment=data.get("environment"),
         )
 
@@ -404,6 +416,8 @@ class SimulationStepConfig(BaseStepConfig):
     """Unique name for this step within the workflow."""
     resources: ResourceConfig
     """Resource configuration for this step."""
+    output_directory: Path
+    """Output directory for this step. Inherited from the workflow's output_directory."""
     environment: str | None = None
     """Optional environment name to use for this step."""
 
@@ -506,6 +520,7 @@ class SimulationStepConfig(BaseStepConfig):
         # Required args are always present (enforced by _validate)
         parts.append(f"-M {self.model_specification}")
         parts.append(f"-B {self.branch_configuration}")
+        parts.append(f"-o {self.output_directory}")
 
         # Optional args — skip the two required args already added
         for field_name, (cli_flag, _is_path) in self._ARG_METADATA.items():
@@ -547,7 +562,9 @@ class SimulationStepConfig(BaseStepConfig):
         return result
 
     @classmethod
-    def _create_from_dict(cls, data: dict[str, Any]) -> SimulationStepConfig:
+    def _create_from_dict(
+        cls, data: dict[str, Any], output_directory: Path
+    ) -> SimulationStepConfig:
         """Create a SimulationStepConfig from a dictionary.
 
         Called by BaseStepConfig.from_dict() after validation.
@@ -575,6 +592,7 @@ class SimulationStepConfig(BaseStepConfig):
         kwargs: dict[str, Any] = {
             "name": data["name"],
             "resources": ResourceConfig.from_dict(data["resources"]),
+            "output_directory": output_directory,
             "environment": data.get("environment"),
         }
 
@@ -643,7 +661,9 @@ class WorkflowConfig:
         return workflow
 
     @staticmethod
-    def _parse_steps(raw_steps: list[dict[str, Any]]) -> list[BaseStepConfig]:
+    def _parse_steps(
+        raw_steps: list[dict[str, Any]], output_directory: Path
+    ) -> list[BaseStepConfig]:
         """Parse a list of raw step dicts into step config objects.
 
         Routes to the appropriate step type based on the 'type' field using
@@ -661,10 +681,12 @@ class WorkflowConfig:
                         f"Must be one of: {sorted(WorkflowConfig.SUPPORTED_STEP_TYPES)}."
                     )
                 step_class = WorkflowConfig.SUPPORTED_STEP_TYPES[step_type]
-                step = step_class.from_dict(step_dict)
+                step = step_class.from_dict(step_dict, output_directory=output_directory)
             else:
                 # Default command-based step
-                step = CommandStepConfig.from_dict(step_dict)
+                step = CommandStepConfig.from_dict(
+                    step_dict, output_directory=output_directory
+                )
             steps.append(step)
         return steps
 
@@ -704,7 +726,6 @@ class WorkflowConfig:
             from either the YAML file or CLI arguments.
         """
         workflow = cls._parse_yaml_file(path)
-        steps = cls._parse_steps(workflow["steps"])
 
         resolved_project = project or workflow.get("project")
         resolved_queue = queue or workflow.get("queue")
@@ -725,6 +746,10 @@ class WorkflowConfig:
                 "Output directory is required. Provide it in the config file "
                 "or via --output-directory/-o."
             )
+
+        steps = cls._parse_steps(
+            workflow["steps"], output_directory=resolved_output_directory
+        )
 
         return cls(
             name=workflow["name"],

@@ -27,13 +27,22 @@ def three_step_config() -> WorkflowConfig:
         default_environment=None,
         steps=[
             CommandStepConfig(
-                name="step1", resources=ResourceConfig(memory_gb=1), command="echo step1"
+                name="step1",
+                resources=ResourceConfig(memory_gb=1),
+                command="echo step1",
+                output_directory=Path("/tmp/results"),
             ),
             CommandStepConfig(
-                name="step2", resources=ResourceConfig(memory_gb=1), command="echo step2"
+                name="step2",
+                resources=ResourceConfig(memory_gb=1),
+                command="echo step2",
+                output_directory=Path("/tmp/results"),
             ),
             CommandStepConfig(
-                name="step3", resources=ResourceConfig(memory_gb=1), command="echo step3"
+                name="step3",
+                resources=ResourceConfig(memory_gb=1),
+                command="echo step3",
+                output_directory=Path("/tmp/results"),
             ),
         ],
     )
@@ -100,7 +109,10 @@ class TestResourceDefaults:
             default_environment=None,
             steps=[
                 CommandStepConfig(
-                    name="s1", resources=ResourceConfig(memory_gb=1), command="echo hi"
+                    name="s1",
+                    resources=ResourceConfig(memory_gb=1),
+                    command="echo hi",
+                    output_directory=Path("/tmp/results"),
                 )
             ],
         )
@@ -126,6 +138,7 @@ class TestResourceDefaults:
                     name="s1",
                     resources=ResourceConfig(memory_gb=16, runtime="04:00:00", cores=8),
                     command="echo hi",
+                    output_directory=Path("/tmp/results"),
                 ),
             ],
         )
@@ -155,6 +168,7 @@ class TestEnvironmentResolution:
                     name="s1",
                     resources=ResourceConfig(memory_gb=1),
                     command="echo hi",
+                    output_directory=Path("/tmp/results"),
                     environment="step_env",
                 ),
             ],
@@ -176,7 +190,10 @@ class TestEnvironmentResolution:
             default_environment="workflow_env",
             steps=[
                 CommandStepConfig(
-                    name="s1", resources=ResourceConfig(memory_gb=1), command="echo hi"
+                    name="s1",
+                    resources=ResourceConfig(memory_gb=1),
+                    command="echo hi",
+                    output_directory=Path("/tmp/results"),
                 )
             ],
         )
@@ -200,7 +217,10 @@ class TestEnvironmentResolution:
             default_environment=None,
             steps=[
                 CommandStepConfig(
-                    name="s1", resources=ResourceConfig(memory_gb=1), command="echo hi"
+                    name="s1",
+                    resources=ResourceConfig(memory_gb=1),
+                    command="echo hi",
+                    output_directory=Path("/tmp/results"),
                 )
             ],
         )
@@ -224,7 +244,10 @@ class TestEnvironmentResolution:
             default_environment=None,
             steps=[
                 CommandStepConfig(
-                    name="s1", resources=ResourceConfig(memory_gb=1), command="echo hi"
+                    name="s1",
+                    resources=ResourceConfig(memory_gb=1),
+                    command="echo hi",
+                    output_directory=Path("/tmp/results"),
                 )
             ],
         )

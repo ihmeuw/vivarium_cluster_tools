@@ -290,6 +290,7 @@ class TestCommandStepConfig:
             name="test_step",
             resources=ResourceConfig(memory_gb=4),
             command="echo test",
+            output_directory=Path("/tmp/results"),
         )
         supported = config.supported_arguments()
         assert supported is None
@@ -300,6 +301,7 @@ class TestCommandStepConfig:
             name="test_step",
             resources=ResourceConfig(memory_gb=4),
             command="echo hello world",
+            output_directory=Path("/tmp/results"),
         )
         assert config.resolve_command() == "echo hello world"
 
@@ -309,6 +311,7 @@ class TestCommandStepConfig:
             name="test_step",
             resources=ResourceConfig(memory_gb=4),
             command="echo test",
+            output_directory=Path("/tmp/results"),
             environment="my_env",
         )
         result = config.to_dict()
@@ -325,8 +328,22 @@ class TestCommandStepConfig:
     @pytest.mark.parametrize(
         "missing_field,kwargs",
         [
-            ("name", {"resources": ResourceConfig(memory_gb=4), "command": "echo test"}),
-            ("resources", {"name": "test_step", "command": "echo test"}),
+            (
+                "name",
+                {
+                    "resources": ResourceConfig(memory_gb=4),
+                    "command": "echo test",
+                    "output_directory": Path("/tmp/results"),
+                },
+            ),
+            (
+                "resources",
+                {
+                    "name": "test_step",
+                    "command": "echo test",
+                    "output_directory": Path("/tmp/results"),
+                },
+            ),
         ],
         ids=["missing_name", "missing_resources"],
     )
@@ -347,6 +364,7 @@ class TestSimulationStepConfig:
             SimulationStepConfig(
                 name="sim",
                 resources=ResourceConfig(memory_gb=5),
+                output_directory=Path("/tmp/results"),
                 branch_configuration=tmp_path / "branches.yaml",
             )
 
@@ -357,6 +375,7 @@ class TestSimulationStepConfig:
         config = SimulationStepConfig(
             name="sim",
             resources=ResourceConfig(memory_gb=5),
+            output_directory=Path("/tmp/results"),
             model_specification=valid_model_spec_file,
             branch_configuration=valid_branch_config_file,
         )
@@ -375,6 +394,7 @@ class TestSimulationStepConfig:
         step_config = SimulationStepConfig(
             name="sim",
             resources=ResourceConfig(memory_gb=5),
+            output_directory=Path("/tmp/results"),
             config=config_file,
         )
 
@@ -402,6 +422,7 @@ class TestSimulationStepConfig:
         step_config = SimulationStepConfig(
             name="sim",
             resources=ResourceConfig(memory_gb=5),
+            output_directory=Path("/tmp/results"),
             config=config_file,
             model_specification=inline_model_spec,  # Override config file value
             artifact_path=valid_artifact_file,  # Merge: not in config file
@@ -429,6 +450,7 @@ class TestSimulationStepConfig:
             SimulationStepConfig(
                 name="sim",
                 resources=ResourceConfig(memory_gb=5),
+                output_directory=Path("/tmp/results"),
                 config=config_file,
             )
 
@@ -444,6 +466,7 @@ class TestSimulationStepConfig:
         config = SimulationStepConfig(
             name="sim",
             resources=ResourceConfig(memory_gb=5),
+            output_directory=Path("/tmp/results"),
             model_specification=valid_model_spec_file,
             branch_configuration=valid_branch_config_file,
             artifact_path=valid_artifact_file,
@@ -463,6 +486,7 @@ class TestSimulationStepConfig:
         config2 = SimulationStepConfig(
             name="sim",
             resources=ResourceConfig(memory_gb=5),
+            output_directory=Path("/tmp/results"),
             config=config_file,
         )
         command2 = config2.resolve_command()
@@ -478,7 +502,7 @@ class TestSimulationStepConfig:
             "resources": {"memory_gb": 5, "runtime": "03:00:00"},
         }
         with pytest.raises(ValueError, match="Cannot specify both 'command' and 'type'"):
-            SimulationStepConfig.from_dict(step_dict)
+            SimulationStepConfig.from_dict(step_dict, output_directory=Path("/tmp/results"))
 
     @pytest.mark.parametrize("config_source", ["inline_args", "config_file"])
     def test_from_dict_deserialization(
@@ -505,7 +529,9 @@ class TestSimulationStepConfig:
                 "config": str(psimulate_config_file),
             }
 
-        config = SimulationStepConfig.from_dict(base_dict)
+        config = SimulationStepConfig.from_dict(
+            base_dict, output_directory=Path("/tmp/results")
+        )
         assert isinstance(config, SimulationStepConfig)
         assert config.name == "sim"
 
@@ -541,6 +567,7 @@ class TestSimulationStepConfig:
         config = SimulationStepConfig(
             name="sim",
             resources=ResourceConfig(memory_gb=5, runtime="03:00:00"),
+            output_directory=Path("/tmp/results"),
             **constructor_kwargs,
         )
         result = config.to_dict()
