@@ -8,9 +8,10 @@ import pytest
 
 from vivarium_cluster_tools.psimulate.cluster import validate_cluster_environment
 from vivarium_cluster_tools.psimulate.cluster.interface import (
+    _SLURM_TIMEOUT_BUFFER_SECONDS,
     NativeSpecification,
     _parse_slurm_time,
-    get_runner_node_remaining_seconds,
+    get_workflow_timeout_seconds,
 )
 
 
@@ -164,6 +165,13 @@ class TestParseSlurmTime:
 class TestGetRunnerNodeRemainingSeconds:
     """Tests for get_runner_node_remaining_seconds."""
 
+    def convert_seconds_to_time_str(self, seconds: int) -> str:
+        """Helper to convert seconds to HH:MM:SS format."""
+        h = seconds // 3600
+        m = (seconds % 3600) // 60
+        s = seconds % 60
+        return f"{h:02d}:{m:02d}:{s:02d}"
+
     @pytest.fixture(autouse=True)
     def _set_slurm_job_id(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Set SLURM_JOB_ID for all tests; individual tests can override."""
@@ -173,21 +181,21 @@ class TestGetRunnerNodeRemainingSeconds:
         """Raise when not inside a SLURM allocation."""
         monkeypatch.delenv("SLURM_JOB_ID")
         with pytest.raises(RuntimeError, match="SLURM_JOB_ID is not set"):
-            get_runner_node_remaining_seconds()
+            get_workflow_timeout_seconds()
 
     def test_returns_remaining_minus_buffer(self) -> None:
         """Return remaining seconds minus the safety buffer."""
         completed = _make_squeue_result("10:00:00")
         with patch("subprocess.run", return_value=completed):
-            result = get_runner_node_remaining_seconds()
-        assert result == 36000 - 120
+            result = get_workflow_timeout_seconds()
+        assert result == 36000 - _SLURM_TIMEOUT_BUFFER_SECONDS
 
     def test_raises_for_unlimited(self) -> None:
         """Raise when SLURM reports UNLIMITED time."""
         completed = _make_squeue_result("UNLIMITED")
         with patch("subprocess.run", return_value=completed):
             with pytest.raises(ValueError, match="Unrecognized SLURM time format"):
-                get_runner_node_remaining_seconds()
+                get_workflow_timeout_seconds()
 
     @pytest.mark.parametrize(
         "bad_value",
@@ -199,27 +207,37 @@ class TestGetRunnerNodeRemainingSeconds:
         completed = _make_squeue_result(bad_value)
         with patch("subprocess.run", return_value=completed):
             with pytest.raises(ValueError, match="Unrecognized SLURM time format"):
-                get_runner_node_remaining_seconds()
+                get_workflow_timeout_seconds()
 
     def test_raises_when_remaining_less_than_buffer(self) -> None:
         """Raise when remaining time is less than the safety buffer."""
-        completed = _make_squeue_result("00:01:00")  # 60 seconds < 120 buffer
+        remaining_seconds = _SLURM_TIMEOUT_BUFFER_SECONDS - 1
+        completed = _make_squeue_result(self.convert_seconds_to_time_str(remaining_seconds))
         with patch("subprocess.run", return_value=completed):
             with pytest.raises(RuntimeError, match="Not enough time"):
-                get_runner_node_remaining_seconds()
+                get_workflow_timeout_seconds()
 
     def test_raises_when_remaining_exactly_equals_buffer(self) -> None:
         """Raise when remaining time exactly equals the safety buffer."""
-        completed = _make_squeue_result("00:02:00")  # 120 seconds == buffer
+        # Convert the seconds buffer to HH:MM:SS format
+        completed = _make_squeue_result(
+            self.convert_seconds_to_time_str(_SLURM_TIMEOUT_BUFFER_SECONDS)
+        )
         with patch("subprocess.run", return_value=completed):
             with pytest.raises(RuntimeError, match="Not enough time"):
-                get_runner_node_remaining_seconds()
+                get_workflow_timeout_seconds()
+
+    def test_returns_one_second_when_just_above_buffer(self) -> None:
+        remaining_seconds = _SLURM_TIMEOUT_BUFFER_SECONDS + 1
+        completed = _make_squeue_result(self.convert_seconds_to_time_str(remaining_seconds))
+        with patch("subprocess.run", return_value=completed):
+            assert get_workflow_timeout_seconds() == 1
 
     def test_raises_on_subprocess_error(self) -> None:
         """Raise when squeue fails."""
         with patch("subprocess.run", side_effect=FileNotFoundError("squeue not found")):
             with pytest.raises(RuntimeError, match="Could not determine"):
-                get_runner_node_remaining_seconds()
+                get_workflow_timeout_seconds()
 
     def test_raises_on_subprocess_timeout(self) -> None:
         """Raise when squeue times out."""
@@ -228,29 +246,28 @@ class TestGetRunnerNodeRemainingSeconds:
             side_effect=subprocess.TimeoutExpired(cmd="squeue", timeout=10),
         ):
             with pytest.raises(RuntimeError, match="Could not determine"):
-                get_runner_node_remaining_seconds()
+                get_workflow_timeout_seconds()
 
     def test_raises_on_empty_squeue_output(self) -> None:
         """Raise when squeue returns empty output."""
         completed = _make_squeue_result("")
         with patch("subprocess.run", return_value=completed):
             with pytest.raises(RuntimeError, match="no output"):
-                get_runner_node_remaining_seconds()
+                get_workflow_timeout_seconds()
 
     def test_handles_day_format(self) -> None:
         """Handle D-HH:MM:SS format from squeue."""
         completed = _make_squeue_result("1-12:00:00")
         with patch("subprocess.run", return_value=completed):
-            result = get_runner_node_remaining_seconds()
-        expected = (86400 + 12 * 3600) - 120
+            result = get_workflow_timeout_seconds()
+        expected = (86400 + 12 * 3600) - _SLURM_TIMEOUT_BUFFER_SECONDS
         assert result == expected
 
 
 def _make_squeue_result(time_str: str) -> Any:
     """Create a mock subprocess.CompletedProcess for squeue output."""
-    from subprocess import CompletedProcess
 
-    return CompletedProcess(
+    return subprocess.CompletedProcess(
         args=["squeue", "-h", "-j", "12345", "-o", "%L"],
         returncode=0,
         stdout=f"{time_str}\n",

@@ -86,15 +86,7 @@ class NativeSpecification(NamedTuple):
         -------
             Runtime in seconds.
         """
-        parts = runtime_str.split(":")
-        if len(parts) == 3:
-            h, m, s = parts
-            return int(h) * 3600 + int(m) * 60 + int(s)
-        elif len(parts) == 2:
-            m, s = parts
-            return int(m) * 60 + int(s)
-        else:
-            return int(parts[0])
+        return _parse_slurm_time(runtime_str)
 
 
 # Buffer in seconds to subtract from the remaining SLURM time so the jobmon
@@ -102,8 +94,8 @@ class NativeSpecification(NamedTuple):
 _SLURM_TIMEOUT_BUFFER_SECONDS = 120
 
 
-def get_runner_node_remaining_seconds() -> int:
-    """Return the number of seconds remaining in the current SLURM runner node allocation.
+def get_workflow_timeout_seconds() -> int:
+    """Get jobmon workflow's timeout in seconds.
 
     The result includes a small buffer so that the workflow can shut down
     gracefully before SLURM terminates the runner node.
@@ -126,8 +118,7 @@ def get_runner_node_remaining_seconds() -> int:
         )
 
     try:
-        # squeue -h -j <job_id> -o %L gives the remaining time as
-        # [D-]HH:MM:SS or "UNLIMITED".
+        # squeue -h -j <job_id> -o %L gives the remaining time as D-HH:MM:SS
         result = subprocess.run(
             ["squeue", "-h", "-j", job_id, "-o", "%L"],
             capture_output=True,
