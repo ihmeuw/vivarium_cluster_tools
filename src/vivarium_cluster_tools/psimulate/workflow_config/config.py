@@ -462,7 +462,7 @@ class SimulationStepConfig(BaseStepConfig):
             with self.config.open() as f:
                 config_data = yaml.safe_load(f) or {}
 
-            # Command-line args take precedence over config file values
+            # Inline args take precedence over config file values
             for field_name, (_flag, is_path) in self._ARG_METADATA.items():
                 if field_name == "config":
                     continue  # Don't override config with itself
