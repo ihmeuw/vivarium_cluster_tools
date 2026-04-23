@@ -104,6 +104,7 @@ class TestWorkflowConfigFromYaml:
                 "args": {
                     "model_specification": str(valid_model_spec_file),
                     "branch_configuration": str(valid_branch_config_file),
+                    "project": "proj_simscience",
                 },
                 "resources": {"memory_gb": 5, "runtime": "03:00:00"},
             }
@@ -365,6 +366,7 @@ class TestSimulationStepConfig:
                 name="sim",
                 resources=ResourceConfig(memory_gb=5),
                 output_directory=Path("/tmp/results"),
+                project="proj_simscience",
                 branch_configuration=tmp_path / "branches.yaml",
             )
 
@@ -378,6 +380,7 @@ class TestSimulationStepConfig:
             output_directory=Path("/tmp/results"),
             model_specification=valid_model_spec_file,
             branch_configuration=valid_branch_config_file,
+            project="proj_simscience",
         )
         assert config.model_specification == valid_model_spec_file
         assert config.branch_configuration == valid_branch_config_file
@@ -390,6 +393,7 @@ class TestSimulationStepConfig:
             tmp_path,
             model_specification=str(valid_model_spec_file),
             branch_configuration=str(valid_branch_config_file),
+            project="proj_simscience",
         )
         step_config = SimulationStepConfig(
             name="sim",
@@ -417,6 +421,7 @@ class TestSimulationStepConfig:
             tmp_path,
             model_specification=str(valid_model_spec_file),
             branch_configuration=str(valid_branch_config_file),
+            project="proj_simscience",
         )
 
         step_config = SimulationStepConfig(
@@ -426,6 +431,7 @@ class TestSimulationStepConfig:
             config=config_file,
             model_specification=inline_model_spec,  # Override config file value
             artifact_path=valid_artifact_file,  # Merge: not in config file
+            project="proj_simscience",
         )
         command = step_config.resolve_command()
 
@@ -443,6 +449,7 @@ class TestSimulationStepConfig:
         config_file = write_psimulate_config(
             tmp_path,
             model_specification=str(tmp_path / "model.yaml"),
+            project="proj_simscience",
         )
         (tmp_path / "model.yaml").write_text("model")
 
@@ -470,6 +477,7 @@ class TestSimulationStepConfig:
             model_specification=valid_model_spec_file,
             branch_configuration=valid_branch_config_file,
             artifact_path=valid_artifact_file,
+            project="proj_simscience",
         )
         command = config.resolve_command()
         assert command.startswith("psimulate run")
@@ -482,6 +490,7 @@ class TestSimulationStepConfig:
             tmp_path,
             model_specification=str(valid_model_spec_file),
             branch_configuration=str(valid_branch_config_file),
+            project="proj_simscience",
         )
         config2 = SimulationStepConfig(
             name="sim",
@@ -523,6 +532,7 @@ class TestSimulationStepConfig:
             base_dict["args"] = {
                 "model_specification": str(valid_model_spec_file),
                 "branch_configuration": str(valid_branch_config_file),
+                "project": "proj_simscience",
             }
         elif config_source == "config_file":
             base_dict["args"] = {
@@ -555,10 +565,12 @@ class TestSimulationStepConfig:
             constructor_kwargs: dict[str, Any] = {
                 "model_specification": valid_model_spec_file,
                 "branch_configuration": valid_branch_config_file,
+                "project": "proj_simscience",
             }
             expected_args = {
                 "model_specification": str(valid_model_spec_file),
                 "branch_configuration": str(valid_branch_config_file),
+                "project": "proj_simscience",
             }
         else:  # config_file
             constructor_kwargs = {"config": psimulate_config_file}

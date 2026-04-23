@@ -68,4 +68,5 @@ def psimulate_config_file(
         tmp_path,
         model_specification=str(valid_model_spec_file),
         branch_configuration=str(valid_branch_config_file),
+        project="proj_simscience",
     )

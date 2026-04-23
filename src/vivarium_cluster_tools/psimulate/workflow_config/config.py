@@ -401,6 +401,7 @@ class SimulationStepConfig(BaseStepConfig):
         "model_specification": ("-M", True),
         "branch_configuration": ("-B", True),
         "artifact_path": ("--artifact_path", True),
+        "project": ("--project", False),
         "peak_memory": ("--peak-memory", False),
         "queue": ("--queue", False),
         "max_runtime": ("--max-runtime", False),
@@ -434,6 +435,8 @@ class SimulationStepConfig(BaseStepConfig):
     """Optional path to artifact file."""
 
     # Resource args for simulation jobs (separate from task runner resources)
+    project: str | None = None
+    """Optional project for simulation jobs."""
     peak_memory: int | None = None
     """Optional peak memory in GB for each simulation job."""
     queue: str | None = None
@@ -493,6 +496,11 @@ class SimulationStepConfig(BaseStepConfig):
         if not self.branch_configuration:
             raise ValueError(
                 f"Step '{self.name}': simulation type requires 'branch_configuration'. "
+                "Provide it inline or in the config file."
+            )
+        if not self.project:
+            raise ValueError(
+                f"Step '{self.name}': simulation type requires 'project'. "
                 "Provide it inline or in the config file."
             )
 
