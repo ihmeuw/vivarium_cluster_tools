@@ -26,13 +26,13 @@ def three_step_config() -> WorkflowConfig:
         output_directory=Path("/tmp/results"),
         default_environment=None,
         steps=[
-            CommandCommandStepConfig(
+            CommandStepConfig(
                 name="step1", resources=ResourceConfig(memory_gb=1), command="echo step1"
             ),
-            CommandCommandStepConfig(
+            CommandStepConfig(
                 name="step2", resources=ResourceConfig(memory_gb=1), command="echo step2"
             ),
-            CommandCommandStepConfig(
+            CommandStepConfig(
                 name="step3", resources=ResourceConfig(memory_gb=1), command="echo step3"
             ),
         ],
