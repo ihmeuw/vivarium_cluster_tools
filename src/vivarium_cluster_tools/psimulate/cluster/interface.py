@@ -146,19 +146,19 @@ def get_runner_node_remaining_seconds() -> int:
             "Cannot determine remaining allocation time."
         )
 
-    remaining_seconds = _parse_slurm_time(remaining_str) - _SLURM_TIMEOUT_BUFFER_SECONDS
-    if remaining_seconds <= 0:
+    remaining_seconds = _parse_slurm_time(remaining_str)
+    workflow_seconds = remaining_seconds - _SLURM_TIMEOUT_BUFFER_SECONDS
+    if workflow_seconds <= 0:
         raise RuntimeError(
-            f"SLURM allocation has {remaining_str} remaining, which is less than "
-            f"the {_SLURM_TIMEOUT_BUFFER_SECONDS}s safety buffer. "
+            f"SLURM allocation has {remaining_str} ({remaining_seconds}s) remaining, "
+            f"which is less than the {_SLURM_TIMEOUT_BUFFER_SECONDS}s safety buffer. "
             "Not enough time to run a workflow."
         )
     logger.info(
-        f"Detected SLURM allocation with {remaining_str} remaining. "
-        f"Setting workflow timeout to {remaining_seconds}s "
-        f"({_SLURM_TIMEOUT_BUFFER_SECONDS}s buffer)."
+        f"Detected SLURM allocation with {remaining_str} ({remaining_seconds}s) remaining. "
+        f"Setting workflow timeout to {workflow_seconds}s ({_SLURM_TIMEOUT_BUFFER_SECONDS}s buffer)."
     )
-    return remaining_seconds
+    return workflow_seconds
 
 
 def _parse_slurm_time(time_str: str) -> int:
