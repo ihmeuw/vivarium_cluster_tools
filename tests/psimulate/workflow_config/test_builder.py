@@ -28,19 +28,25 @@ def three_step_config() -> WorkflowConfig:
         steps=[
             CommandStepConfig(
                 name="step1",
-                resources=ResourceConfig(memory_gb=1, project="proj_simscience", queue="all.q"),
+                resources=ResourceConfig(
+                    memory_gb=1, project="proj_simscience", queue="all.q"
+                ),
                 command="echo step1",
                 output_directory=Path("/tmp/results"),
             ),
             CommandStepConfig(
                 name="step2",
-                resources=ResourceConfig(memory_gb=1, project="proj_simscience", queue="all.q"),
+                resources=ResourceConfig(
+                    memory_gb=1, project="proj_simscience", queue="all.q"
+                ),
                 command="echo step2",
                 output_directory=Path("/tmp/results"),
             ),
             CommandStepConfig(
                 name="step3",
-                resources=ResourceConfig(memory_gb=1, project="proj_simscience", queue="all.q"),
+                resources=ResourceConfig(
+                    memory_gb=1, project="proj_simscience", queue="all.q"
+                ),
                 command="echo step3",
                 output_directory=Path("/tmp/results"),
             ),
@@ -82,7 +88,8 @@ def _make_single_step_config(
         steps=[
             CommandStepConfig(
                 name="s1",
-                resources=resources or ResourceConfig(memory_gb=1, project="proj_simscience", queue="all.q"),
+                resources=resources
+                or ResourceConfig(memory_gb=1, project="proj_simscience", queue="all.q"),
                 command="echo hi",
                 output_directory=Path("/tmp/results"),
                 environment=step_environment,
@@ -151,7 +158,13 @@ class TestResourceDefaults:
     def test_custom_resources(self, mock_tool_cls: MagicMock) -> None:
         """Steps with custom ResourceConfig values are passed through."""
         config = _make_single_step_config(
-            resources=ResourceConfig(memory_gb=16, runtime="04:00:00", cores=8, project="proj_simscience", queue="all.q"),
+            resources=ResourceConfig(
+                memory_gb=16,
+                runtime="04:00:00",
+                cores=8,
+                project="proj_simscience",
+                queue="all.q",
+            ),
         )
         template_mock = mock_tool_cls.return_value.get_task_template.return_value
 

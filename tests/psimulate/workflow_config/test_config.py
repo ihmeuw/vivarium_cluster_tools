@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -258,7 +258,9 @@ class TestCommandStepConfig:
         mock_tool.get_task_template.return_value = mock_template
         mock_template.create_task.return_value = mock_task
 
-        tasks = config.get_tasks(mock_tool, env="my_env", build_timestamp="2026_04_24_10_00_00")
+        tasks = config.get_tasks(
+            mock_tool, env="my_env", build_timestamp="2026_04_24_10_00_00"
+        )
 
         assert tasks == [mock_task]
         mock_template.create_task.assert_called_once_with(
@@ -288,7 +290,12 @@ class TestCommandStepConfig:
         assert result == {
             "name": "test_step",
             "command": "echo test",
-            "resources": {"memory_gb": 4, "project": "proj_simscience", "queue": "all.q", "runtime": "01:00:00"},
+            "resources": {
+                "memory_gb": 4,
+                "project": "proj_simscience",
+                "queue": "all.q",
+                "runtime": "01:00:00",
+            },
             "environment": "my_env",
         }
 
@@ -355,7 +362,12 @@ class TestSimulationStepConfig:
     ) -> None:
         config = SimulationStepConfig(
             name="sim",
-            resources=ResourceConfig(memory_gb=5, hardware=["r650", "r650v2"], project="proj_simscience", queue="all.q"),
+            resources=ResourceConfig(
+                memory_gb=5,
+                hardware=["r650", "r650v2"],
+                project="proj_simscience",
+                queue="all.q",
+            ),
             output_directory=Path("/tmp/results"),
             model_specification=valid_model_spec_file,
             branch_configuration=valid_branch_config_file,
@@ -436,7 +448,13 @@ class TestSimulationStepConfig:
     ) -> None:
         config = SimulationStepConfig(
             name="sim",
-            resources=ResourceConfig(memory_gb=5, runtime="03:00:00", hardware=["r650"], project="proj_simscience", queue="all.q"),
+            resources=ResourceConfig(
+                memory_gb=5,
+                runtime="03:00:00",
+                hardware=["r650"],
+                project="proj_simscience",
+                queue="all.q",
+            ),
             output_directory=Path("/tmp/results"),
             model_specification=valid_model_spec_file,
             branch_configuration=valid_branch_config_file,
@@ -465,3 +483,101 @@ class TestSimulationStepConfig:
         result = config.to_dict()
         assert "artifact_path" not in result["args"]
         assert "hardware" not in result["resources"]
+
+    def test_get_tasks_wires_arguments(
+        self,
+        valid_model_spec_file: Path,
+        valid_branch_config_file: Path,
+        valid_artifact_file: Path,
+    ) -> None:
+        """Verify get_tasks() passes the right arguments through the pipeline."""
+        _cfg = "vivarium_cluster_tools.psimulate.workflow_config.config"
+        with (
+            patch(f"{_cfg}.OutputPaths") as mock_output_paths_cls,
+            patch(f"{_cfg}.branches.Keyspace") as mock_keyspace_cls,
+            patch(f"{_cfg}.build_job_parameters_from_keyspace") as mock_build_job_params,
+            patch(f"{_cfg}.get_task_list") as mock_get_task_list,
+        ):
+            # -- Arrange --
+            mock_output_paths = MagicMock()
+            mock_output_paths.root = Path("/out/root")
+            mock_output_paths.worker_logging_root = Path("/out/logs")
+            mock_output_paths.backup_dir = Path("/out/backup")
+            mock_output_paths.backup_metadata_path = Path("/out/backup_meta.csv")
+            mock_output_paths.metadata_dir = Path("/out/metadata")
+            mock_output_paths.results_dir = Path("/out/results")
+            mock_output_paths_cls.from_entry_point_args.return_value = mock_output_paths
+
+            mock_keyspace = MagicMock()
+            mock_keyspace_cls.from_branch_configuration.return_value = mock_keyspace
+
+            sentinel_job_params = [MagicMock(), MagicMock()]
+            mock_build_job_params.return_value = sentinel_job_params
+
+            sentinel_tasks = [MagicMock(), MagicMock(), MagicMock()]
+            mock_get_task_list.return_value = sentinel_tasks
+
+            config = SimulationStepConfig(
+                name="sim_step",
+                resources=ResourceConfig(
+                    memory_gb=8,
+                    runtime="02:00:00",
+                    project="proj_simscience",
+                    queue="all.q",
+                ),
+                output_directory=Path("/tmp/results"),
+                model_specification=valid_model_spec_file,
+                branch_configuration=valid_branch_config_file,
+                artifact_path=valid_artifact_file,
+                backup_freq=300,
+                sim_verbosity=1,
+            )
+
+            mock_tool = MagicMock()
+            build_ts = "2026_04_24_10_00_00"
+
+            # -- Act --
+            result = config.get_tasks(mock_tool, env="test_env", build_timestamp=build_ts)
+
+            # -- Assert: OutputPaths created correctly --
+            mock_output_paths_cls.from_entry_point_args.assert_called_once_with(
+                command="run",
+                input_artifact_path=valid_artifact_file,
+                result_directory=Path("/tmp/results"),
+                input_model_spec_path=valid_model_spec_file,
+                launch_time=build_ts,
+            )
+            mock_output_paths.touch.assert_called_once()
+
+            # -- Assert: Keyspace parsed from branch config --
+            mock_keyspace_cls.from_branch_configuration.assert_called_once_with(
+                valid_branch_config_file,
+            )
+
+            # -- Assert: job parameters built with correct args --
+            mock_build_job_params.assert_called_once()
+            call_kwargs = mock_build_job_params.call_args
+            assert call_kwargs.args[0] is mock_keyspace
+            assert call_kwargs.kwargs["model_specification_path"] == valid_model_spec_file
+            assert call_kwargs.kwargs["output_root"] == Path("/out/root")
+            assert call_kwargs.kwargs["worker_logging_root"] == Path("/out/logs")
+            backup_cfg = call_kwargs.kwargs["backup_configuration"]
+            assert backup_cfg["backup_dir"] == str(Path("/out/backup"))
+            assert backup_cfg["backup_freq"] == 300
+            assert backup_cfg["backup_metadata_path"] == str(Path("/out/backup_meta.csv"))
+            assert call_kwargs.kwargs["extras"] == {"sim_verbosity": 1}
+
+            # -- Assert: get_task_list called with pipeline outputs --
+            mock_get_task_list.assert_called_once_with(
+                tool=mock_tool,
+                command="run",
+                job_parameters_list=sentinel_job_params,
+                metadata_dir=Path("/out/metadata"),
+                results_dir=Path("/out/results"),
+                worker_logging_root=Path("/out/logs"),
+                native_specification=config.native_specification,
+                env="test_env",
+            )
+
+            # -- Assert: returns whatever get_task_list returns --
+            assert result is sentinel_tasks

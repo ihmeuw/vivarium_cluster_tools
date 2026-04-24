@@ -127,7 +127,7 @@ class ResourceConfig:
         return result
 
     def to_native_specification(self, job_name: str) -> NativeSpecification:
-        """Convert to a :class:`NativeSpecification` for Jobmon task submission.
+        """Convert to a :class:`~vivarium_cluster_tools.psimulate.cluster.interface.NativeSpecification` for Jobmon task submission.
 
         Parameters
         ----------
@@ -169,9 +169,7 @@ class BaseStepConfig(ABC):
         subclass-specific _validate() method.
         """
         if not hasattr(self, "__dataclass_fields__"):
-            raise TypeError(
-                f"{type(self).__name__} must be decorated with @dataclass."
-            )
+            raise TypeError(f"{type(self).__name__} must be decorated with @dataclass.")
         if not self.name:
             raise ValueError("Step 'name' is required.")
         if not self.resources:
@@ -428,6 +426,8 @@ class SimulationStepConfig(BaseStepConfig):
               model_specification: /path/to/model.yaml
               branch_configuration: /path/to/branches.yaml
               artifact_path: /path/to/artifact.hdf
+              backup_freq: 1800
+              sim_verbosity: 1
     """
 
     _SUPPORTED_ARGS: ClassVar[set[str]] = {
@@ -594,7 +594,7 @@ class WorkflowConfig:
     """Parsed and validated workflow configuration."""
 
     # Step type mappings - add new step types here as they are implemented
-    SUPPORTED_STEP_TYPES = {
+    SUPPORTED_STEP_TYPES: ClassVar[dict[str, type]] = {
         "simulation": SimulationStepConfig,
     }
 

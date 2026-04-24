@@ -379,7 +379,9 @@ def test_write_configuration_workflow_command(tmp_path: Path) -> None:
             CommandStepConfig(
                 name="test_step",
                 command="pytest tests/",
-                resources=ResourceConfig(memory_gb=4, runtime="01:00:00", project="proj_simscience", queue="all.q"),
+                resources=ResourceConfig(
+                    memory_gb=4, runtime="01:00:00", project="proj_simscience", queue="all.q"
+                ),
                 output_directory=output_dir,
             )
         ],
