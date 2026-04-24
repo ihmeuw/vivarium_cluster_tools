@@ -40,6 +40,10 @@ REQUIRED_WORKFLOW_FIELDS = {"name", "steps"}
 DEFAULT_MAX_ATTEMPTS = 2
 
 
+DEFAULT_BACKUP_FREQ_SECONDS = 30.0 * 60.0
+"""Default backup frequency in seconds (30 minutes), matching ``psimulate run``."""
+
+
 @dataclass
 class ResourceConfig:
     """Compute resource specification for a workflow step."""
@@ -458,6 +462,7 @@ class SimulationStepConfig(BaseStepConfig):
         "model_specification",
         "branch_configuration",
         "artifact_path",
+        "backup_freq",
     }
 
     name: str
@@ -474,6 +479,8 @@ class SimulationStepConfig(BaseStepConfig):
     """Optional environment name to use for this step."""
     artifact_path: Path | None = None
     """Optional path to artifact file."""
+    backup_freq: float | None = DEFAULT_BACKUP_FREQ_SECONDS
+    """Backup frequency in seconds, or ``None`` to disable. Default is 30 minutes."""
 
     def _validate(self) -> None:
         """Validate simulation step configuration."""
@@ -525,6 +532,11 @@ class SimulationStepConfig(BaseStepConfig):
             model_specification_path=self.model_specification,
             output_root=output_paths.root,
             worker_logging_root=output_paths.worker_logging_root,
+            backup_configuration={
+                "backup_dir": str(output_paths.backup_dir),
+                "backup_freq": self.backup_freq,
+                "backup_metadata_path": str(output_paths.backup_metadata_path),
+            },
         )
 
         if not isinstance(self.resources.queue, str) or not isinstance(
@@ -571,6 +583,8 @@ class SimulationStepConfig(BaseStepConfig):
         }
         if self.artifact_path is not None:
             args["artifact_path"] = str(self.artifact_path)
+        if self.backup_freq != DEFAULT_BACKUP_FREQ_SECONDS:
+            args["backup_freq"] = self.backup_freq
 
         result["args"] = args
         return result
@@ -603,6 +617,8 @@ class SimulationStepConfig(BaseStepConfig):
         }
         if "artifact_path" in args:
             kwargs["artifact_path"] = Path(args["artifact_path"])
+        if "backup_freq" in args:
+            kwargs["backup_freq"] = args["backup_freq"]
 
         return cls(**kwargs)
 
