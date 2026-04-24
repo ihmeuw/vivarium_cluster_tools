@@ -118,7 +118,7 @@ class TestWorkflowConfigValidation:
         ]
         data = make_workflow_dict(steps=steps)
         yaml_path = write_workflow_yaml(tmp_path, data)
-        with pytest.raises(KeyError, match="unique"):
+        with pytest.raises(ValueError, match="unique"):
             WorkflowConfig.from_yaml_with_cli_overrides(yaml_path)
 
     def test_rejects_step_without_command(self, tmp_path: Path) -> None:
@@ -181,7 +181,7 @@ class TestWorkflowConfigFromYamlWithCliOverrides:
         del data["workflow"][field]
         yaml_path = write_workflow_yaml(tmp_path, data)
         with pytest.raises(
-            KeyError, match=f"{field.replace('_', ' ').title().split()[0]}.*required"
+            ValueError, match=f"(?i){field.replace('_', ' ').split()[0]}.*required"
         ):
             WorkflowConfig.from_yaml_with_cli_overrides(yaml_path)
 
@@ -239,7 +239,7 @@ class TestCommandStepConfig:
     def test_supported_arguments_returns_none(self) -> None:
         config = CommandStepConfig(
             name="test_step",
-            resources=ResourceConfig(memory_gb=4),
+            resources=ResourceConfig(memory_gb=4, project="proj_simscience", queue="all.q"),
             command="echo test",
             output_directory=Path("/tmp/results"),
         )
@@ -258,7 +258,7 @@ class TestCommandStepConfig:
         mock_tool.get_task_template.return_value = mock_template
         mock_template.create_task.return_value = mock_task
 
-        tasks = config.get_tasks(mock_tool, env="my_env")
+        tasks = config.get_tasks(mock_tool, env="my_env", build_timestamp="2026_04_24_10_00_00")
 
         assert tasks == [mock_task]
         mock_template.create_task.assert_called_once_with(
@@ -266,9 +266,11 @@ class TestCommandStepConfig:
             compute_resources={
                 "queue": "all.q",
                 "project": "proj_simscience",
-                "memory": 4,
-                "runtime": "01:00:00",
+                "memory": 4.0,
+                "runtime": 3600,
                 "cores": 1,
+                "stdout": "/tmp/results",
+                "stderr": "/tmp/results",
             },
             env="my_env",
             command="echo hello world",
@@ -277,7 +279,7 @@ class TestCommandStepConfig:
     def test_to_dict(self) -> None:
         config = CommandStepConfig(
             name="test_step",
-            resources=ResourceConfig(memory_gb=4),
+            resources=ResourceConfig(memory_gb=4, project="proj_simscience", queue="all.q"),
             command="echo test",
             output_directory=Path("/tmp/results"),
             environment="my_env",
@@ -286,7 +288,7 @@ class TestCommandStepConfig:
         assert result == {
             "name": "test_step",
             "command": "echo test",
-            "resources": {"memory_gb": 4, "runtime": "01:00:00"},
+            "resources": {"memory_gb": 4, "project": "proj_simscience", "queue": "all.q", "runtime": "01:00:00"},
             "environment": "my_env",
         }
 
@@ -353,7 +355,7 @@ class TestSimulationStepConfig:
     ) -> None:
         config = SimulationStepConfig(
             name="sim",
-            resources=ResourceConfig(memory_gb=5, hardware=["r650", "r650v2"]),
+            resources=ResourceConfig(memory_gb=5, hardware=["r650", "r650v2"], project="proj_simscience", queue="all.q"),
             output_directory=Path("/tmp/results"),
             model_specification=valid_model_spec_file,
             branch_configuration=valid_branch_config_file,
@@ -369,7 +371,7 @@ class TestSimulationStepConfig:
     ) -> None:
         config = SimulationStepConfig(
             name="sim",
-            resources=ResourceConfig(memory_gb=5),
+            resources=ResourceConfig(memory_gb=5, project="proj_simscience", queue="all.q"),
             output_directory=Path("/tmp/results"),
             model_specification=valid_model_spec_file,
             branch_configuration=valid_branch_config_file,
@@ -434,7 +436,7 @@ class TestSimulationStepConfig:
     ) -> None:
         config = SimulationStepConfig(
             name="sim",
-            resources=ResourceConfig(memory_gb=5, runtime="03:00:00", hardware=["r650"]),
+            resources=ResourceConfig(memory_gb=5, runtime="03:00:00", hardware=["r650"], project="proj_simscience", queue="all.q"),
             output_directory=Path("/tmp/results"),
             model_specification=valid_model_spec_file,
             branch_configuration=valid_branch_config_file,
@@ -455,7 +457,7 @@ class TestSimulationStepConfig:
     ) -> None:
         config = SimulationStepConfig(
             name="sim",
-            resources=ResourceConfig(memory_gb=5),
+            resources=ResourceConfig(memory_gb=5, project="proj_simscience", queue="all.q"),
             output_directory=Path("/tmp/results"),
             model_specification=valid_model_spec_file,
             branch_configuration=valid_branch_config_file,

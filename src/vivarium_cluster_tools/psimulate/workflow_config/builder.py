@@ -10,6 +10,7 @@ Build Jobmon workflows from workflow configuration.
 from __future__ import annotations
 
 import os
+from datetime import datetime
 from typing import TYPE_CHECKING
 
 from jobmon.client.api import Tool
@@ -23,6 +24,10 @@ if TYPE_CHECKING:
 WORKFLOW_ARGS_FILENAME = ".workflow_args"
 """File written to the output directory to persist the Jobmon workflow_args
 for resume support."""
+
+BUILD_TIMESTAMP_FILENAME = ".build_timestamp"
+"""File written to the output directory to persist the build timestamp
+so that resume builds produce identical output paths."""
 
 
 class WorkflowBuilder:
@@ -55,6 +60,11 @@ class WorkflowBuilder:
             default_max_attempts=self.config.max_attempts,
         )
 
+        # Generate a stable build timestamp once per workflow build.
+        # On resume, reuse the timestamp from the previous build so that
+        # steps produce identical output paths.
+        build_timestamp = self._get_or_create_build_timestamp()
+
         previous_step_tasks: list = []
         all_tasks: list = []
 
@@ -74,6 +84,7 @@ class WorkflowBuilder:
             step_tasks = step.get_tasks(
                 self._tool,
                 env=env,
+                build_timestamp=build_timestamp,
             )
 
             # Wire sequential dependencies: every task in this step
@@ -88,3 +99,23 @@ class WorkflowBuilder:
         workflow.add_tasks(all_tasks)
 
         return workflow
+
+    def _get_or_create_build_timestamp(self) -> str:
+        """Return a stable build timestamp, persisting it for resume support.
+
+        On a fresh build, generates a new timestamp from ``datetime.now()``
+        and writes it to a marker file in the output directory. On resume,
+        reads and returns the previously persisted timestamp.
+
+        Returns
+        -------
+            Timestamp string in ``YYYY_MM_DD_HH_MM_SS`` format.
+        """
+        timestamp_path = self.config.output_directory / BUILD_TIMESTAMP_FILENAME
+        if timestamp_path.exists():
+            return timestamp_path.read_text().strip()
+
+        build_timestamp = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
+        self.config.output_directory.mkdir(parents=True, exist_ok=True)
+        timestamp_path.write_text(build_timestamp)
+        return build_timestamp

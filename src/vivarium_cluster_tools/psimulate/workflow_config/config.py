@@ -26,7 +26,7 @@ from vivarium_cluster_tools.psimulate.cluster.interface import (
 )
 from vivarium_cluster_tools.psimulate.jobmon_config.workflow import get_task_list
 from vivarium_cluster_tools.psimulate.jobs import (
-    JobParameters,
+    BackupConfiguration,
     build_job_parameters_from_keyspace,
 )
 from vivarium_cluster_tools.psimulate.paths import OutputPaths
@@ -112,28 +112,44 @@ class ResourceConfig:
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to a dictionary, omitting None values and defaults."""
-        result: dict[str, Any] = {}
-        if self.memory_gb is not None:
-            result["memory_gb"] = self.memory_gb
+        result: dict[str, Any] = {
+            "memory_gb": self.memory_gb,
+            "runtime": self.runtime,
+        }
         if self.project is not None:
             result["project"] = self.project
         if self.queue is not None:
             result["queue"] = self.queue
-        if self.runtime is not None:
-            result["runtime"] = self.runtime
         if self.cores != 1:  # Only include if not default
             result["cores"] = self.cores
         if self.hardware is not None:
             result["hardware"] = self.hardware
         return result
 
+    def to_native_specification(self, job_name: str) -> NativeSpecification:
+        """Convert to a :class:`NativeSpecification` for Jobmon task submission.
+
+        Parameters
+        ----------
+        job_name
+            The SLURM job name for this step's tasks.
+        """
+        return NativeSpecification(
+            job_name=job_name,
+            project=self.project,
+            queue=self.queue,
+            peak_memory=float(self.memory_gb),
+            max_runtime=self.runtime,
+            hardware=self.hardware or [],
+        )
+
 
 class BaseStepConfig(ABC):
     """Abstract base class for all workflow step configurations.
 
     Defines the interface that all step types must implement. Concrete
-    subclasses should be decorated with @dataclass and define their own
-    fields (name, resources, environment, plus any type-specific fields).
+    subclasses **must** be decorated with ``@dataclass`` so that
+    ``__post_init__`` is called automatically after ``__init__``.
 
     The base class provides a concrete __post_init__ that performs common
     validation and then calls the abstract _validate() method for
@@ -152,13 +168,27 @@ class BaseStepConfig(ABC):
         It performs validation common to all steps, then dispatches to the
         subclass-specific _validate() method.
         """
+        if not hasattr(self, "__dataclass_fields__"):
+            raise TypeError(
+                f"{type(self).__name__} must be decorated with @dataclass."
+            )
         if not self.name:
             raise ValueError("Step 'name' is required.")
         if not self.resources:
             raise ValueError(f"Step '{self.name}': 'resources' is required.")
+        if not isinstance(self.resources.queue, str) or not isinstance(
+            self.resources.project, str
+        ):
+            raise ValueError(
+                f"Step '{self.name}': resources 'queue' and 'project' must be "
+                "configured. Set them at the step level or provide workflow-level defaults."
+            )
 
         # Call subclass-specific validation
         self._validate()
+
+        # Build the Jobmon-facing resource specification once at construction.
+        self.native_specification = self.resources.to_native_specification(self.name)
 
     @abstractmethod
     def _validate(self) -> None:
@@ -193,30 +223,8 @@ class BaseStepConfig(ABC):
         """
         pass
 
-    @staticmethod
-    def _validate_command_type_exclusivity(data: dict[str, Any]) -> None:
-        """Validate that a step dict doesn't have both 'command' and 'type'.
-
-        Called automatically by from_dict() before construction.
-
-        Parameters
-        ----------
-        data
-            Raw step dictionary from YAML.
-
-        Raises
-        ------
-        ValueError
-            If both 'command' and 'type' fields are present.
-        """
-        if "command" in data and "type" in data:
-            step_name = data.get("name", "<unnamed>")
-            raise ValueError(
-                f"Step '{step_name}': Cannot specify both 'command' and 'type'. "
-                "Use 'command' for command-based steps or 'type' for typed steps."
-            )
-
     @classmethod
+    @abstractmethod
     def from_dict(
         cls,
         data: dict[str, Any],
@@ -225,44 +233,7 @@ class BaseStepConfig(ABC):
         project: str,
         queue: str,
     ) -> BaseStepConfig:
-        """Create a step config from a dictionary.
-
-        This is a concrete method that validates command/type exclusivity
-        before delegating to the subclass-specific _create_from_dict().
-        Subclasses should override _create_from_dict(), not this method.
-
-        Parameters
-        ----------
-        data
-            Dictionary from workflow YAML.
-        output_directory
-            Workflow-level output directory.
-        project
-            Workflow-level project for resource resolution.
-        queue
-            Workflow-level queue for resource resolution.
-
-        Returns
-        -------
-            A new step config instance of the appropriate type.
-        """
-        # Always validate command/type exclusivity first
-        cls._validate_command_type_exclusivity(data)
-
-        # Delegate to subclass-specific implementation
-        return cls._create_from_dict(
-            data, output_directory=output_directory, project=project, queue=queue
-        )
-
-    @classmethod
-    @abstractmethod
-    def _create_from_dict(
-        cls, data: dict[str, Any], output_directory: Path, *, project: str, queue: str
-    ) -> BaseStepConfig:
-        """Subclass-specific deserialization logic.
-
-        Called by from_dict() after validation. Subclasses implement this
-        to construct instances from dictionaries.
+        """Create a step config from a raw YAML dictionary.
 
         Parameters
         ----------
@@ -287,6 +258,7 @@ class BaseStepConfig(ABC):
         tool: Tool,
         *,
         env: str,
+        build_timestamp: str,
     ) -> list[Task]:
         """Create Jobmon Tasks for this step.
 
@@ -304,6 +276,10 @@ class BaseStepConfig(ABC):
             The Jobmon Tool instance to create task templates from.
         env
             Conda environment name to wrap the command with.
+        build_timestamp
+            Stable timestamp string (``YYYY_MM_DD_HH_MM_SS``) generated once
+            per workflow build. Steps that create output directories should
+            use this to ensure paths are deterministic across resume builds.
 
         Returns
         -------
@@ -357,6 +333,7 @@ class CommandStepConfig(BaseStepConfig):
         tool: Tool,
         *,
         env: str,
+        build_timestamp: str,
     ) -> list[Task]:
         """Create a single Jobmon Task for this command step."""
         task_template = tool.get_task_template(
@@ -367,13 +344,10 @@ class CommandStepConfig(BaseStepConfig):
             op_args=["env"],
             default_cluster_name="slurm",
         )
-        compute_resources = {
-            "queue": self.resources.queue,
-            "project": self.resources.project,
-            "memory": self.resources.memory_gb,
-            "runtime": self.resources.runtime,
-            "cores": self.resources.cores,
-        }
+        native_spec = self.native_specification
+        compute_resources = native_spec.to_jobmon_spec(
+            worker_logging_root=self.output_directory,
+        )
         task = task_template.create_task(
             name=self.name,
             compute_resources=compute_resources,
@@ -397,12 +371,10 @@ class CommandStepConfig(BaseStepConfig):
         return result
 
     @classmethod
-    def _create_from_dict(
+    def from_dict(
         cls, data: dict[str, Any], output_directory: Path, *, project: str, queue: str
     ) -> CommandStepConfig:
         """Create a CommandStepConfig from a dictionary.
-
-        Called by BaseStepConfig.from_dict() after validation.
 
         Parameters
         ----------
@@ -505,6 +477,7 @@ class SimulationStepConfig(BaseStepConfig):
         tool: Tool,
         *,
         env: str,
+        build_timestamp: str,
     ) -> list[Task]:
         """Create parallel simulation Jobmon Tasks.
 
@@ -522,6 +495,7 @@ class SimulationStepConfig(BaseStepConfig):
             input_artifact_path=self.artifact_path,
             result_directory=self.output_directory,
             input_model_spec_path=self.model_specification,
+            launch_time=build_timestamp,
         )
         output_paths.touch()
 
@@ -534,41 +508,24 @@ class SimulationStepConfig(BaseStepConfig):
             model_specification_path=self.model_specification,
             output_root=output_paths.root,
             worker_logging_root=output_paths.worker_logging_root,
-            backup_configuration={
-                "backup_dir": str(output_paths.backup_dir),
-                "backup_freq": self.backup_freq,
-                "backup_metadata_path": str(output_paths.backup_metadata_path),
-            },
+            backup_configuration=BackupConfiguration(
+                backup_dir=str(output_paths.backup_dir),
+                backup_freq=self.backup_freq,
+                backup_metadata_path=str(output_paths.backup_metadata_path),
+            ),
             extras={
                 "sim_verbosity": self.sim_verbosity,
             },
         )
 
-        if not isinstance(self.resources.queue, str) or not isinstance(
-            self.resources.project, str
-        ):
-            raise ValueError(
-                f"Step '{self.name}': resources 'queue' and 'project' are not configured properly."
-                "Please check your configuration."
-            )
-
-        native_spec = NativeSpecification(
-            job_name=f"sim_{self.name}",
-            project=self.resources.project,
-            queue=self.resources.queue,
-            peak_memory=float(self.resources.memory_gb),
-            max_runtime=self.resources.runtime,
-            hardware=self.resources.hardware or [],
-        )
-
         return get_task_list(
             tool=tool,
-            command="run",
+            command=COMMANDS.run,
             job_parameters_list=job_parameters,
             metadata_dir=output_paths.metadata_dir,
             results_dir=output_paths.results_dir,
             worker_logging_root=output_paths.worker_logging_root,
-            native_specification=native_spec,
+            native_specification=self.native_specification,
             env=env,
         )
 
@@ -597,7 +554,7 @@ class SimulationStepConfig(BaseStepConfig):
         return result
 
     @classmethod
-    def _create_from_dict(
+    def from_dict(
         cls, data: dict[str, Any], output_directory: Path, *, project: str, queue: str
     ) -> SimulationStepConfig:
         """Create a SimulationStepConfig from a dictionary."""
@@ -699,11 +656,17 @@ class WorkflowConfig:
         """Parse a list of raw step dicts into step config objects.
 
         Routes to the appropriate step type based on the 'type' field using
-        WorkflowConfig.SUPPORTED_STEP_TYPES. Falls back to CommandStepConfig (command-based)
-        if no type is specified or if the type is not registered.
+        WorkflowConfig.SUPPORTED_STEP_TYPES. Falls back to CommandStepConfig
+        if no type is specified. Raises ValueError for unrecognized types.
         """
         steps: list[BaseStepConfig] = []
         for step_dict in raw_steps:
+            if "command" in step_dict and "type" in step_dict:
+                step_name = step_dict.get("name", "<unnamed>")
+                raise ValueError(
+                    f"Step '{step_name}': Cannot specify both 'command' and 'type'. "
+                    "Use 'command' for command-based steps or 'type' for typed steps."
+                )
             step_type = step_dict.get("type")
             if step_type is not None:
                 if step_type not in WorkflowConfig.SUPPORTED_STEP_TYPES:
@@ -774,15 +737,15 @@ class WorkflowConfig:
         )
 
         if not resolved_project:
-            raise KeyError(
+            raise ValueError(
                 "Project is required. Provide it in the config file or via --project/-P."
             )
         if not resolved_queue:
-            raise KeyError(
+            raise ValueError(
                 "Queue is required. Provide it in the config file or via --queue/-q."
             )
         if not resolved_output_directory:
-            raise KeyError(
+            raise ValueError(
                 "Output directory is required. Provide it in the config file "
                 "or via --output-directory/-o."
             )
@@ -807,11 +770,12 @@ class WorkflowConfig:
     def __post_init__(self) -> None:
         """Validate workflow-level constraints."""
         validate_project(self.project)
+        # Uses a placeholder value for runtime
         validate_runtime_and_queue("01:00:00", self.queue)  # validate queue value
         # Unique step names
         names = [step.name for step in self.steps]
         if len(names) != len(set(names)):
-            raise KeyError(
+            raise ValueError(
                 f"Step names must be unique. Duplicate names found: {[name for name in names if names.count(name) > 1]}"
             )
 

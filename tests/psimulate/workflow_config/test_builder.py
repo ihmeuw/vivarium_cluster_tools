@@ -28,19 +28,19 @@ def three_step_config() -> WorkflowConfig:
         steps=[
             CommandStepConfig(
                 name="step1",
-                resources=ResourceConfig(memory_gb=1),
+                resources=ResourceConfig(memory_gb=1, project="proj_simscience", queue="all.q"),
                 command="echo step1",
                 output_directory=Path("/tmp/results"),
             ),
             CommandStepConfig(
                 name="step2",
-                resources=ResourceConfig(memory_gb=1),
+                resources=ResourceConfig(memory_gb=1, project="proj_simscience", queue="all.q"),
                 command="echo step2",
                 output_directory=Path("/tmp/results"),
             ),
             CommandStepConfig(
                 name="step3",
-                resources=ResourceConfig(memory_gb=1),
+                resources=ResourceConfig(memory_gb=1, project="proj_simscience", queue="all.q"),
                 command="echo step3",
                 output_directory=Path("/tmp/results"),
             ),
@@ -52,6 +52,43 @@ def three_step_config() -> WorkflowConfig:
 def mock_tool_cls(mocker: MockerFixture) -> MagicMock:
     """Patch the Jobmon ``Tool`` class at the builder's import site."""
     return mocker.patch("vivarium_cluster_tools.psimulate.workflow_config.builder.Tool")
+
+
+@pytest.fixture(autouse=True)
+def mock_build_timestamp(mocker: MockerFixture) -> str:
+    """Patch the build timestamp so tests don't write to the filesystem."""
+    ts = "2026_04_24_10_00_00"
+    mocker.patch.object(
+        WorkflowBuilder,
+        "_get_or_create_build_timestamp",
+        return_value=ts,
+    )
+    return ts
+
+
+def _make_single_step_config(
+    *,
+    resources: ResourceConfig | None = None,
+    default_environment: str | None = None,
+    step_environment: str | None = None,
+) -> WorkflowConfig:
+    """Build a WorkflowConfig with one CommandStepConfig for simple tests."""
+    return WorkflowConfig(
+        name="test",
+        project="proj_simscience",
+        queue="all.q",
+        output_directory=Path("/tmp/results"),
+        default_environment=default_environment,
+        steps=[
+            CommandStepConfig(
+                name="s1",
+                resources=resources or ResourceConfig(memory_gb=1, project="proj_simscience", queue="all.q"),
+                command="echo hi",
+                output_directory=Path("/tmp/results"),
+                environment=step_environment,
+            )
+        ],
+    )
 
 
 class TestWorkflowBuilder:
@@ -101,55 +138,29 @@ class TestResourceDefaults:
 
     def test_default_resources(self, mock_tool_cls: MagicMock) -> None:
         """Steps with default ResourceConfig get the expected compute resources."""
-        config = WorkflowConfig(
-            name="test",
-            project="proj_simscience",
-            queue="all.q",
-            output_directory=Path("/tmp/results"),
-            default_environment=None,
-            steps=[
-                CommandStepConfig(
-                    name="s1",
-                    resources=ResourceConfig(memory_gb=1),
-                    command="echo hi",
-                    output_directory=Path("/tmp/results"),
-                )
-            ],
-        )
+        config = _make_single_step_config()
         template_mock = mock_tool_cls.return_value.get_task_template.return_value
 
         WorkflowBuilder(config).build(workflow_args="test_workflow_args")
 
         call_kwargs = template_mock.create_task.call_args[1]
-        assert call_kwargs["compute_resources"]["memory"] == 1
-        assert call_kwargs["compute_resources"]["runtime"] == "01:00:00"
+        assert call_kwargs["compute_resources"]["memory"] == 1.0
+        assert call_kwargs["compute_resources"]["runtime"] == 3600
         assert call_kwargs["compute_resources"]["cores"] == 1
 
     def test_custom_resources(self, mock_tool_cls: MagicMock) -> None:
         """Steps with custom ResourceConfig values are passed through."""
-        config = WorkflowConfig(
-            name="test",
-            project="proj_simscience",
-            queue="all.q",
-            output_directory=Path("/tmp/results"),
-            default_environment=None,
-            steps=[
-                CommandStepConfig(
-                    name="s1",
-                    resources=ResourceConfig(memory_gb=16, runtime="04:00:00", cores=8),
-                    command="echo hi",
-                    output_directory=Path("/tmp/results"),
-                ),
-            ],
+        config = _make_single_step_config(
+            resources=ResourceConfig(memory_gb=16, runtime="04:00:00", cores=8, project="proj_simscience", queue="all.q"),
         )
         template_mock = mock_tool_cls.return_value.get_task_template.return_value
 
         WorkflowBuilder(config).build(workflow_args="test_workflow_args")
 
         call_kwargs = template_mock.create_task.call_args[1]
-        assert call_kwargs["compute_resources"]["memory"] == 16
-        assert call_kwargs["compute_resources"]["runtime"] == "04:00:00"
-        assert call_kwargs["compute_resources"]["cores"] == 8
+        assert call_kwargs["compute_resources"]["memory"] == 16.0
+        assert call_kwargs["compute_resources"]["runtime"] == 14400
+        assert call_kwargs["compute_resources"]["cores"] == 1
 
 
 class TestEnvironmentResolution:
@@ -157,21 +168,9 @@ class TestEnvironmentResolution:
 
     def test_step_environment_takes_priority(self, mock_tool_cls: MagicMock) -> None:
         """A step's own environment overrides the workflow default."""
-        config = WorkflowConfig(
-            name="test",
-            project="proj_simscience",
-            queue="all.q",
-            output_directory=Path("/tmp/results"),
+        config = _make_single_step_config(
             default_environment="workflow_env",
-            steps=[
-                CommandStepConfig(
-                    name="s1",
-                    resources=ResourceConfig(memory_gb=1),
-                    command="echo hi",
-                    output_directory=Path("/tmp/results"),
-                    environment="step_env",
-                ),
-            ],
+            step_environment="step_env",
         )
         template_mock = mock_tool_cls.return_value.get_task_template.return_value
 
@@ -182,21 +181,7 @@ class TestEnvironmentResolution:
 
     def test_workflow_default_environment(self, mock_tool_cls: MagicMock) -> None:
         """When step has no environment, workflow default_environment is used."""
-        config = WorkflowConfig(
-            name="test",
-            project="proj_simscience",
-            queue="all.q",
-            output_directory=Path("/tmp/results"),
-            default_environment="workflow_env",
-            steps=[
-                CommandStepConfig(
-                    name="s1",
-                    resources=ResourceConfig(memory_gb=1),
-                    command="echo hi",
-                    output_directory=Path("/tmp/results"),
-                )
-            ],
-        )
+        config = _make_single_step_config(default_environment="workflow_env")
         template_mock = mock_tool_cls.return_value.get_task_template.return_value
 
         WorkflowBuilder(config).build(workflow_args="test_workflow_args")
@@ -209,21 +194,7 @@ class TestEnvironmentResolution:
     ) -> None:
         """When no step or workflow env, falls back to CONDA_DEFAULT_ENV."""
         monkeypatch.setenv("CONDA_DEFAULT_ENV", "conda_env")
-        config = WorkflowConfig(
-            name="test",
-            project="proj_simscience",
-            queue="all.q",
-            output_directory=Path("/tmp/results"),
-            default_environment=None,
-            steps=[
-                CommandStepConfig(
-                    name="s1",
-                    resources=ResourceConfig(memory_gb=1),
-                    command="echo hi",
-                    output_directory=Path("/tmp/results"),
-                )
-            ],
-        )
+        config = _make_single_step_config()
         template_mock = mock_tool_cls.return_value.get_task_template.return_value
 
         WorkflowBuilder(config).build(workflow_args="test_workflow_args")
@@ -236,21 +207,7 @@ class TestEnvironmentResolution:
     ) -> None:
         """When nothing is set, raises ValueError for base environment."""
         monkeypatch.delenv("CONDA_DEFAULT_ENV", raising=False)
-        config = WorkflowConfig(
-            name="test",
-            project="proj_simscience",
-            queue="all.q",
-            output_directory=Path("/tmp/results"),
-            default_environment=None,
-            steps=[
-                CommandStepConfig(
-                    name="s1",
-                    resources=ResourceConfig(memory_gb=1),
-                    command="echo hi",
-                    output_directory=Path("/tmp/results"),
-                )
-            ],
-        )
+        config = _make_single_step_config()
 
         with pytest.raises(ValueError, match="non-base conda environment is required"):
             WorkflowBuilder(config).build(workflow_args="test_workflow_args")

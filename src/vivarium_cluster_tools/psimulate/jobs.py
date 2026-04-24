@@ -10,13 +10,21 @@ import json
 from collections import defaultdict
 from copy import deepcopy
 from pathlib import Path
-from typing import Any, NamedTuple
+from typing import Any, NamedTuple, TypedDict
 
 import numpy as np
 import pandas as pd
 from vivarium.framework.utilities import collapse_nested_dict
 
 from vivarium_cluster_tools.psimulate import branches
+
+
+class BackupConfiguration(TypedDict):
+    """Typed contract for simulation backup settings."""
+
+    backup_dir: str | Path
+    backup_freq: int | None
+    backup_metadata_path: str | Path
 
 
 def generate_task_id(
@@ -61,7 +69,7 @@ class JobParameters(NamedTuple):
     random_seed: int
     results_path: str
     worker_logging_root: str
-    backup_configuration: dict[str, Any]
+    backup_configuration: BackupConfiguration
     extras: dict[str, Any]
 
     @property
@@ -114,7 +122,7 @@ def build_job_parameters_from_keyspace(
     model_specification_path: Path,
     output_root: Path,
     worker_logging_root: Path,
-    backup_configuration: dict[str, Any] | None = None,
+    backup_configuration: BackupConfiguration | None = None,
     extras: dict[str, Any] | None = None,
 ) -> list[JobParameters]:
     """Build a JobParameters list from a keyspace without filtering.
@@ -133,7 +141,7 @@ def build_job_parameters_from_keyspace(
     worker_logging_root
         Directory for worker log output.
     backup_configuration
-        Optional backup configuration dict. Defaults to empty.
+        Optional backup configuration. Defaults to empty.
     extras
         Optional extra arguments dict. Defaults to empty.
     """
@@ -170,11 +178,11 @@ def build_job_list(
         model_specification_path=model_specification_path,
         output_root=output_root,
         worker_logging_root=worker_logging_root,
-        backup_configuration={
-            "backup_dir": backup_dir,
-            "backup_freq": backup_freq,
-            "backup_metadata_path": backup_metadata_path,
-        },
+        backup_configuration=BackupConfiguration(
+            backup_dir=backup_dir,
+            backup_freq=backup_freq,
+            backup_metadata_path=backup_metadata_path,
+        ),
         extras=extras,
     )
 
