@@ -463,6 +463,7 @@ class SimulationStepConfig(BaseStepConfig):
         "branch_configuration",
         "artifact_path",
         "backup_freq",
+        "sim_verbosity",
     }
 
     name: str
@@ -481,6 +482,8 @@ class SimulationStepConfig(BaseStepConfig):
     """Optional path to artifact file."""
     backup_freq: float | None = DEFAULT_BACKUP_FREQ_SECONDS
     """Backup frequency in seconds, or ``None`` to disable. Default is 30 minutes."""
+    sim_verbosity: int = 0
+    """Vivarium simulation logging verbosity level. Default is 0."""
 
     def _validate(self) -> None:
         """Validate simulation step configuration."""
@@ -537,6 +540,9 @@ class SimulationStepConfig(BaseStepConfig):
                 "backup_freq": self.backup_freq,
                 "backup_metadata_path": str(output_paths.backup_metadata_path),
             },
+            extras={
+                "sim_verbosity": self.sim_verbosity,
+            },
         )
 
         if not isinstance(self.resources.queue, str) or not isinstance(
@@ -585,6 +591,8 @@ class SimulationStepConfig(BaseStepConfig):
             args["artifact_path"] = str(self.artifact_path)
         if self.backup_freq != DEFAULT_BACKUP_FREQ_SECONDS:
             args["backup_freq"] = self.backup_freq
+        if self.sim_verbosity != 0:
+            args["sim_verbosity"] = self.sim_verbosity
 
         result["args"] = args
         return result
@@ -619,6 +627,8 @@ class SimulationStepConfig(BaseStepConfig):
             kwargs["artifact_path"] = Path(args["artifact_path"])
         if "backup_freq" in args:
             kwargs["backup_freq"] = args["backup_freq"]
+        if "sim_verbosity" in args:
+            kwargs["sim_verbosity"] = args["sim_verbosity"]
 
         return cls(**kwargs)
 
