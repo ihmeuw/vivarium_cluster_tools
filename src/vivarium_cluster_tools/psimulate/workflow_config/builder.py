@@ -18,6 +18,7 @@ from jobmon.client.api import Tool
 from vivarium_cluster_tools.psimulate.workflow_config.config import WorkflowConfig
 
 if TYPE_CHECKING:
+    from jobmon.client.task import Task
     from jobmon.client.workflow import Workflow
 
 
