@@ -7,7 +7,6 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
-import yaml
 
 from tests.psimulate.workflow_config.utilities import (
     make_step_dict,
@@ -25,21 +24,13 @@ from vivarium_cluster_tools.psimulate.workflow_config.config import (
 class TestWorkflowConfigFromYaml:
     """Verify that ``WorkflowConfig.from_yaml_with_cli_overrides`` correctly parses valid YAML."""
 
-    def test_parses_name(self, valid_workflow_yaml: Path) -> None:
+    def test_parses_workflow_fields(self, valid_workflow_yaml: Path) -> None:
         config = WorkflowConfig.from_yaml_with_cli_overrides(valid_workflow_yaml)
         assert config.name == "test_pipeline"
-
-    def test_parses_project(self, valid_workflow_yaml: Path) -> None:
-        config = WorkflowConfig.from_yaml_with_cli_overrides(valid_workflow_yaml)
         assert config.project == "proj_simscience"
-
-    def test_parses_queue(self, valid_workflow_yaml: Path) -> None:
-        config = WorkflowConfig.from_yaml_with_cli_overrides(valid_workflow_yaml)
         assert config.queue == "all.q"
-
-    def test_parses_output_directory(self, valid_workflow_yaml: Path) -> None:
-        config = WorkflowConfig.from_yaml_with_cli_overrides(valid_workflow_yaml)
         assert config.output_directory == Path("/tmp/results")
+        assert config.default_environment is None
 
     def test_parses_default_environment(self, tmp_path: Path) -> None:
         data = make_workflow_dict(default_environment="my_env")
@@ -47,56 +38,42 @@ class TestWorkflowConfigFromYaml:
         config = WorkflowConfig.from_yaml_with_cli_overrides(yaml_path)
         assert config.default_environment == "my_env"
 
-    def test_parses_default_environment_absent(self, valid_workflow_yaml: Path) -> None:
-        config = WorkflowConfig.from_yaml_with_cli_overrides(valid_workflow_yaml)
-        assert config.default_environment is None
-
-    def test_parses_steps_count(self, valid_workflow_yaml: Path) -> None:
-        config = WorkflowConfig.from_yaml_with_cli_overrides(valid_workflow_yaml)
-        assert len(config.steps) == 2
-
     def test_step_ordering_preserved(self, valid_workflow_yaml: Path) -> None:
         config = WorkflowConfig.from_yaml_with_cli_overrides(valid_workflow_yaml)
+        assert len(config.steps) == 2
         assert config.steps[0].name == "pre_tests"
         assert config.steps[1].name == "post_analysis"
 
-    def test_parses_command_step(self, valid_workflow_yaml: Path) -> None:
+    @pytest.mark.parametrize(
+        "index, expected_command",
+        [
+            (0, "pytest tests/test_lbwsg.py tests/test_mortality.py --runslow"),
+            (1, "python scripts/analyze.py --input /results"),
+        ],
+        ids=["structured_command", "raw_command"],
+    )
+    def test_parses_command_steps(
+        self, valid_workflow_yaml: Path, index: int, expected_command: str
+    ) -> None:
         config = WorkflowConfig.from_yaml_with_cli_overrides(valid_workflow_yaml)
-        step = config.steps[0]
+        step = config.steps[index]
         assert isinstance(step, CommandStepConfig)
-        assert step.command == "pytest tests/test_lbwsg.py tests/test_mortality.py --runslow"
-
-    def test_parses_raw_command_step(self, valid_workflow_yaml: Path) -> None:
-        config = WorkflowConfig.from_yaml_with_cli_overrides(valid_workflow_yaml)
-        step = config.steps[1]
-        assert isinstance(step, CommandStepConfig)
-        assert step.command == "python scripts/analyze.py --input /results"
+        assert step.command == expected_command
 
     def test_parses_step_resources(self, valid_workflow_yaml: Path) -> None:
         config = WorkflowConfig.from_yaml_with_cli_overrides(valid_workflow_yaml)
-        res = config.steps[0].resources
-        assert res is not None
-        assert res.memory_gb == 10
-        assert res.runtime == "01:00:00"
-
-    def test_parses_step_resources_cores(self, valid_workflow_yaml: Path) -> None:
-        config = WorkflowConfig.from_yaml_with_cli_overrides(valid_workflow_yaml)
-        res = config.steps[1].resources
-        assert res is not None
-        assert res.cores == 2
+        assert config.steps[0].resources.memory_gb == 10
+        assert config.steps[0].resources.runtime == "01:00:00"
+        assert config.steps[1].resources.cores == 2
 
     def test_parses_step_environment(self, valid_workflow_yaml: Path) -> None:
         config = WorkflowConfig.from_yaml_with_cli_overrides(valid_workflow_yaml)
-        assert config.steps[1].environment == "analysis_env"
-
-    def test_step_environment_defaults_to_none(self, valid_workflow_yaml: Path) -> None:
-        config = WorkflowConfig.from_yaml_with_cli_overrides(valid_workflow_yaml)
         assert config.steps[0].environment is None
+        assert config.steps[1].environment == "analysis_env"
 
     def test_routes_to_simulation_step(
         self, tmp_path: Path, valid_model_spec_file: Path, valid_branch_config_file: Path
     ) -> None:
-        """WorkflowConfig routes type=simulation to SimulationStepConfig."""
         steps = [
             {
                 "name": "sim",
@@ -118,12 +95,9 @@ class TestWorkflowConfigFromYaml:
 
 
 class TestWorkflowConfigValidation:
-    """Verify that invalid configurations raise ``KeyError``."""
+    """Verify that invalid configurations raise errors."""
 
-    @pytest.mark.parametrize(
-        "field",
-        ["name", "steps"],
-    )
+    @pytest.mark.parametrize("field", ["name", "steps"])
     def test_rejects_missing_required_field(self, tmp_path: Path, field: str) -> None:
         data = make_workflow_dict()
         del data["workflow"][field]
@@ -155,12 +129,7 @@ class TestWorkflowConfigValidation:
             WorkflowConfig.from_yaml_with_cli_overrides(yaml_path)
 
     def test_rejects_step_without_resources(self, tmp_path: Path) -> None:
-        steps = [
-            {
-                "name": "no_resources",
-                "command": "echo hello",
-            }
-        ]
+        steps = [{"name": "no_resources", "command": "echo hello"}]
         data = make_workflow_dict(steps=steps)
         yaml_path = write_workflow_yaml(tmp_path, data)
         with pytest.raises(KeyError, match="resources"):
@@ -173,7 +142,6 @@ class TestWorkflowConfigValidation:
             WorkflowConfig.from_yaml_with_cli_overrides(yaml_path)
 
     def test_rejects_step_with_both_command_and_type(self, tmp_path: Path) -> None:
-        """Steps cannot have both 'command' and 'type' fields."""
         steps = [
             {
                 "name": "bad_step",
@@ -191,34 +159,23 @@ class TestWorkflowConfigValidation:
 class TestWorkflowConfigFromYamlWithCliOverrides:
     """Verify that ``from_yaml_with_cli_overrides`` merges CLI args and validates."""
 
-    def test_cli_project_overrides_yaml(self, valid_workflow_yaml: Path) -> None:
-        config = WorkflowConfig.from_yaml_with_cli_overrides(
-            valid_workflow_yaml, project="proj_simscience_prod"
-        )
-        assert config.project == "proj_simscience_prod"
-
-    def test_cli_queue_overrides_yaml(self, valid_workflow_yaml: Path) -> None:
-        config = WorkflowConfig.from_yaml_with_cli_overrides(
-            valid_workflow_yaml, queue="long.q"
-        )
-        assert config.queue == "long.q"
-
-    def test_cli_output_directory_overrides_yaml(self, valid_workflow_yaml: Path) -> None:
-        config = WorkflowConfig.from_yaml_with_cli_overrides(
-            valid_workflow_yaml, output_directory=Path("/cli/output")
-        )
-        assert config.output_directory == Path("/cli/output")
-
-    def test_falls_back_to_yaml_values(self, valid_workflow_yaml: Path) -> None:
-        config = WorkflowConfig.from_yaml_with_cli_overrides(valid_workflow_yaml)
-        assert config.project == "proj_simscience"
-        assert config.queue == "all.q"
-        assert config.output_directory == Path("/tmp/results")
-
     @pytest.mark.parametrize(
-        "field",
-        ["project", "queue", "output_directory"],
+        "field, value",
+        [
+            ("project", "proj_simscience_prod"),
+            ("queue", "long.q"),
+            ("output_directory", Path("/cli/output")),
+        ],
     )
+    def test_cli_overrides_yaml(
+        self, valid_workflow_yaml: Path, field: str, value: str | Path
+    ) -> None:
+        config = WorkflowConfig.from_yaml_with_cli_overrides(
+            valid_workflow_yaml, **{field: value}  # type: ignore[arg-type]
+        )
+        assert getattr(config, field) == value
+
+    @pytest.mark.parametrize("field", ["project", "queue", "output_directory"])
     def test_rejects_missing_field_everywhere(self, tmp_path: Path, field: str) -> None:
         data = make_workflow_dict()
         del data["workflow"][field]
@@ -254,13 +211,10 @@ class TestResourceConfigValidation:
         rc = ResourceConfig(memory_gb=1, runtime="01:30:00")
         assert rc.runtime == "01:30:00"
 
-    def test_rejects_invalid_runtime_format(self) -> None:
+    @pytest.mark.parametrize("bad_runtime", ["90m", "1:00:00", "abc"])
+    def test_rejects_invalid_runtime(self, bad_runtime: str) -> None:
         with pytest.raises(ValueError, match="hh:mm:ss"):
-            ResourceConfig(memory_gb=1, runtime="90m")
-
-    def test_rejects_runtime_missing_leading_zeros(self) -> None:
-        with pytest.raises(ValueError, match="hh:mm:ss"):
-            ResourceConfig(memory_gb=1, runtime="1:00:00")
+            ResourceConfig(memory_gb=1, runtime=bad_runtime)
 
     def test_uses_default_runtime(self) -> None:
         rc = ResourceConfig(memory_gb=1)
@@ -268,14 +222,12 @@ class TestResourceConfigValidation:
 
     def test_from_dict_defaults(self) -> None:
         rc = ResourceConfig.from_dict({"memory_gb": 4})
-        assert rc is not None
         assert rc.memory_gb == 4
         assert rc.runtime == "01:00:00"
         assert rc.cores == 1
 
     def test_from_dict_all_fields(self) -> None:
         rc = ResourceConfig.from_dict({"memory_gb": 8, "runtime": "02:00:00", "cores": 4})
-        assert rc is not None
         assert rc.memory_gb == 8
         assert rc.runtime == "02:00:00"
         assert rc.cores == 4
@@ -284,19 +236,16 @@ class TestResourceConfigValidation:
 class TestCommandStepConfig:
     """Tests for CommandStepConfig - the default command-based step type."""
 
-    def test_supported_arguments(self) -> None:
-        """CommandStepConfig doesn't have an args section, returns None."""
+    def test_supported_arguments_returns_none(self) -> None:
         config = CommandStepConfig(
             name="test_step",
             resources=ResourceConfig(memory_gb=4),
             command="echo test",
             output_directory=Path("/tmp/results"),
         )
-        supported = config.supported_arguments()
-        assert supported is None
+        assert config.supported_arguments() is None
 
     def test_get_tasks_creates_single_task(self) -> None:
-        """get_tasks creates a single-element list with a Jobmon task."""
         config = CommandStepConfig(
             name="test_step",
             resources=ResourceConfig(memory_gb=4, project="proj_simscience", queue="all.q"),
@@ -326,7 +275,6 @@ class TestCommandStepConfig:
         )
 
     def test_to_dict(self) -> None:
-        """to_dict includes environment when provided."""
         config = CommandStepConfig(
             name="test_step",
             resources=ResourceConfig(memory_gb=4),
@@ -338,10 +286,7 @@ class TestCommandStepConfig:
         assert result == {
             "name": "test_step",
             "command": "echo test",
-            "resources": {
-                "memory_gb": 4,
-                "runtime": "01:00:00",
-            },
+            "resources": {"memory_gb": 4, "runtime": "01:00:00"},
             "environment": "my_env",
         }
 
@@ -370,7 +315,6 @@ class TestCommandStepConfig:
     def test_requires_required_fields(
         self, missing_field: str, kwargs: dict[str, Any]
     ) -> None:
-        """CommandStepConfig requires name and resources."""
         with pytest.raises(TypeError, match=missing_field):
             CommandStepConfig(**kwargs)
 
@@ -378,49 +322,35 @@ class TestCommandStepConfig:
 class TestSimulationStepConfig:
     """Tests for SimulationStepConfig - the simulation step type."""
 
-    def test_requires_model_specification(self, valid_branch_config_file: Path) -> None:
-        """SimulationStepConfig requires model_specification."""
-        with pytest.raises(TypeError, match="model_specification"):
-            SimulationStepConfig(  # type: ignore[call-arg]
-                name="sim",
-                resources=ResourceConfig(memory_gb=5),
-                output_directory=Path("/tmp/results"),
-                branch_configuration=valid_branch_config_file,
-            )
-
-    def test_requires_branch_configuration(self, valid_model_spec_file: Path) -> None:
-        """SimulationStepConfig requires branch_configuration."""
-        with pytest.raises(TypeError, match="branch_configuration"):
-            SimulationStepConfig(  # type: ignore[call-arg]
-                name="sim",
-                resources=ResourceConfig(memory_gb=5),
-                output_directory=Path("/tmp/results"),
-                model_specification=valid_model_spec_file,
-            )
-
-    def test_accepts_required_fields(
-        self, valid_model_spec_file: Path, valid_branch_config_file: Path
+    @pytest.mark.parametrize(
+        "omitted_field, provided_field, provided_fixture",
+        [
+            ("model_specification", "branch_configuration", "valid_branch_config_file"),
+            ("branch_configuration", "model_specification", "valid_model_spec_file"),
+        ],
+    )
+    def test_requires_required_args(
+        self,
+        omitted_field: str,
+        provided_field: str,
+        provided_fixture: str,
+        request: pytest.FixtureRequest,
     ) -> None:
-        """SimulationStepConfig accepts required fields."""
-        config = SimulationStepConfig(
-            name="sim",
-            resources=ResourceConfig(memory_gb=5),
-            output_directory=Path("/tmp/results"),
-            model_specification=valid_model_spec_file,
-            branch_configuration=valid_branch_config_file,
-        )
-        assert config.model_specification == valid_model_spec_file
-        assert config.branch_configuration == valid_branch_config_file
-        assert config.artifact_path is None
-        assert config.resources.hardware is None
+        fixture_value = request.getfixturevalue(provided_fixture)
+        with pytest.raises(TypeError, match=omitted_field):
+            SimulationStepConfig(
+                name="sim",
+                resources=ResourceConfig(memory_gb=5),
+                output_directory=Path("/tmp/results"),
+                **{provided_field: fixture_value},
+            )
 
-    def test_accepts_optional_fields(
+    def test_accepts_all_fields(
         self,
         valid_model_spec_file: Path,
         valid_branch_config_file: Path,
         valid_artifact_file: Path,
     ) -> None:
-        """SimulationStepConfig accepts optional fields."""
         config = SimulationStepConfig(
             name="sim",
             resources=ResourceConfig(memory_gb=5, hardware=["r650", "r650v2"]),
@@ -429,31 +359,29 @@ class TestSimulationStepConfig:
             branch_configuration=valid_branch_config_file,
             artifact_path=valid_artifact_file,
         )
+        assert config.model_specification == valid_model_spec_file
+        assert config.branch_configuration == valid_branch_config_file
         assert config.artifact_path == valid_artifact_file
         assert config.resources.hardware == ["r650", "r650v2"]
 
-    def test_from_dict_rejects_both_command_and_type(self) -> None:
-        """from_dict() rejects step dicts with both 'command' and 'type'."""
-        step_dict = {
-            "name": "bad_step",
-            "type": "simulation",
-            "command": "echo hello",
-            "resources": {"memory_gb": 5, "runtime": "03:00:00"},
-        }
-        with pytest.raises(ValueError, match="Cannot specify both 'command' and 'type'"):
-            SimulationStepConfig.from_dict(
-                step_dict,
-                output_directory=Path("/tmp/results"),
-                project="proj_simscience",
-                queue="all.q",
-            )
+    def test_optional_fields_default_to_none(
+        self, valid_model_spec_file: Path, valid_branch_config_file: Path
+    ) -> None:
+        config = SimulationStepConfig(
+            name="sim",
+            resources=ResourceConfig(memory_gb=5),
+            output_directory=Path("/tmp/results"),
+            model_specification=valid_model_spec_file,
+            branch_configuration=valid_branch_config_file,
+        )
+        assert config.artifact_path is None
+        assert config.resources.hardware is None
 
     def test_from_dict_deserialization(
         self,
         valid_model_spec_file: Path,
         valid_branch_config_file: Path,
     ) -> None:
-        """SimulationStepConfig.from_dict deserializes configuration."""
         step_dict: dict[str, Any] = {
             "name": "sim",
             "type": "simulation",
@@ -480,7 +408,6 @@ class TestSimulationStepConfig:
         valid_model_spec_file: Path,
         valid_branch_config_file: Path,
     ) -> None:
-        """from_dict() rejects unsupported args."""
         step_dict: dict[str, Any] = {
             "name": "sim",
             "type": "simulation",
@@ -505,7 +432,6 @@ class TestSimulationStepConfig:
         valid_branch_config_file: Path,
         valid_artifact_file: Path,
     ) -> None:
-        """to_dict() serializes configuration with type: simulation."""
         config = SimulationStepConfig(
             name="sim",
             resources=ResourceConfig(memory_gb=5, runtime="03:00:00", hardware=["r650"]),
@@ -527,7 +453,6 @@ class TestSimulationStepConfig:
         valid_model_spec_file: Path,
         valid_branch_config_file: Path,
     ) -> None:
-        """to_dict() omits artifact_path and hardware when None."""
         config = SimulationStepConfig(
             name="sim",
             resources=ResourceConfig(memory_gb=5),
