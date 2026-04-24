@@ -76,9 +76,7 @@ def get_task_list(
         "--command {command}"
     )
     if env is not None:
-        worker_command = (
-            f"conda run --no-capture-output -n {env} {worker_command}"
-        )
+        worker_command = f"conda run --no-capture-output -n {env} {worker_command}"
 
     task_template = tool.get_task_template(
         template_name="psimulate",
@@ -87,9 +85,7 @@ def get_task_list(
         task_args=["metadata_dir", "results_dir"],
         op_args=["command"],
         default_cluster_name="slurm",
-        default_compute_resources=native_specification.to_jobmon_spec(
-            worker_logging_root
-        ),
+        default_compute_resources=native_specification.to_jobmon_spec(worker_logging_root),
     )
 
     # Write job spec metadata (one JSON per task for the worker to pick up)

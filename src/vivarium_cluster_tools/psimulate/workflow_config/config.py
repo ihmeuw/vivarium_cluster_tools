@@ -17,10 +17,19 @@ from typing import TYPE_CHECKING, Any, ClassVar
 
 import yaml
 
-from vivarium_cluster_tools.psimulate import branches
-from vivarium_cluster_tools.psimulate.cluster.interface import NativeSpecification
+from vivarium_cluster_tools.psimulate import COMMANDS, branches
+from vivarium_cluster_tools.psimulate.cluster.interface import (
+    NativeSpecification,
+    validate_hardware,
+    validate_project,
+    validate_runtime_and_queue,
+)
 from vivarium_cluster_tools.psimulate.jobmon_config.workflow import get_task_list
-from vivarium_cluster_tools.psimulate.jobs import JobParameters, build_job_parameters_from_keyspace
+from vivarium_cluster_tools.psimulate.jobs import (
+    JobParameters,
+    build_job_parameters_from_keyspace,
+)
+from vivarium_cluster_tools.psimulate.paths import OutputPaths
 
 if TYPE_CHECKING:
     from jobmon.client.api import Tool
@@ -30,9 +39,6 @@ REQUIRED_WORKFLOW_FIELDS = {"name", "steps"}
 
 DEFAULT_MAX_ATTEMPTS = 2
 
-VALID_PROJECTS = {"proj_simscience", "proj_simscience_prod"}
-VALID_QUEUES = {"all.q", "long.q"}
-
 
 @dataclass
 class ResourceConfig:
@@ -40,6 +46,10 @@ class ResourceConfig:
 
     memory_gb: int
     """Memory in GB."""
+    project: str | None = None
+    """Cluster project to charge. Falls back to the workflow-level project."""
+    queue: str | None = None
+    """Cluster queue to submit to. Falls back to the workflow-level queue."""
     runtime: str = "01:00:00"
     """Maximum runtime in ``hh:mm:ss`` format. Default is ``01:00:00``."""
     cores: int = 1
@@ -52,11 +62,39 @@ class ResourceConfig:
             raise ValueError(
                 f"Invalid runtime '{self.runtime}'. Expected format ``hh:mm:ss``."
             )
+        if self.project is not None:
+            validate_project(self.project)
+        if self.queue is not None or self.project is not None:
+            # Validate runtime against queue if queue is specified at step level
+            if self.queue is not None:
+                validate_runtime_and_queue(self.runtime, self.queue)
+
+    def resolve(self, *, project: str, queue: str) -> ResourceConfig:
+        """Return a copy with workflow-level defaults filled in.
+
+        Parameters
+        ----------
+        project
+            Workflow-level project to use if not set on this resource.
+        queue
+            Workflow-level queue to use if not set on this resource.
+        """
+        return ResourceConfig(
+            memory_gb=self.memory_gb,
+            project=self.project or project,
+            queue=self.queue or queue,
+            runtime=self.runtime,
+            cores=self.cores,
+        )
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> ResourceConfig:
         """Create a ResourceConfig from a dictionary."""
         kwargs: dict[str, Any] = {"memory_gb": data["memory_gb"]}
+        if "project" in data:
+            kwargs["project"] = data["project"]
+        if "queue" in data:
+            kwargs["queue"] = data["queue"]
         if "runtime" in data:
             kwargs["runtime"] = data["runtime"]
         if "cores" in data:
@@ -64,10 +102,14 @@ class ResourceConfig:
         return cls(**kwargs)
 
     def to_dict(self) -> dict[str, Any]:
-        """Serialize to a dictionary, omitting None values and default cores."""
+        """Serialize to a dictionary, omitting None values and defaults."""
         result: dict[str, Any] = {}
         if self.memory_gb is not None:
             result["memory_gb"] = self.memory_gb
+        if self.project is not None:
+            result["project"] = self.project
+        if self.queue is not None:
+            result["queue"] = self.queue
         if self.runtime is not None:
             result["runtime"] = self.runtime
         if self.cores != 1:  # Only include if not default
@@ -214,8 +256,6 @@ class BaseStepConfig(ABC):
         self,
         tool: Tool,
         *,
-        project: str,
-        queue: str,
         env: str,
     ) -> list[Task]:
         """Create Jobmon Tasks for this step.
@@ -224,14 +264,14 @@ class BaseStepConfig(ABC):
         return a single task; simulation steps return one task per
         (draw, seed, branch) combination.
 
+        Resources (including project and queue) are read from
+        ``self.resources``, which must already have workflow-level
+        defaults resolved via :meth:`ResourceConfig.resolve`.
+
         Parameters
         ----------
         tool
             The Jobmon Tool instance to create task templates from.
-        project
-            Cluster project to charge (e.g. ``proj_simscience``).
-        queue
-            Cluster queue to submit to (e.g. ``all.q``).
         env
             Conda environment name to wrap the command with.
 
@@ -286,8 +326,6 @@ class CommandStepConfig(BaseStepConfig):
         self,
         tool: Tool,
         *,
-        project: str,
-        queue: str,
         env: str,
     ) -> list[Task]:
         """Create a single Jobmon Task for this command step."""
@@ -300,8 +338,8 @@ class CommandStepConfig(BaseStepConfig):
             default_cluster_name="slurm",
         )
         compute_resources = {
-            "queue": queue,
-            "project": project,
+            "queue": self.resources.queue,
+            "project": self.resources.project,
             "memory": self.resources.memory_gb,
             "runtime": self.resources.runtime,
             "cores": self.resources.cores,
@@ -419,6 +457,8 @@ class SimulationStepConfig(BaseStepConfig):
             raise ValueError(
                 f"Step '{self.name}': simulation type requires 'branch_configuration'."
             )
+        if self.hardware:
+            validate_hardware(self.hardware)
 
     def supported_arguments(self) -> set[str]:
         """Return valid keys for the 'args' section of simulation steps."""
@@ -428,43 +468,43 @@ class SimulationStepConfig(BaseStepConfig):
         self,
         tool: Tool,
         *,
-        project: str,
-        queue: str,
         env: str,
     ) -> list[Task]:
         """Create parallel simulation Jobmon Tasks.
 
-        Parses the branch configuration into a keyspace, builds one
-        :class:`~vivarium_cluster_tools.psimulate.jobs.JobParameters`
+        Uses :class:`~vivarium_cluster_tools.psimulate.paths.OutputPaths`
+        to create the same ``model_name / timestamp`` directory layout as
+        ``psimulate run``.  Parses the branch configuration into a keyspace,
+        builds one :class:`~vivarium_cluster_tools.psimulate.jobs.JobParameters`
         per (draw, seed, branch) combination, writes per-task metadata,
         and returns the full list of Jobmon tasks.
         """
-        # Set up output directories for this step
+        # Build output paths using the same layout as psimulate run:
+        #   output_directory / step_name / model_name / timestamp / ...
         step_output_dir = self.output_directory / self.name
-        metadata_dir = step_output_dir / "metadata"
-        results_dir = step_output_dir / "results"
-        worker_logging_root = step_output_dir / "logs" / "worker_logs"
-
-        for d in [metadata_dir, results_dir, worker_logging_root]:
-            d.mkdir(parents=True, exist_ok=True)
+        output_paths = OutputPaths.from_entry_point_args(
+            command=COMMANDS.run,
+            input_artifact_path=self.artifact_path,
+            result_directory=step_output_dir,
+            input_model_spec_path=self.model_specification,
+        )
+        output_paths.touch()
 
         # Parse branch configuration into keyspace
-        keyspace = branches.Keyspace.from_branch_configuration(
-            self.branch_configuration
-        )
+        keyspace = branches.Keyspace.from_branch_configuration(self.branch_configuration)
 
         # Build job parameters for each (draw, seed, branch) combination
         job_parameters = build_job_parameters_from_keyspace(
             keyspace,
             model_specification_path=self.model_specification,
-            output_root=step_output_dir,
-            worker_logging_root=worker_logging_root,
+            output_root=output_paths.root,
+            worker_logging_root=output_paths.worker_logging_root,
         )
 
         native_spec = NativeSpecification(
             job_name=f"sim_{self.name}",
-            project=project,
-            queue=queue,
+            project=self.resources.project,
+            queue=self.resources.queue,
             peak_memory=float(self.resources.memory_gb),
             max_runtime=self.resources.runtime,
             hardware=self.hardware or [],
@@ -474,9 +514,9 @@ class SimulationStepConfig(BaseStepConfig):
             tool=tool,
             command="run",
             job_parameters_list=job_parameters,
-            metadata_dir=metadata_dir,
-            results_dir=results_dir,
-            worker_logging_root=worker_logging_root,
+            metadata_dir=output_paths.metadata_dir,
+            results_dir=output_paths.results_dir,
+            worker_logging_root=output_paths.worker_logging_root,
             native_specification=native_spec,
             env=env,
         )
@@ -693,18 +733,13 @@ class WorkflowConfig:
         )
 
     def __post_init__(self) -> None:
-        """Validate workflow-level constraints."""
-        # Validate project
-        if self.project not in VALID_PROJECTS:
-            raise ValueError(
-                f"Invalid project '{self.project}'. "
-                f"Must be one of: {sorted(VALID_PROJECTS)}."
-            )
-        # Validate queue
-        if self.queue not in VALID_QUEUES:
-            raise ValueError(
-                f"Invalid queue '{self.queue}'. " f"Must be one of: {sorted(VALID_QUEUES)}."
-            )
+        """Validate workflow-level constraints and resolve step resource defaults."""
+        validate_project(self.project)
+        validate_runtime_and_queue("01:00:00", self.queue)  # validate queue value
+        # Resolve workflow-level project/queue into each step's resources.
+        # This triggers ResourceConfig validation (runtime×queue, project).
+        for step in self.steps:
+            step.resources = step.resources.resolve(project=self.project, queue=self.queue)
         # Unique step names
         names = [step.name for step in self.steps]
         if len(names) != len(set(names)):

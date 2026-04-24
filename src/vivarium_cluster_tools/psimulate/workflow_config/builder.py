@@ -60,8 +60,6 @@ class WorkflowBuilder:
 
             step_tasks = step.get_tasks(
                 self._tool,
-                project=self.config.project,
-                queue=self.config.queue,
                 env=env,
             )
 

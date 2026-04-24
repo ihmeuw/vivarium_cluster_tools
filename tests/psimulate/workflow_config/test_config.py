@@ -4,11 +4,10 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
+from unittest.mock import MagicMock
 
 import pytest
 import yaml
-
-from unittest.mock import MagicMock
 
 from tests.psimulate.workflow_config.utilities import (
     make_step_dict,
@@ -300,7 +299,7 @@ class TestCommandStepConfig:
         """get_tasks creates a single-element list with a Jobmon task."""
         config = CommandStepConfig(
             name="test_step",
-            resources=ResourceConfig(memory_gb=4),
+            resources=ResourceConfig(memory_gb=4, project="proj_simscience", queue="all.q"),
             command="echo hello world",
             output_directory=Path("/tmp/results"),
         )
@@ -310,9 +309,7 @@ class TestCommandStepConfig:
         mock_tool.get_task_template.return_value = mock_template
         mock_template.create_task.return_value = mock_task
 
-        tasks = config.get_tasks(
-            mock_tool, project="proj_simscience", queue="all.q", env="my_env"
-        )
+        tasks = config.get_tasks(mock_tool, env="my_env")
 
         assert tasks == [mock_task]
         mock_template.create_task.assert_called_once_with(
@@ -488,9 +485,7 @@ class TestSimulationStepConfig:
             },
         }
         with pytest.raises(ValueError, match="unsupported args"):
-            SimulationStepConfig.from_dict(
-                step_dict, output_directory=Path("/tmp/results")
-            )
+            SimulationStepConfig.from_dict(step_dict, output_directory=Path("/tmp/results"))
 
     def test_to_dict_serialization(
         self,

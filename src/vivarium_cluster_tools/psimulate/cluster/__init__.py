@@ -15,6 +15,13 @@ from vivarium_cluster_tools.psimulate.cluster.cli_options import (
     with_queue_and_max_runtime,
 )
 from vivarium_cluster_tools.psimulate.cluster.interface import (
+    AVAILABLE_HARDWARE,
+    QUEUE_MAX_RUNTIME_HOURS,
+    VALID_PROJECTS,
+    VALID_QUEUES,
     NativeSpecification,
     validate_cluster_environment,
+    validate_hardware,
+    validate_project,
+    validate_runtime_and_queue,
 )
