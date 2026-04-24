@@ -13,8 +13,6 @@ from typing import Any, NamedTuple
 
 from vivarium_cluster_tools.psimulate.environment import ENV_VARIABLES
 
-# ── Canonical cluster constants ──────────────────────────────────────────
-
 VALID_PROJECTS = frozenset(
     {
         "proj_simscience",
@@ -24,7 +22,6 @@ VALID_PROJECTS = frozenset(
 )
 
 VALID_QUEUES = frozenset({"all.q", "long.q"})
-
 # Sorted from shortest to longest allowed runtime.
 QUEUE_MAX_RUNTIME_HOURS: dict[str, int] = {
     "all.q": 3 * 24,
@@ -33,7 +30,6 @@ QUEUE_MAX_RUNTIME_HOURS: dict[str, int] = {
 
 RUNTIME_FORMAT = "hh:mm:ss"
 _RUNTIME_RE = re.compile(r"^\d{2}:\d{2}:\d{2}$")
-
 # https://docs.cluster.ihme.washington.edu/#hpc-execution-host-hardware-specifications
 AVAILABLE_HARDWARE = [
     "c6320",  # typical
@@ -44,9 +40,6 @@ AVAILABLE_HARDWARE = [
     "r650v2",  # high capacity
     "r650xs",  # high speed
 ]
-
-
-# ── Shared validation functions ──────────────────────────────────────────
 
 
 def validate_project(project: str) -> str:
