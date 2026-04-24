@@ -134,6 +134,11 @@ class ResourceConfig:
         job_name
             The SLURM job name for this step's tasks.
         """
+        if not isinstance(self.project, str) or not isinstance(self.queue, str):
+            raise TypeError(
+                f"'project' and 'queue' must be strings, got "
+                f"project={self.project!r}, queue={self.queue!r}."
+            )
         return NativeSpecification(
             job_name=job_name,
             project=self.project,
@@ -594,7 +599,7 @@ class WorkflowConfig:
     """Parsed and validated workflow configuration."""
 
     # Step type mappings - add new step types here as they are implemented
-    SUPPORTED_STEP_TYPES: ClassVar[dict[str, type]] = {
+    SUPPORTED_STEP_TYPES: ClassVar[dict[str, type[BaseStepConfig]]] = {
         "simulation": SimulationStepConfig,
     }
 

@@ -23,7 +23,7 @@ class BackupConfiguration(TypedDict):
     """Typed contract for simulation backup settings."""
 
     backup_dir: str | Path
-    backup_freq: int | None
+    backup_freq: float | None
     backup_metadata_path: str | Path
 
 
@@ -155,7 +155,11 @@ def build_job_parameters_from_keyspace(
                 random_seed=int(random_seed),
                 results_path=str(output_root),
                 worker_logging_root=str(worker_logging_root),
-                backup_configuration=backup_configuration or {},
+                backup_configuration=backup_configuration
+                if backup_configuration is not None
+                else BackupConfiguration(
+                    backup_dir="", backup_freq=None, backup_metadata_path=""
+                ),
                 extras=extras or {},
             )
         )
