@@ -107,6 +107,15 @@ class WorkflowBuilder:
         and writes it to a marker file in the output directory. On resume,
         reads and returns the previously persisted timestamp.
 
+        .. note::
+
+            If you want to re-run a workflow to the same output directory
+            after a previous successful run, you must first delete the
+            ``.build_timestamp`` file from the output directory. Otherwise
+            the new run will reuse the old timestamp and write results
+            into the same subdirectories, potentially clobbering data.
+            Using a fresh output directory for each new run avoids this.
+
         Returns
         -------
             Timestamp string in ``YYYY_MM_DD_HH_MM_SS`` format.
