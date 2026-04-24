@@ -381,7 +381,7 @@ class TestSimulationStepConfig:
     def test_requires_model_specification(self, valid_branch_config_file: Path) -> None:
         """SimulationStepConfig requires model_specification."""
         with pytest.raises(TypeError, match="model_specification"):
-            SimulationStepConfig(
+            SimulationStepConfig(  # type: ignore[call-arg]
                 name="sim",
                 resources=ResourceConfig(memory_gb=5),
                 output_directory=Path("/tmp/results"),
@@ -391,7 +391,7 @@ class TestSimulationStepConfig:
     def test_requires_branch_configuration(self, valid_model_spec_file: Path) -> None:
         """SimulationStepConfig requires branch_configuration."""
         with pytest.raises(TypeError, match="branch_configuration"):
-            SimulationStepConfig(
+            SimulationStepConfig(  # type: ignore[call-arg]
                 name="sim",
                 resources=ResourceConfig(memory_gb=5),
                 output_directory=Path("/tmp/results"),
@@ -412,7 +412,7 @@ class TestSimulationStepConfig:
         assert config.model_specification == valid_model_spec_file
         assert config.branch_configuration == valid_branch_config_file
         assert config.artifact_path is None
-        assert config.hardware is None
+        assert config.resources.hardware is None
 
     def test_accepts_optional_fields(
         self,
@@ -423,15 +423,14 @@ class TestSimulationStepConfig:
         """SimulationStepConfig accepts optional fields."""
         config = SimulationStepConfig(
             name="sim",
-            resources=ResourceConfig(memory_gb=5),
+            resources=ResourceConfig(memory_gb=5, hardware=["r650", "r650v2"]),
             output_directory=Path("/tmp/results"),
             model_specification=valid_model_spec_file,
             branch_configuration=valid_branch_config_file,
             artifact_path=valid_artifact_file,
-            hardware=["r650", "r650v2"],
         )
         assert config.artifact_path == valid_artifact_file
-        assert config.hardware == ["r650", "r650v2"]
+        assert config.resources.hardware == ["r650", "r650v2"]
 
     def test_from_dict_rejects_both_command_and_type(self) -> None:
         """from_dict() rejects step dicts with both 'command' and 'type'."""
@@ -442,7 +441,12 @@ class TestSimulationStepConfig:
             "resources": {"memory_gb": 5, "runtime": "03:00:00"},
         }
         with pytest.raises(ValueError, match="Cannot specify both 'command' and 'type'"):
-            SimulationStepConfig.from_dict(step_dict, output_directory=Path("/tmp/results"))
+            SimulationStepConfig.from_dict(
+                step_dict,
+                output_directory=Path("/tmp/results"),
+                project="proj_simscience",
+                queue="all.q",
+            )
 
     def test_from_dict_deserialization(
         self,
@@ -461,7 +465,10 @@ class TestSimulationStepConfig:
         }
 
         config = SimulationStepConfig.from_dict(
-            step_dict, output_directory=Path("/tmp/results")
+            step_dict,
+            output_directory=Path("/tmp/results"),
+            project="proj_simscience",
+            queue="all.q",
         )
         assert isinstance(config, SimulationStepConfig)
         assert config.name == "sim"
@@ -485,7 +492,12 @@ class TestSimulationStepConfig:
             },
         }
         with pytest.raises(ValueError, match="unsupported args"):
-            SimulationStepConfig.from_dict(step_dict, output_directory=Path("/tmp/results"))
+            SimulationStepConfig.from_dict(
+                step_dict,
+                output_directory=Path("/tmp/results"),
+                project="proj_simscience",
+                queue="all.q",
+            )
 
     def test_to_dict_serialization(
         self,
@@ -496,12 +508,11 @@ class TestSimulationStepConfig:
         """to_dict() serializes configuration with type: simulation."""
         config = SimulationStepConfig(
             name="sim",
-            resources=ResourceConfig(memory_gb=5, runtime="03:00:00"),
+            resources=ResourceConfig(memory_gb=5, runtime="03:00:00", hardware=["r650"]),
             output_directory=Path("/tmp/results"),
             model_specification=valid_model_spec_file,
             branch_configuration=valid_branch_config_file,
             artifact_path=valid_artifact_file,
-            hardware=["r650"],
         )
         result = config.to_dict()
         assert result["type"] == "simulation"
@@ -509,7 +520,7 @@ class TestSimulationStepConfig:
         assert result["args"]["model_specification"] == str(valid_model_spec_file)
         assert result["args"]["branch_configuration"] == str(valid_branch_config_file)
         assert result["args"]["artifact_path"] == str(valid_artifact_file)
-        assert result["args"]["hardware"] == ["r650"]
+        assert result["resources"]["hardware"] == ["r650"]
 
     def test_to_dict_omits_none_optional_fields(
         self,
@@ -526,4 +537,4 @@ class TestSimulationStepConfig:
         )
         result = config.to_dict()
         assert "artifact_path" not in result["args"]
-        assert "hardware" not in result["args"]
+        assert "hardware" not in result["resources"]

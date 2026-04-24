@@ -54,6 +54,8 @@ class ResourceConfig:
     """Maximum runtime in ``hh:mm:ss`` format. Default is ``01:00:00``."""
     cores: int = 1
     """Number of CPU cores to request. Default is 1."""
+    hardware: list[str] | None = None
+    """Optional list of hardware types to target (e.g. ``["r650", "r650v2"]``)."""
 
     _RUNTIME_RE = re.compile(r"^\d{2}:\d{2}:\d{2}$")
 
@@ -68,37 +70,40 @@ class ResourceConfig:
             # Validate runtime against queue if queue is specified at step level
             if self.queue is not None:
                 validate_runtime_and_queue(self.runtime, self.queue)
+        if self.hardware is not None:
+            validate_hardware(self.hardware)
 
-    def resolve(self, *, project: str, queue: str) -> ResourceConfig:
-        """Return a copy with workflow-level defaults filled in.
+    @classmethod
+    def from_dict(
+        cls,
+        data: dict[str, Any],
+        *,
+        workflow_project: str | None = None,
+        workflow_queue: str | None = None,
+    ) -> ResourceConfig:
+        """Create a ResourceConfig from a dictionary.
+
+        Step-level values take precedence; workflow-level defaults fill in
+        any that are absent.
 
         Parameters
         ----------
-        project
-            Workflow-level project to use if not set on this resource.
-        queue
-            Workflow-level queue to use if not set on this resource.
+        data
+            Resource dictionary from a step's ``resources`` section.
+        workflow_project
+            Workflow-level project used as fallback.
+        workflow_queue
+            Workflow-level queue used as fallback.
         """
-        return ResourceConfig(
-            memory_gb=self.memory_gb,
-            project=self.project or project,
-            queue=self.queue or queue,
-            runtime=self.runtime,
-            cores=self.cores,
-        )
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> ResourceConfig:
-        """Create a ResourceConfig from a dictionary."""
         kwargs: dict[str, Any] = {"memory_gb": data["memory_gb"]}
-        if "project" in data:
-            kwargs["project"] = data["project"]
-        if "queue" in data:
-            kwargs["queue"] = data["queue"]
+        kwargs["project"] = data.get("project") or workflow_project
+        kwargs["queue"] = data.get("queue") or workflow_queue
         if "runtime" in data:
             kwargs["runtime"] = data["runtime"]
         if "cores" in data:
             kwargs["cores"] = data["cores"]
+        if "hardware" in data:
+            kwargs["hardware"] = data["hardware"]
         return cls(**kwargs)
 
     def to_dict(self) -> dict[str, Any]:
@@ -114,6 +119,8 @@ class ResourceConfig:
             result["runtime"] = self.runtime
         if self.cores != 1:  # Only include if not default
             result["cores"] = self.cores
+        if self.hardware is not None:
+            result["hardware"] = self.hardware
         return result
 
 
@@ -206,7 +213,14 @@ class BaseStepConfig(ABC):
             )
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any], output_directory: Path) -> BaseStepConfig:
+    def from_dict(
+        cls,
+        data: dict[str, Any],
+        output_directory: Path,
+        *,
+        project: str,
+        queue: str,
+    ) -> BaseStepConfig:
         """Create a step config from a dictionary.
 
         This is a concrete method that validates command/type exclusivity
@@ -219,6 +233,10 @@ class BaseStepConfig(ABC):
             Dictionary from workflow YAML.
         output_directory
             Workflow-level output directory.
+        project
+            Workflow-level project for resource resolution.
+        queue
+            Workflow-level queue for resource resolution.
 
         Returns
         -------
@@ -228,12 +246,14 @@ class BaseStepConfig(ABC):
         cls._validate_command_type_exclusivity(data)
 
         # Delegate to subclass-specific implementation
-        return cls._create_from_dict(data, output_directory=output_directory)
+        return cls._create_from_dict(
+            data, output_directory=output_directory, project=project, queue=queue
+        )
 
     @classmethod
     @abstractmethod
     def _create_from_dict(
-        cls, data: dict[str, Any], output_directory: Path
+        cls, data: dict[str, Any], output_directory: Path, *, project: str, queue: str
     ) -> BaseStepConfig:
         """Subclass-specific deserialization logic.
 
@@ -244,6 +264,12 @@ class BaseStepConfig(ABC):
         ----------
         data
             Dictionary from workflow YAML.
+        output_directory
+            Workflow-level output directory.
+        project
+            Workflow-level project for resource resolution.
+        queue
+            Workflow-level queue for resource resolution.
 
         Returns
         -------
@@ -265,8 +291,8 @@ class BaseStepConfig(ABC):
         (draw, seed, branch) combination.
 
         Resources (including project and queue) are read from
-        ``self.resources``, which must already have workflow-level
-        defaults resolved via :meth:`ResourceConfig.resolve`.
+        ``self.resources``, which has workflow-level defaults resolved
+        at construction time via :meth:`ResourceConfig.from_dict`.
 
         Parameters
         ----------
@@ -368,7 +394,7 @@ class CommandStepConfig(BaseStepConfig):
 
     @classmethod
     def _create_from_dict(
-        cls, data: dict[str, Any], output_directory: Path
+        cls, data: dict[str, Any], output_directory: Path, *, project: str, queue: str
     ) -> CommandStepConfig:
         """Create a CommandStepConfig from a dictionary.
 
@@ -380,6 +406,10 @@ class CommandStepConfig(BaseStepConfig):
             Dictionary from workflow YAML (a step dict without 'type' field).
         output_directory
             Workflow-level output directory.
+        project
+            Workflow-level project for resource resolution.
+        queue
+            Workflow-level queue for resource resolution.
 
         Returns
         -------
@@ -387,7 +417,9 @@ class CommandStepConfig(BaseStepConfig):
         """
         return cls(
             name=data["name"],
-            resources=ResourceConfig.from_dict(data["resources"]),
+            resources=ResourceConfig.from_dict(
+                data["resources"], workflow_project=project, workflow_queue=queue
+            ),
             command=data["command"],
             output_directory=output_directory,
             environment=data.get("environment"),
@@ -420,14 +452,12 @@ class SimulationStepConfig(BaseStepConfig):
               model_specification: /path/to/model.yaml
               branch_configuration: /path/to/branches.yaml
               artifact_path: /path/to/artifact.hdf
-              hardware: [r650, r650v2]
     """
 
     _SUPPORTED_ARGS: ClassVar[set[str]] = {
         "model_specification",
         "branch_configuration",
         "artifact_path",
-        "hardware",
     }
 
     name: str
@@ -444,8 +474,6 @@ class SimulationStepConfig(BaseStepConfig):
     """Optional environment name to use for this step."""
     artifact_path: Path | None = None
     """Optional path to artifact file."""
-    hardware: list[str] | None = None
-    """Optional list of hardware types to request for simulation tasks."""
 
     def _validate(self) -> None:
         """Validate simulation step configuration."""
@@ -457,8 +485,6 @@ class SimulationStepConfig(BaseStepConfig):
             raise ValueError(
                 f"Step '{self.name}': simulation type requires 'branch_configuration'."
             )
-        if self.hardware:
-            validate_hardware(self.hardware)
 
     def supported_arguments(self) -> set[str]:
         """Return valid keys for the 'args' section of simulation steps."""
@@ -501,13 +527,21 @@ class SimulationStepConfig(BaseStepConfig):
             worker_logging_root=output_paths.worker_logging_root,
         )
 
+        if not isinstance(self.resources.queue, str) or not isinstance(
+            self.resources.project, str
+        ):
+            raise ValueError(
+                f"Step '{self.name}': resources 'queue' and 'project' are not configured properly."
+                "Please check your configuration."
+            )
+
         native_spec = NativeSpecification(
             job_name=f"sim_{self.name}",
             project=self.resources.project,
             queue=self.resources.queue,
             peak_memory=float(self.resources.memory_gb),
             max_runtime=self.resources.runtime,
-            hardware=self.hardware or [],
+            hardware=self.resources.hardware or [],
         )
 
         return get_task_list(
@@ -537,15 +571,13 @@ class SimulationStepConfig(BaseStepConfig):
         }
         if self.artifact_path is not None:
             args["artifact_path"] = str(self.artifact_path)
-        if self.hardware is not None:
-            args["hardware"] = self.hardware
 
         result["args"] = args
         return result
 
     @classmethod
     def _create_from_dict(
-        cls, data: dict[str, Any], output_directory: Path
+        cls, data: dict[str, Any], output_directory: Path, *, project: str, queue: str
     ) -> SimulationStepConfig:
         """Create a SimulationStepConfig from a dictionary."""
         args = data.get("args", {}) or {}
@@ -561,7 +593,9 @@ class SimulationStepConfig(BaseStepConfig):
 
         kwargs: dict[str, Any] = {
             "name": data["name"],
-            "resources": ResourceConfig.from_dict(data["resources"]),
+            "resources": ResourceConfig.from_dict(
+                data["resources"], workflow_project=project, workflow_queue=queue
+            ),
             "output_directory": output_directory,
             "environment": data.get("environment"),
             "model_specification": Path(args["model_specification"]),
@@ -569,8 +603,6 @@ class SimulationStepConfig(BaseStepConfig):
         }
         if "artifact_path" in args:
             kwargs["artifact_path"] = Path(args["artifact_path"])
-        if "hardware" in args:
-            kwargs["hardware"] = args["hardware"]
 
         return cls(**kwargs)
 
@@ -633,7 +665,11 @@ class WorkflowConfig:
 
     @staticmethod
     def _parse_steps(
-        raw_steps: list[dict[str, Any]], output_directory: Path
+        raw_steps: list[dict[str, Any]],
+        output_directory: Path,
+        *,
+        project: str,
+        queue: str,
     ) -> list[BaseStepConfig]:
         """Parse a list of raw step dicts into step config objects.
 
@@ -652,11 +688,19 @@ class WorkflowConfig:
                         f"Must be one of: {sorted(WorkflowConfig.SUPPORTED_STEP_TYPES)}."
                     )
                 step_class = WorkflowConfig.SUPPORTED_STEP_TYPES[step_type]
-                step = step_class.from_dict(step_dict, output_directory=output_directory)
+                step = step_class.from_dict(
+                    step_dict,
+                    output_directory=output_directory,
+                    project=project,
+                    queue=queue,
+                )
             else:
                 # Default command-based step
                 step = CommandStepConfig.from_dict(
-                    step_dict, output_directory=output_directory
+                    step_dict,
+                    output_directory=output_directory,
+                    project=project,
+                    queue=queue,
                 )
             steps.append(step)
         return steps
@@ -719,7 +763,10 @@ class WorkflowConfig:
             )
 
         steps = cls._parse_steps(
-            workflow["steps"], output_directory=resolved_output_directory
+            workflow["steps"],
+            output_directory=resolved_output_directory,
+            project=resolved_project,
+            queue=resolved_queue,
         )
 
         return cls(
@@ -733,13 +780,9 @@ class WorkflowConfig:
         )
 
     def __post_init__(self) -> None:
-        """Validate workflow-level constraints and resolve step resource defaults."""
+        """Validate workflow-level constraints."""
         validate_project(self.project)
         validate_runtime_and_queue("01:00:00", self.queue)  # validate queue value
-        # Resolve workflow-level project/queue into each step's resources.
-        # This triggers ResourceConfig validation (runtime×queue, project).
-        for step in self.steps:
-            step.resources = step.resources.resolve(project=self.project, queue=self.queue)
         # Unique step names
         names = [step.name for step in self.steps]
         if len(names) != len(set(names)):
