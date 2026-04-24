@@ -64,7 +64,7 @@ class TestWorkflowBuilder:
     ) -> None:
         """A valid config produces a Jobmon Workflow with tasks added."""
         builder = WorkflowBuilder(three_step_config)
-        workflow = builder.build()
+        workflow = builder.build(workflow_args="test_workflow_args")
 
         expected_workflow = mock_tool_cls.return_value.create_workflow.return_value
         assert workflow is expected_workflow
@@ -83,7 +83,7 @@ class TestWorkflowBuilder:
         template_mock.create_task.side_effect = [task1, task2, task3]
 
         builder = WorkflowBuilder(three_step_config)
-        builder.build()
+        builder.build(workflow_args="test_workflow_args")
 
         # Each config step produces exactly one task
         assert template_mock.create_task.call_count == 3
@@ -118,7 +118,7 @@ class TestResourceDefaults:
         )
         template_mock = mock_tool_cls.return_value.get_task_template.return_value
 
-        WorkflowBuilder(config).build()
+        WorkflowBuilder(config).build(workflow_args="test_workflow_args")
 
         call_kwargs = template_mock.create_task.call_args[1]
         assert call_kwargs["compute_resources"]["memory"] == 1
@@ -144,7 +144,7 @@ class TestResourceDefaults:
         )
         template_mock = mock_tool_cls.return_value.get_task_template.return_value
 
-        WorkflowBuilder(config).build()
+        WorkflowBuilder(config).build(workflow_args="test_workflow_args")
 
         call_kwargs = template_mock.create_task.call_args[1]
         assert call_kwargs["compute_resources"]["memory"] == 16
@@ -175,7 +175,7 @@ class TestEnvironmentResolution:
         )
         template_mock = mock_tool_cls.return_value.get_task_template.return_value
 
-        WorkflowBuilder(config).build()
+        WorkflowBuilder(config).build(workflow_args="test_workflow_args")
 
         call_kwargs = template_mock.create_task.call_args[1]
         assert call_kwargs["env"] == "step_env"
@@ -199,7 +199,7 @@ class TestEnvironmentResolution:
         )
         template_mock = mock_tool_cls.return_value.get_task_template.return_value
 
-        WorkflowBuilder(config).build()
+        WorkflowBuilder(config).build(workflow_args="test_workflow_args")
 
         call_kwargs = template_mock.create_task.call_args[1]
         assert call_kwargs["env"] == "workflow_env"
@@ -226,7 +226,7 @@ class TestEnvironmentResolution:
         )
         template_mock = mock_tool_cls.return_value.get_task_template.return_value
 
-        WorkflowBuilder(config).build()
+        WorkflowBuilder(config).build(workflow_args="test_workflow_args")
 
         call_kwargs = template_mock.create_task.call_args[1]
         assert call_kwargs["env"] == "conda_env"
@@ -253,4 +253,4 @@ class TestEnvironmentResolution:
         )
 
         with pytest.raises(ValueError, match="non-base conda environment is required"):
-            WorkflowBuilder(config).build()
+            WorkflowBuilder(config).build(workflow_args="test_workflow_args")

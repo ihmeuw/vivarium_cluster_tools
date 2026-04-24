@@ -20,6 +20,11 @@ if TYPE_CHECKING:
     from jobmon.client.workflow import Workflow
 
 
+WORKFLOW_ARGS_FILENAME = ".workflow_args"
+"""File written to the output directory to persist the Jobmon workflow_args
+for resume support."""
+
+
 class WorkflowBuilder:
     """Build a complete Jobmon workflow from a workflow configuration.
 
@@ -33,10 +38,18 @@ class WorkflowBuilder:
         self.config = config
         self._tool = Tool(name="vivarium_cluster_tools")
 
-    def build(self) -> Workflow:
-        """Build the full workflow DAG and return the Jobmon Workflow."""
+    def build(self, workflow_args: str) -> Workflow:
+        """Build the full workflow DAG and return the Jobmon Workflow.
+
+        Parameters
+        ----------
+        workflow_args
+            Deterministic string that Jobmon uses to identify the workflow.
+            Must be identical across runs for resume to work.
+        """
         # TODO: MIC-6997 - encapsulate Jobmon UI in one place
         workflow = self._tool.create_workflow(
+            workflow_args=workflow_args,
             name=self.config.name,
             default_cluster_name="slurm",
             default_max_attempts=self.config.max_attempts,
