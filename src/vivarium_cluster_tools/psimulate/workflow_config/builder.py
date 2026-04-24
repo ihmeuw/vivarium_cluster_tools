@@ -65,8 +65,8 @@ class WorkflowBuilder:
         # steps produce identical output paths.
         build_timestamp = self._get_or_create_build_timestamp()
 
-        previous_step_tasks: list = []
-        all_tasks: list = []
+        previous_step_tasks: list[Task] = []
+        all_tasks: list[Task] = []
 
         for step in self.config.steps:
             env = (
