@@ -516,12 +516,11 @@ class SimulationStepConfig(BaseStepConfig):
         and returns the full list of Jobmon tasks.
         """
         # Build output paths using the same layout as psimulate run:
-        #   output_directory / step_name / model_name / timestamp / ...
-        step_output_dir = self.output_directory / self.name
+        # output_directory / model_name / timestamp / ...
         output_paths = OutputPaths.from_entry_point_args(
             command=COMMANDS.run,
             input_artifact_path=self.artifact_path,
-            result_directory=step_output_dir,
+            result_directory=self.output_directory,
             input_model_spec_path=self.model_specification,
         )
         output_paths.touch()
