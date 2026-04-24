@@ -8,10 +8,11 @@ from typing import Any
 import pytest
 import yaml
 
+from unittest.mock import MagicMock
+
 from tests.psimulate.workflow_config.utilities import (
     make_step_dict,
     make_workflow_dict,
-    write_psimulate_config,
     write_workflow_yaml,
 )
 from vivarium_cluster_tools.psimulate.workflow_config.config import (
@@ -104,7 +105,6 @@ class TestWorkflowConfigFromYaml:
                 "args": {
                     "model_specification": str(valid_model_spec_file),
                     "branch_configuration": str(valid_branch_config_file),
-                    "project": "proj_simscience",
                 },
                 "resources": {"memory_gb": 5, "runtime": "03:00:00"},
             }
@@ -296,15 +296,37 @@ class TestCommandStepConfig:
         supported = config.supported_arguments()
         assert supported is None
 
-    def test_resolve_command_returns_command(self) -> None:
-        """resolve_command returns the command string as-is."""
+    def test_get_tasks_creates_single_task(self) -> None:
+        """get_tasks creates a single-element list with a Jobmon task."""
         config = CommandStepConfig(
             name="test_step",
             resources=ResourceConfig(memory_gb=4),
             command="echo hello world",
             output_directory=Path("/tmp/results"),
         )
-        assert config.resolve_command() == "echo hello world"
+        mock_tool = MagicMock()
+        mock_template = MagicMock()
+        mock_task = MagicMock()
+        mock_tool.get_task_template.return_value = mock_template
+        mock_template.create_task.return_value = mock_task
+
+        tasks = config.get_tasks(
+            mock_tool, project="proj_simscience", queue="all.q", env="my_env"
+        )
+
+        assert tasks == [mock_task]
+        mock_template.create_task.assert_called_once_with(
+            name="test_step",
+            compute_resources={
+                "queue": "all.q",
+                "project": "proj_simscience",
+                "memory": 4,
+                "runtime": "01:00:00",
+                "cores": 1,
+            },
+            env="my_env",
+            command="echo hello world",
+        )
 
     def test_to_dict(self) -> None:
         """to_dict includes environment when provided."""
@@ -359,117 +381,49 @@ class TestCommandStepConfig:
 class TestSimulationStepConfig:
     """Tests for SimulationStepConfig - the simulation step type."""
 
-    def test_requires_model_specification_or_config(self, tmp_path: Path) -> None:
-        """SimulationStepConfig requires either model_specification or config file."""
-        with pytest.raises(ValueError, match="model_specification"):
+    def test_requires_model_specification(self, valid_branch_config_file: Path) -> None:
+        """SimulationStepConfig requires model_specification."""
+        with pytest.raises(TypeError, match="model_specification"):
             SimulationStepConfig(
                 name="sim",
                 resources=ResourceConfig(memory_gb=5),
                 output_directory=Path("/tmp/results"),
-                project="proj_simscience",
-                branch_configuration=tmp_path / "branches.yaml",
+                branch_configuration=valid_branch_config_file,
             )
 
-    def test_accepts_model_specification_inline(
+    def test_requires_branch_configuration(self, valid_model_spec_file: Path) -> None:
+        """SimulationStepConfig requires branch_configuration."""
+        with pytest.raises(TypeError, match="branch_configuration"):
+            SimulationStepConfig(
+                name="sim",
+                resources=ResourceConfig(memory_gb=5),
+                output_directory=Path("/tmp/results"),
+                model_specification=valid_model_spec_file,
+            )
+
+    def test_accepts_required_fields(
         self, valid_model_spec_file: Path, valid_branch_config_file: Path
     ) -> None:
-        """SimulationStepConfig accepts inline model_specification."""
+        """SimulationStepConfig accepts required fields."""
         config = SimulationStepConfig(
             name="sim",
             resources=ResourceConfig(memory_gb=5),
             output_directory=Path("/tmp/results"),
             model_specification=valid_model_spec_file,
             branch_configuration=valid_branch_config_file,
-            project="proj_simscience",
         )
         assert config.model_specification == valid_model_spec_file
         assert config.branch_configuration == valid_branch_config_file
+        assert config.artifact_path is None
+        assert config.hardware is None
 
-    def test_parses_config_file_fields(
-        self, tmp_path: Path, valid_model_spec_file: Path, valid_branch_config_file: Path
-    ) -> None:
-        """SimulationStepConfig accepts and parses config file, extracting required fields."""
-        config_file = write_psimulate_config(
-            tmp_path,
-            model_specification=str(valid_model_spec_file),
-            branch_configuration=str(valid_branch_config_file),
-            project="proj_simscience",
-        )
-        step_config = SimulationStepConfig(
-            name="sim",
-            resources=ResourceConfig(memory_gb=5),
-            output_directory=Path("/tmp/results"),
-            config=config_file,
-        )
-
-        assert step_config.model_specification == valid_model_spec_file
-        assert step_config.branch_configuration == valid_branch_config_file
-
-    def test_parse_args_from_multiple_sources(
+    def test_accepts_optional_fields(
         self,
-        tmp_path: Path,
         valid_model_spec_file: Path,
         valid_branch_config_file: Path,
         valid_artifact_file: Path,
     ) -> None:
-        """Inline args merge with and override config file values."""
-        # Config has model_spec and branch_config
-        inline_model_spec = tmp_path / "inline_model.yaml"
-        inline_model_spec.write_text("inline model")
-
-        config_file = write_psimulate_config(
-            tmp_path,
-            model_specification=str(valid_model_spec_file),
-            branch_configuration=str(valid_branch_config_file),
-            project="proj_simscience",
-        )
-
-        step_config = SimulationStepConfig(
-            name="sim",
-            resources=ResourceConfig(memory_gb=5),
-            output_directory=Path("/tmp/results"),
-            config=config_file,
-            model_specification=inline_model_spec,  # Override config file value
-            artifact_path=valid_artifact_file,  # Merge: not in config file
-            project="proj_simscience",
-        )
-        command = step_config.resolve_command()
-
-        # Inline model_specification overrides config file value
-        assert str(inline_model_spec) in command
-        assert str(valid_model_spec_file) not in command
-        # branch_configuration comes from config file
-        assert str(valid_branch_config_file) in command
-        # artifact_path comes from inline (not in config file)
-        assert str(valid_artifact_file) in command
-
-    def test_validates_required_fields_after_merge(self, tmp_path: Path) -> None:
-        """Raises ValueError if model_spec or branch_config missing after merge."""
-        # Config file missing branch_configuration
-        config_file = write_psimulate_config(
-            tmp_path,
-            model_specification=str(tmp_path / "model.yaml"),
-            project="proj_simscience",
-        )
-        (tmp_path / "model.yaml").write_text("model")
-
-        with pytest.raises(ValueError, match="branch_configuration"):
-            SimulationStepConfig(
-                name="sim",
-                resources=ResourceConfig(memory_gb=5),
-                output_directory=Path("/tmp/results"),
-                config=config_file,
-            )
-
-    def test_resolve_command_generates_psimulate_run(
-        self,
-        tmp_path: Path,
-        valid_model_spec_file: Path,
-        valid_branch_config_file: Path,
-        valid_artifact_file: Path,
-    ) -> None:
-        """resolve_command() generates psimulate run command with args."""
-        # Test with inline args
+        """SimulationStepConfig accepts optional fields."""
         config = SimulationStepConfig(
             name="sim",
             resources=ResourceConfig(memory_gb=5),
@@ -477,30 +431,10 @@ class TestSimulationStepConfig:
             model_specification=valid_model_spec_file,
             branch_configuration=valid_branch_config_file,
             artifact_path=valid_artifact_file,
-            project="proj_simscience",
+            hardware=["r650", "r650v2"],
         )
-        command = config.resolve_command()
-        assert command.startswith("psimulate run")
-        assert str(valid_model_spec_file) in command
-        assert str(valid_branch_config_file) in command
-        assert str(valid_artifact_file) in command
-
-        # Test with config file
-        config_file = write_psimulate_config(
-            tmp_path,
-            model_specification=str(valid_model_spec_file),
-            branch_configuration=str(valid_branch_config_file),
-            project="proj_simscience",
-        )
-        config2 = SimulationStepConfig(
-            name="sim",
-            resources=ResourceConfig(memory_gb=5),
-            output_directory=Path("/tmp/results"),
-            config=config_file,
-        )
-        command2 = config2.resolve_command()
-        assert command2.startswith("psimulate run")
-        assert str(valid_model_spec_file) in command2
+        assert config.artifact_path == valid_artifact_file
+        assert config.hardware == ["r650", "r650v2"]
 
     def test_from_dict_rejects_both_command_and_type(self) -> None:
         """from_dict() rejects step dicts with both 'command' and 'type'."""
@@ -513,79 +447,88 @@ class TestSimulationStepConfig:
         with pytest.raises(ValueError, match="Cannot specify both 'command' and 'type'"):
             SimulationStepConfig.from_dict(step_dict, output_directory=Path("/tmp/results"))
 
-    @pytest.mark.parametrize("config_source", ["inline_args", "config_file"])
     def test_from_dict_deserialization(
         self,
         valid_model_spec_file: Path,
         valid_branch_config_file: Path,
-        psimulate_config_file: Path,
-        config_source: str,
     ) -> None:
-        """SimulationStepConfig.from_dict deserializes various configurations."""
-        base_dict: dict[str, Any] = {
+        """SimulationStepConfig.from_dict deserializes configuration."""
+        step_dict: dict[str, Any] = {
             "name": "sim",
             "type": "simulation",
             "resources": {"memory_gb": 5, "runtime": "03:00:00"},
-        }
-
-        if config_source == "inline_args":
-            base_dict["args"] = {
+            "args": {
                 "model_specification": str(valid_model_spec_file),
                 "branch_configuration": str(valid_branch_config_file),
-                "project": "proj_simscience",
-            }
-        elif config_source == "config_file":
-            base_dict["args"] = {
-                "config": str(psimulate_config_file),
-            }
+            },
+        }
 
         config = SimulationStepConfig.from_dict(
-            base_dict, output_directory=Path("/tmp/results")
+            step_dict, output_directory=Path("/tmp/results")
         )
         assert isinstance(config, SimulationStepConfig)
         assert config.name == "sim"
+        assert config.model_specification == valid_model_spec_file
+        assert config.branch_configuration == valid_branch_config_file
 
-        # Validate fields were deserialized correctly
-        if config_source == "inline_args":
-            assert config.model_specification == valid_model_spec_file
-            assert config.branch_configuration == valid_branch_config_file
-        elif config_source == "config_file":
-            assert config.config == psimulate_config_file
+    def test_from_dict_rejects_unsupported_args(
+        self,
+        valid_model_spec_file: Path,
+        valid_branch_config_file: Path,
+    ) -> None:
+        """from_dict() rejects unsupported args."""
+        step_dict: dict[str, Any] = {
+            "name": "sim",
+            "type": "simulation",
+            "resources": {"memory_gb": 5},
+            "args": {
+                "model_specification": str(valid_model_spec_file),
+                "branch_configuration": str(valid_branch_config_file),
+                "bogus_field": "nope",
+            },
+        }
+        with pytest.raises(ValueError, match="unsupported args"):
+            SimulationStepConfig.from_dict(
+                step_dict, output_directory=Path("/tmp/results")
+            )
 
-    @pytest.mark.parametrize("config_source", ["inline_args", "config_file"])
     def test_to_dict_serialization(
         self,
         valid_model_spec_file: Path,
         valid_branch_config_file: Path,
-        psimulate_config_file: Path,
-        config_source: str,
+        valid_artifact_file: Path,
     ) -> None:
         """to_dict() serializes configuration with type: simulation."""
-        if config_source == "inline_args":
-            constructor_kwargs: dict[str, Any] = {
-                "model_specification": valid_model_spec_file,
-                "branch_configuration": valid_branch_config_file,
-                "project": "proj_simscience",
-            }
-            expected_args = {
-                "model_specification": str(valid_model_spec_file),
-                "branch_configuration": str(valid_branch_config_file),
-                "project": "proj_simscience",
-            }
-        else:  # config_file
-            constructor_kwargs = {"config": psimulate_config_file}
-            expected_args = {"config": str(psimulate_config_file)}
-
         config = SimulationStepConfig(
             name="sim",
             resources=ResourceConfig(memory_gb=5, runtime="03:00:00"),
             output_directory=Path("/tmp/results"),
-            **constructor_kwargs,
+            model_specification=valid_model_spec_file,
+            branch_configuration=valid_branch_config_file,
+            artifact_path=valid_artifact_file,
+            hardware=["r650"],
         )
         result = config.to_dict()
         assert result["type"] == "simulation"
         assert result["name"] == "sim"
-        assert "args" in result
+        assert result["args"]["model_specification"] == str(valid_model_spec_file)
+        assert result["args"]["branch_configuration"] == str(valid_branch_config_file)
+        assert result["args"]["artifact_path"] == str(valid_artifact_file)
+        assert result["args"]["hardware"] == ["r650"]
 
-        for field_name, expected_value in expected_args.items():
-            assert result["args"][field_name] == expected_value
+    def test_to_dict_omits_none_optional_fields(
+        self,
+        valid_model_spec_file: Path,
+        valid_branch_config_file: Path,
+    ) -> None:
+        """to_dict() omits artifact_path and hardware when None."""
+        config = SimulationStepConfig(
+            name="sim",
+            resources=ResourceConfig(memory_gb=5),
+            output_directory=Path("/tmp/results"),
+            model_specification=valid_model_spec_file,
+            branch_configuration=valid_branch_config_file,
+        )
+        result = config.to_dict()
+        assert "artifact_path" not in result["args"]
+        assert "hardware" not in result["args"]

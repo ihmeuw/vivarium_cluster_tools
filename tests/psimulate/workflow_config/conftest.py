@@ -10,7 +10,6 @@ import pytest
 from tests.psimulate.workflow_config.utilities import (
     make_simulation_step_dict,
     make_workflow_dict,
-    write_psimulate_config,
     write_workflow_yaml,
 )
 
@@ -55,18 +54,3 @@ def valid_artifact_file(tmp_path: Path) -> Path:
     artifact = tmp_path / "artifact.hdf"
     artifact.write_text("mock artifact data")
     return artifact
-
-
-@pytest.fixture()
-def psimulate_config_file(
-    tmp_path: Path,
-    valid_model_spec_file: Path,
-    valid_branch_config_file: Path,
-) -> Path:
-    """Create a valid psimulate run config file with paths to real files."""
-    return write_psimulate_config(
-        tmp_path,
-        model_specification=str(valid_model_spec_file),
-        branch_configuration=str(valid_branch_config_file),
-        project="proj_simscience",
-    )

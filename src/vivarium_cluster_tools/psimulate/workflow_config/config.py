@@ -13,9 +13,18 @@ import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
 import yaml
+
+from vivarium_cluster_tools.psimulate import branches
+from vivarium_cluster_tools.psimulate.cluster.interface import NativeSpecification
+from vivarium_cluster_tools.psimulate.jobmon_config.workflow import get_task_list
+from vivarium_cluster_tools.psimulate.jobs import JobParameters, build_job_parameters_from_keyspace
+
+if TYPE_CHECKING:
+    from jobmon.client.api import Tool
+    from jobmon.client.task import Task
 
 REQUIRED_WORKFLOW_FIELDS = {"name", "steps"}
 
@@ -201,21 +210,34 @@ class BaseStepConfig(ABC):
         pass
 
     @abstractmethod
-    def resolve_command(self) -> str:
-        """Generate the raw command string for this step.
+    def get_tasks(
+        self,
+        tool: Tool,
+        *,
+        project: str,
+        queue: str,
+        env: str,
+    ) -> list[Task]:
+        """Create Jobmon Tasks for this step.
 
-        Returns the command that will be passed to the task template.
-        WorkflowBuilder will wrap this with conda run and add workflow-level
-        arguments (project, queue, output directory, etc.).
+        Returns one or more tasks to add to the workflow. Command steps
+        return a single task; simulation steps return one task per
+        (draw, seed, branch) combination.
 
-        For command-based steps (no 'type' field), this simply returns the
-        provided command string as-is. For typed steps like SimulationStepConfig,
-        this builds a command from the step's configuration (e.g., building
-        "psimulate run -M ... -B ..." from model_specification, branch_configuration, etc.).
+        Parameters
+        ----------
+        tool
+            The Jobmon Tool instance to create task templates from.
+        project
+            Cluster project to charge (e.g. ``proj_simscience``).
+        queue
+            Cluster queue to submit to (e.g. ``all.q``).
+        env
+            Conda environment name to wrap the command with.
 
         Returns
         -------
-            The raw command string (e.g., "echo hello" or "psimulate run -M ... -B ...").
+            A list of Jobmon Task instances ready to be added to a workflow.
         """
         pass
 
@@ -260,9 +282,37 @@ class CommandStepConfig(BaseStepConfig):
         """Command-based steps don't have an 'args' section."""
         return None
 
-    def resolve_command(self) -> str:
-        """Return the command string as-is."""
-        return self.command
+    def get_tasks(
+        self,
+        tool: Tool,
+        *,
+        project: str,
+        queue: str,
+        env: str,
+    ) -> list[Task]:
+        """Create a single Jobmon Task for this command step."""
+        task_template = tool.get_task_template(
+            template_name="workflow_command_step",
+            command_template="conda run --no-capture-output -n {env} {command}",
+            node_args=["command"],
+            task_args=[],
+            op_args=["env"],
+            default_cluster_name="slurm",
+        )
+        compute_resources = {
+            "queue": queue,
+            "project": project,
+            "memory": self.resources.memory_gb,
+            "runtime": self.resources.runtime,
+            "cores": self.resources.cores,
+        }
+        task = task_template.create_task(
+            name=self.name,
+            compute_resources=compute_resources,
+            env=env,
+            command=self.command,
+        )
+        return [task]
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to a dictionary, omitting None values."""
@@ -310,32 +360,13 @@ class CommandStepConfig(BaseStepConfig):
 class SimulationStepConfig(BaseStepConfig):
     """Configuration for a parallel simulation workflow step.
 
-    This step type is designed for parallel simulation execution using
-    psimulate run. Configuration arguments are provided in an 'args' section,
-    which can reference a config file, provide inline arguments, or both.
+    This step type directly creates parallel simulation tasks — one per
+    (input_draw, random_seed, branch) combination — rather than launching
+    ``psimulate run`` as a subprocess. The tasks use the same task runner
+    infrastructure as ``psimulate run``.
 
-    Configuration modes:
-
-    1. **Inline args**: Provide model_specification, branch_configuration,
-       and optional arguments in the 'args' section.
-    2. **Config file**: Provide a path to a psimulate run config file in 'args'.
-    3. **Mixed**: Combine both approaches; inline args override config file
-       values when both are provided (same behavior as CLI args overriding
-       config file in psimulate run).
-
-    The step validates all configuration during __post_init__, parsing the
-    config file if provided, merging inline and config file values, and
-    checking that all required fields are present and valid.
-
-    Step Structure
-    --------------
-    Top-level fields: name, type, resources, environment (optional), args
-
-    - **name**: Step identifier (string)
-    - **type**: Must be "simulation"
-    - **resources**: Resource configuration dict (memory_gb, runtime, cores)
-    - **environment**: Optional conda environment name
-    - **args**: Dict containing simulation-specific arguments
+    The ``resources`` field specifies compute resources for each individual
+    simulation task (memory, runtime, cores).
 
     Examples
     --------
@@ -344,214 +375,114 @@ class SimulationStepConfig(BaseStepConfig):
         steps:
           - name: model_sims
             type: simulation
+            resources:
+              memory_gb: 3
+              runtime: "24:00:00"
             args:
               model_specification: /path/to/model.yaml
               branch_configuration: /path/to/branches.yaml
               artifact_path: /path/to/artifact.hdf
-              peak_memory: 3  # GB per simulation job
-              queue: all.q
-              max_runtime: "24:00:00"  # Runtime per simulation job
               hardware: [r650, r650v2]
-            resources:  # Resources for the task runner
-              memory_gb: 2
-              runtime: "00:10:00"
-
-    Config file only::
-
-        steps:
-          - name: model_sims
-            type: simulation
-            args:
-              config: /path/to/psimulate_config.yaml
-            resources:  # Resources for the task runner
-              memory_gb: 2
-              runtime: "00:10:00"
-
-    Mixed (inline args override config file)::
-
-        steps:
-          - name: model_sims
-            type: simulation
-            args:
-              config: /path/to/psimulate_config.yaml
-              hardware: [r650xs]  # Overrides hardware from config
-            resources:  # Resources for the task runner
-              memory_gb: 2
-              runtime: "00:10:00"
-
-    With optional environment::
-
-        steps:
-          - name: model_sims
-            type: simulation
-            environment: my_sim_env
-            args:
-              model_specification: /path/to/model.yaml
-              branch_configuration: /path/to/branches.yaml
-            resources:  # Resources for the task runner
-              memory_gb: 2
-              runtime: "00:10:00"
     """
 
-    # Metadata for each supported arg: (cli_flag, is_path)
-    # cli_flag is the flag passed to `psimulate run`.
-    # is_path indicates the value should be converted to/from Path.
-    _ARG_METADATA: ClassVar[dict[str, tuple[str, bool]]] = {
-        "config": ("--run-config", True),
-        "model_specification": ("-M", True),
-        "branch_configuration": ("-B", True),
-        "artifact_path": ("--artifact_path", True),
-        "project": ("--project", False),
-        "peak_memory": ("--peak-memory", False),
-        "queue": ("--queue", False),
-        "max_runtime": ("--max-runtime", False),
-        "hardware": ("--hardware", False),  # list; handled specially
-        "max_workers": ("--max-workers", False),
-        "backup_freq": ("--backup-freq", False),
-        "sim_verbosity": ("--sim-verbosity", False),
+    _SUPPORTED_ARGS: ClassVar[set[str]] = {
+        "model_specification",
+        "branch_configuration",
+        "artifact_path",
+        "hardware",
     }
-
-    _SUPPORTED_ARGS: ClassVar[set[str]] = set(_ARG_METADATA)
 
     name: str
     """Unique name for this step within the workflow."""
     resources: ResourceConfig
-    """Resource configuration for this step."""
+    """Compute resources for each individual simulation task."""
     output_directory: Path
     """Output directory for this step. Inherited from the workflow's output_directory."""
+    model_specification: Path
+    """Path to model specification YAML file."""
+    branch_configuration: Path
+    """Path to branch configuration YAML file."""
     environment: str | None = None
     """Optional environment name to use for this step."""
-
-    # Config file OR inline args (or both)
-    config: Path | None = None
-    """Path to psimulate run config file."""
-
-    # Inline args for psimulate run
-    model_specification: Path | None = None
-    """Path to model specification YAML file."""
-    branch_configuration: Path | None = None
-    """Path to branch configuration YAML file."""
     artifact_path: Path | None = None
     """Optional path to artifact file."""
-
-    # Resource args for simulation jobs (separate from task runner resources)
-    project: str | None = None
-    """Optional project for simulation jobs."""
-    peak_memory: int | None = None
-    """Optional peak memory in GB for each simulation job."""
-    queue: str | None = None
-    """Optional queue for simulation jobs (all.q or long.q)."""
-    max_runtime: str | None = None
-    """Optional max runtime for each simulation job (hh:mm:ss format)."""
-
-    # Other optional args
     hardware: list[str] | None = None
-    """Optional list of hardware types to request."""
-    max_workers: int | None = None
-    """Optional maximum number of concurrent workers."""
-    backup_freq: str | None = None
-    """Optional backup frequency in minutes or 'None'/'none'."""
-    sim_verbosity: int | None = None
-    """Optional simulation verbosity level."""
+    """Optional list of hardware types to request for simulation tasks."""
 
     def _validate(self) -> None:
-        """Validate simulation step configuration.
-
-        This method:
-        1. Parses config file if provided
-        2. Merges inline args with config file values (inline takes precedence)
-        3. Validates all resolved values
-        4. Stores resolved values for use by resolve_command()
-
-        Raises
-        ------
-        ValueError
-            If required fields are missing or validation fails.
-        FileNotFoundError
-            If any specified paths do not exist.
-        """
-        # Parse config file if provided
-        if self.config is not None:
-            if not self.config.exists():
-                raise FileNotFoundError(
-                    f"Step '{self.name}': config file '{self.config}' does not exist."
-                )
-            with self.config.open() as f:
-                config_data = yaml.safe_load(f) or {}
-
-            # Inline args take precedence over config file values
-            for field_name, (_flag, is_path) in self._ARG_METADATA.items():
-                if field_name == "config":
-                    continue  # Don't override config with itself
-                if getattr(self, field_name) is None and field_name in config_data:
-                    value = config_data[field_name]
-                    setattr(self, field_name, Path(value) if is_path else value)
-
-        # Validate required fields
+        """Validate simulation step configuration."""
         if not self.model_specification:
             raise ValueError(
-                f"Step '{self.name}': simulation type requires 'model_specification'. "
-                "Provide it inline or in the config file."
+                f"Step '{self.name}': simulation type requires 'model_specification'."
             )
         if not self.branch_configuration:
             raise ValueError(
-                f"Step '{self.name}': simulation type requires 'branch_configuration'. "
-                "Provide it inline or in the config file."
-            )
-        if not self.project:
-            raise ValueError(
-                f"Step '{self.name}': simulation type requires 'project'. "
-                "Provide it inline or in the config file."
+                f"Step '{self.name}': simulation type requires 'branch_configuration'."
             )
 
     def supported_arguments(self) -> set[str]:
-        """Return valid keys for the 'args' section of simulation steps.
-
-        These correspond to psimulate run CLI arguments and config file fields.
-        Note: 'environment' is a top-level field, not in args.
-        """
+        """Return valid keys for the 'args' section of simulation steps."""
         return self._SUPPORTED_ARGS
 
-    def resolve_command(self) -> str:
-        """Generate the psimulate run command.
+    def get_tasks(
+        self,
+        tool: Tool,
+        *,
+        project: str,
+        queue: str,
+        env: str,
+    ) -> list[Task]:
+        """Create parallel simulation Jobmon Tasks.
 
-        Builds a command string of the form:
-        ``psimulate run -M <model> -B <branches> [optional args...]``
-
-        WorkflowBuilder will wrap this with conda and add workflow-level args.
-
-        Returns
-        -------
-            The raw psimulate run command string.
+        Parses the branch configuration into a keyspace, builds one
+        :class:`~vivarium_cluster_tools.psimulate.jobs.JobParameters`
+        per (draw, seed, branch) combination, writes per-task metadata,
+        and returns the full list of Jobmon tasks.
         """
-        parts = ["psimulate run"]
-        # Required args are always present (enforced by _validate)
-        parts.append(f"-M {self.model_specification}")
-        parts.append(f"-B {self.branch_configuration}")
-        parts.append(f"-o {self.output_directory}")
+        # Set up output directories for this step
+        step_output_dir = self.output_directory / self.name
+        metadata_dir = step_output_dir / "metadata"
+        results_dir = step_output_dir / "results"
+        worker_logging_root = step_output_dir / "logs" / "worker_logs"
 
-        # Optional args — skip the two required args already added
-        for field_name, (cli_flag, _is_path) in self._ARG_METADATA.items():
-            if field_name in {"model_specification", "branch_configuration"}:
-                continue
-            value = getattr(self, field_name)
-            if value is None:
-                continue
-            if isinstance(value, list):
-                for item in value:
-                    parts.append(f"{cli_flag} {item}")
-            else:
-                parts.append(f"{cli_flag} {value}")
+        for d in [metadata_dir, results_dir, worker_logging_root]:
+            d.mkdir(parents=True, exist_ok=True)
 
-        return " ".join(parts)
+        # Parse branch configuration into keyspace
+        keyspace = branches.Keyspace.from_branch_configuration(
+            self.branch_configuration
+        )
+
+        # Build job parameters for each (draw, seed, branch) combination
+        job_parameters = build_job_parameters_from_keyspace(
+            keyspace,
+            model_specification_path=self.model_specification,
+            output_root=step_output_dir,
+            worker_logging_root=worker_logging_root,
+        )
+
+        native_spec = NativeSpecification(
+            job_name=f"sim_{self.name}",
+            project=project,
+            queue=queue,
+            peak_memory=float(self.resources.memory_gb),
+            max_runtime=self.resources.runtime,
+            hardware=self.hardware or [],
+        )
+
+        return get_task_list(
+            tool=tool,
+            command="run",
+            job_parameters_list=job_parameters,
+            metadata_dir=metadata_dir,
+            results_dir=results_dir,
+            worker_logging_root=worker_logging_root,
+            native_specification=native_spec,
+            env=env,
+        )
 
     def to_dict(self) -> dict[str, Any]:
-        """Serialize to a dictionary with type: simulation.
-
-        Returns
-        -------
-            Dictionary representation suitable for workflow YAML.
-        """
+        """Serialize to a dictionary with type: simulation."""
         result: dict[str, Any] = {
             "name": self.name,
             "type": "simulation",
@@ -560,32 +491,23 @@ class SimulationStepConfig(BaseStepConfig):
         if self.environment is not None:
             result["environment"] = self.environment
 
-        args: dict[str, Any] = {}
-        for field_name, (_flag, is_path) in self._ARG_METADATA.items():
-            value = getattr(self, field_name)
-            if value is not None:
-                args[field_name] = str(value) if is_path else value
-        if args:
-            result["args"] = args
+        args: dict[str, Any] = {
+            "model_specification": str(self.model_specification),
+            "branch_configuration": str(self.branch_configuration),
+        }
+        if self.artifact_path is not None:
+            args["artifact_path"] = str(self.artifact_path)
+        if self.hardware is not None:
+            args["hardware"] = self.hardware
+
+        result["args"] = args
         return result
 
     @classmethod
     def _create_from_dict(
         cls, data: dict[str, Any], output_directory: Path
     ) -> SimulationStepConfig:
-        """Create a SimulationStepConfig from a dictionary.
-
-        Called by BaseStepConfig.from_dict() after validation.
-
-        Parameters
-        ----------
-        data
-            Dictionary from workflow YAML (a step dict with type: simulation).
-
-        Returns
-        -------
-            A new SimulationStepConfig instance.
-        """
+        """Create a SimulationStepConfig from a dictionary."""
         args = data.get("args", {}) or {}
 
         # Validate that only supported arguments are in args
@@ -602,12 +524,13 @@ class SimulationStepConfig(BaseStepConfig):
             "resources": ResourceConfig.from_dict(data["resources"]),
             "output_directory": output_directory,
             "environment": data.get("environment"),
+            "model_specification": Path(args["model_specification"]),
+            "branch_configuration": Path(args["branch_configuration"]),
         }
-
-        for field_name, (_flag, is_path) in cls._ARG_METADATA.items():
-            value = args.get(field_name)
-            if value is not None:
-                kwargs[field_name] = Path(value) if is_path else value
+        if "artifact_path" in args:
+            kwargs["artifact_path"] = Path(args["artifact_path"])
+        if "hardware" in args:
+            kwargs["hardware"] = args["hardware"]
 
         return cls(**kwargs)
 

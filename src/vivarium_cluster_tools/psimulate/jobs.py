@@ -108,6 +108,52 @@ class JobParameters(NamedTuple):
         )
 
 
+def build_job_parameters_from_keyspace(
+    keyspace: branches.Keyspace,
+    *,
+    model_specification_path: Path,
+    output_root: Path,
+    worker_logging_root: Path,
+    backup_configuration: dict[str, Any] | None = None,
+    extras: dict[str, Any] | None = None,
+) -> list[JobParameters]:
+    """Build a JobParameters list from a keyspace without filtering.
+
+    Creates one :class:`JobParameters` per (input_draw, random_seed, branch)
+    combination in *keyspace*.
+
+    Parameters
+    ----------
+    keyspace
+        The simulation keyspace to iterate.
+    model_specification_path
+        Path to the model specification file.
+    output_root
+        Root output directory for the simulation.
+    worker_logging_root
+        Directory for worker log output.
+    backup_configuration
+        Optional backup configuration dict. Defaults to empty.
+    extras
+        Optional extra arguments dict. Defaults to empty.
+    """
+    job_parameters: list[JobParameters] = []
+    for input_draw, random_seed, branch_config in keyspace:
+        job_parameters.append(
+            JobParameters(
+                model_specification=str(model_specification_path),
+                branch_configuration=branch_config,
+                input_draw=int(input_draw),
+                random_seed=int(random_seed),
+                results_path=str(output_root),
+                worker_logging_root=str(worker_logging_root),
+                backup_configuration=backup_configuration or {},
+                extras=extras or {},
+            )
+        )
+    return job_parameters
+
+
 def build_job_list(
     model_specification_path: Path,
     output_root: Path,
@@ -119,25 +165,22 @@ def build_job_list(
     worker_logging_root: Path,
     extras: dict[str, Any],
 ) -> tuple[list[JobParameters], int]:
+    all_jobs = build_job_parameters_from_keyspace(
+        keyspace,
+        model_specification_path=model_specification_path,
+        output_root=output_root,
+        worker_logging_root=worker_logging_root,
+        backup_configuration={
+            "backup_dir": backup_dir,
+            "backup_freq": backup_freq,
+            "backup_metadata_path": backup_metadata_path,
+        },
+        extras=extras,
+    )
+
     jobs: list[JobParameters] = []
     number_already_completed = 0
-
-    for input_draw, random_seed, branch_config in keyspace:
-        parameters = JobParameters(
-            model_specification=str(model_specification_path),
-            branch_configuration=branch_config,
-            input_draw=int(input_draw),
-            random_seed=int(random_seed),
-            results_path=str(output_root),
-            worker_logging_root=str(worker_logging_root),
-            backup_configuration={
-                "backup_dir": backup_dir,
-                "backup_freq": backup_freq,
-                "backup_metadata_path": backup_metadata_path,
-            },
-            extras=extras,
-        )
-
+    for parameters in all_jobs:
         if already_complete(parameters, finished_sim_metadata):
             number_already_completed += 1
         else:
