@@ -1,4 +1,4 @@
-**3.1.2 - 04/24/26**
+**3.1.2 - 04/27/26**
 
 - Dynamically determine jobmon workflow timeout from time remaining on runner node
 
