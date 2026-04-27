@@ -12,17 +12,13 @@ from __future__ import annotations
 import click
 
 from vivarium_cluster_tools.cli_tools import CLIFunction
-from vivarium_cluster_tools.psimulate.cluster.interface import (
+from vivarium_cluster_tools.psimulate.cluster.validation import (
     AVAILABLE_HARDWARE,
     QUEUE_MAX_RUNTIME_HOURS,
     RUNTIME_FORMAT,
     VALID_PROJECTS,
-)
-from vivarium_cluster_tools.psimulate.cluster.interface import (
-    validate_hardware as _validate_hardware_core,
-)
-from vivarium_cluster_tools.psimulate.cluster.interface import (
-    validate_runtime_and_queue as _validate_runtime_and_queue_core,
+    validate_hardware,
+    validate_runtime_and_queue,
 )
 
 MAX_RUNTIME_DEFAULT = "24:00:00"
@@ -34,7 +30,7 @@ def _validate_and_split_hardware(
 ) -> list[str]:
     hardware: list[str] = value.split(",") if value else []
     try:
-        _validate_hardware_core(hardware)
+        validate_hardware(hardware)
     except ValueError as e:
         raise click.BadParameter(str(e))
     return hardware
@@ -89,22 +85,18 @@ with_hardware = click.option(
 def _queue_and_runtime_callback(
     ctx: click.Context, param: click.core.Parameter, value: str
 ) -> str:
-    if param.name == "queue" and "max_runtime" in ctx.params:
-        runtime_string, queue = _validate_runtime_and_queue(ctx.params["max_runtime"], value)
-        ctx.params["max_runtime"], value = runtime_string, queue
-    elif param.name == "max_runtime" and "queue" in ctx.params:
-        runtime_string, queue = _validate_runtime_and_queue(value, ctx.params["queue"])
-        value, ctx.params["queue"] = runtime_string, queue
-    else:
-        pass
-    return value
-
-
-def _validate_runtime_and_queue(runtime_string: str, queue: str | None) -> tuple[str, str]:
     try:
-        return _validate_runtime_and_queue_core(runtime_string, queue)
+        if param.name == "queue" and "max_runtime" in ctx.params:
+            runtime_string, queue = validate_runtime_and_queue(
+                ctx.params["max_runtime"], value
+            )
+            ctx.params["max_runtime"], value = runtime_string, queue
+        elif param.name == "max_runtime" and "queue" in ctx.params:
+            runtime_string, queue = validate_runtime_and_queue(value, ctx.params["queue"])
+            value, ctx.params["queue"] = runtime_string, queue
     except ValueError as e:
         raise click.BadParameter(str(e))
+    return value
 
 
 _with_queue = click.option(

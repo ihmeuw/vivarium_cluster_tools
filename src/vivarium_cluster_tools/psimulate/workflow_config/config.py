@@ -18,8 +18,8 @@ from typing import TYPE_CHECKING, Any, ClassVar
 import yaml
 
 from vivarium_cluster_tools.psimulate import COMMANDS, branches
-from vivarium_cluster_tools.psimulate.cluster.interface import (
-    NativeSpecification,
+from vivarium_cluster_tools.psimulate.cluster.interface import NativeSpecification
+from vivarium_cluster_tools.psimulate.cluster.validation import (
     validate_hardware,
     validate_project,
     validate_runtime_and_queue,

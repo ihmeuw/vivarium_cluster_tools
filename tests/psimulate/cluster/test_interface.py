@@ -4,8 +4,8 @@ from typing import Any
 
 import pytest
 
-from vivarium_cluster_tools.psimulate.cluster import validate_cluster_environment
 from vivarium_cluster_tools.psimulate.cluster.interface import NativeSpecification
+from vivarium_cluster_tools.psimulate.cluster.validation import validate_cluster_environment
 
 
 @pytest.fixture(
