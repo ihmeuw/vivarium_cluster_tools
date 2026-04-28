@@ -39,7 +39,7 @@ def _validate_and_split_hardware(
 with_project = click.option(
     "--project",
     "-P",
-    type=click.Choice(sorted(VALID_PROJECTS)),
+    type=click.Choice(VALID_PROJECTS),
     required=True,
     help="The cluster project under which to run the simulation.",
 )

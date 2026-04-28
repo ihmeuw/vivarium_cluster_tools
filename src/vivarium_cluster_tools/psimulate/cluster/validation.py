@@ -44,7 +44,7 @@ AVAILABLE_HARDWARE = [
 
 
 def validate_project(project: str) -> str:
-    """Validate that *project* is a recognised cluster project.
+    """Validate that `project` is a recognised cluster project.
 
     Returns the project unchanged on success.
 
@@ -69,14 +69,14 @@ def validate_runtime_and_queue(runtime: str, queue: str | None) -> tuple[str, st
     * If *queue* is given, checks that *runtime* does not exceed the
       queue's maximum.
 
-    Returns the ``(runtime, queue)`` pair (queue may be resolved from
-    ``None``).
-
     Raises
     ------
     ValueError
         On bad format, runtime exceeding all queues, or runtime
         exceeding the selected queue.
+    Returns
+    -------
+        The validated and reconciled ``(runtime, queue)`` tuple.
     """
     if not _RUNTIME_RE.match(runtime):
         raise ValueError(
@@ -85,13 +85,6 @@ def validate_runtime_and_queue(runtime: str, queue: str | None) -> tuple[str, st
 
     hours, minutes, seconds = runtime.split(":")
     total_hours = int(hours) + float(minutes) / 60.0 + float(seconds) / 3600.0
-
-    max_runtime = max(QUEUE_MAX_RUNTIME_HOURS.values())
-    if total_hours > max_runtime:
-        raise ValueError(
-            f"Runtime '{runtime}' exceeds the maximum cluster runtime "
-            f"of {max_runtime}:00:00 ({RUNTIME_FORMAT})."
-        )
 
     if queue is not None:
         if queue not in QUEUE_MAX_RUNTIME_HOURS:
@@ -106,12 +99,11 @@ def validate_runtime_and_queue(runtime: str, queue: str | None) -> tuple[str, st
             )
         return runtime, queue
 
-    # No queue specified — pick the shortest one that fits.
+    # No queue specified — pick a queue that fits.
     for q, max_q_hours in QUEUE_MAX_RUNTIME_HOURS.items():
         if total_hours <= max_q_hours:
             return runtime, q
 
-    # Should be unreachable due to the max_runtime check above.
     raise ValueError(f"No queue can accommodate runtime '{runtime}'.")
 
 
