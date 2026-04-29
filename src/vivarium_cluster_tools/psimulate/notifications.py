@@ -59,7 +59,7 @@ def send_slack_notification(
         if not convo_data.get("ok"):
             logger.warning(f"Slack conversations.open failed: {convo_data.get('error')}")
             return
-        channel_id = convo_data["channel"]["id"]
+        slack_id = convo_data["channel"]["id"]
 
         # Build the message
         status_text = "DONE" if status == "D" else "ERROR"
@@ -75,7 +75,7 @@ def send_slack_notification(
         requests.post(
             f"{SLACK_API_BASE}/chat.postMessage",
             headers=headers,
-            json={"channel": channel_id, "text": message},
+            json={"channel": slack_id, "text": message},
         )
 
     except Exception as e:
