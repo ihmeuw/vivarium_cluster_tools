@@ -9,46 +9,53 @@ code in the launcher process (not as a Jobmon task), ensuring it triggers on
 both success and failure.
 
 Configuration is via a single environment variable
-`PSIMULATE_SLACK_WEBHOOK`. If the webhook is unset or the HTTP POST fails,
-the notification is skipped gracefully (logged, never raised).
+`PSIMULATE_SLACK_BOT_TOKEN` (a Slack bot token). The SLURM username
+(`$USER`, e.g. `albrja`) is resolved to a Slack user via the
+`{username}@uw.edu` email convention using the Slack API. If the token is
+unset or any Slack API call fails, the notification is skipped gracefully
+(logged, never raised).
 
-### Slack Delivery Mechanism: Workflow Webhook
+### Slack Delivery Mechanism: Bot App
 
-The notification uses a **Slack Workflow with a webhook trigger**. This
-approach requires no admin privileges — any workspace member can create one.
+The notification uses a **Slack Bot App** installed in the workspace.
 
-**Setup (one-time, per user):**
+**Setup (one-time, requires workspace admin):**
 
-1. In Slack → **Automations** → **New Workflow** → trigger: **Webhook**.
-2. Define webhook variables: `workflow_name` (text), `status` (text),
-   `monitoring_url` (text), `results_dir` (text), `user` (text).
-3. Add a **Send a message** step composing the notification from those
-   variables (to yourself, a channel, or another person).
-4. **Publish** — Slack provides a webhook URL.
-5. Set the env var on the cluster:
+1. Go to https://api.slack.com/apps → **Create New App** → **From scratch**.
+2. Name it (e.g. `psimulate-notifications`), select your workspace.
+3. Go to **OAuth & Permissions** → **Bot Token Scopes**, add:
+   - `users:read.email` — look up users by email
+   - `chat:write` — send messages
+   - `im:write` — open DM conversations
+4. Click **Install to Workspace** (requires admin approval) → Approve.
+5. Copy the **Bot User OAuth Token** (`xoxb-...`).
+6. On the cluster, add to a shared profile or `~/.bashrc`:
    ```bash
-   export PSIMULATE_SLACK_WEBHOOK="https://hooks.slack.com/workflows/T.../A.../..."
+   export PSIMULATE_SLACK_BOT_TOKEN="xoxb-your-token-here"
    ```
+7. Optionally, to post to a channel instead of DM:
+   - Invite the bot to the channel (`/invite @psimulate-notifications`).
+   - Set `export PSIMULATE_SLACK_CHANNEL="C0123ABCDEF"` (the channel ID).
 
-The psimulate code simply POSTs JSON with the five variables to that URL.
-The Slack Workflow handles all routing (DM, channel, mention format, etc.)
-— psimulate does not need a bot token, OAuth scopes, or email lookup.
+**How it works in code:**
 
-### Why not a Bot App?
+1. Read `PSIMULATE_SLACK_BOT_TOKEN` from `os.environ`. If unset, skip.
+2. Get the SLURM username from `$USER` (e.g. `albrja`).
+3. Call Slack `users.lookupByEmail` with `{username}@uw.edu` to get the
+   Slack user ID.
+4. If `PSIMULATE_SLACK_CHANNEL` is set, post to that channel with an
+   `<@user_id>` mention. Otherwise, call `conversations.open` to get a
+   DM channel ID, then post there via `chat.postMessage`.
 
-A bot app (`PSIMULATE_SLACK_BOT_TOKEN`) would allow richer programmatic
-control (DM via `chat.postMessage`, user lookup via `users.lookupByEmail`,
-channel mentions with `<@user_id>`). However, it requires a workspace admin
-to install the app. The webhook approach is chosen because:
+### Bot Token Scopes
 
-- **No admin needed** — any user can create a Slack Workflow.
-- **Simpler code** — one `requests.post` call, no multi-step API flow.
-- **User-controlled routing** — each user configures their own Slack
-  Workflow to deliver notifications however they prefer.
+| Scope | Required for |
+|-------|-------------|
+| `users:read.email` | `users.lookupByEmail` — resolve `$USER@uw.edu` → Slack user ID |
+| `chat:write` | `chat.postMessage` — send the notification |
+| `im:write` | `conversations.open` — open a DM conversation (DM mode only) |
 
-If a bot app becomes available in the future, the implementation can be
-extended behind the same `send_slack_notification()` interface without
-changing the caller code in `runner.py`.
+For **channel mode**, the bot must also be invited to the target channel.
 
 ## Codebase Context
 
@@ -70,8 +77,8 @@ changing the caller code in `runner.py`.
 
 - No new dependencies required (`requests` is already installed via
   `vivarium_dependencies`).
-- A Slack Workflow with a webhook trigger (see setup steps above).
-- The webhook URL stored in `PSIMULATE_SLACK_WEBHOOK` on the cluster.
+- A Slack Bot App with the scopes listed above, installed to the workspace.
+- The bot token stored in `PSIMULATE_SLACK_BOT_TOKEN` on the cluster.
 - PR #302 (Jobmon refactor) must be merged (it already is on this branch).
 
 ---
@@ -85,29 +92,34 @@ implementation exists. Both tests are marked `@pytest.mark.xfail`.
 
 **Test file**: `tests/psimulate/test_notifications.py`
 
-The webhook POST is mocked via `unittest.mock.patch` on `requests.post`.
-The SLURM username is controlled by monkeypatching `$USER`. The webhook URL
-is set via monkeypatching `$PSIMULATE_SLACK_WEBHOOK`.
+All Slack API calls (`users.lookupByEmail`, `conversations.open`,
+`chat.postMessage`) are mocked via `unittest.mock.patch` on `requests.post`.
+The SLURM username is controlled by monkeypatching `$USER`. The bot token
+is set via monkeypatching `$PSIMULATE_SLACK_BOT_TOKEN`.
 
 | # | Test | Asserts | xfail? |
 |---|------|---------|--------|
-| 1 | `test_notification_on_workflow_success` | When a workflow finishes with status `"D"`: (a) `requests.post` is called once with the webhook URL, (b) the JSON payload contains `workflow_name`, `status` = `"DONE"`, `monitoring_url`, `results_dir`, and `user` = `$USER` | Yes |
-| 2 | `test_notification_on_workflow_failure` | When a workflow finishes with status `"F"`: (a) `requests.post` is called once with the webhook URL, (b) the JSON payload contains `workflow_name`, `status` = `"ERROR"`, `monitoring_url`, `results_dir`, and `user` = `$USER` | Yes |
+| 1 | `test_notification_on_workflow_success` | When a workflow finishes with status `"D"`: (a) `users.lookupByEmail` is called with `{$USER}@uw.edu`, (b) `conversations.open` is called with the resolved user ID, (c) `chat.postMessage` is called with a message containing `"DONE"`, the workflow name, monitoring URL, and results directory | Yes |
+| 2 | `test_notification_on_workflow_failure` | When a workflow finishes with status `"F"`: (a) `users.lookupByEmail` is called with `{$USER}@uw.edu`, (b) `conversations.open` is called with the resolved user ID, (c) `chat.postMessage` is called with a message containing `"ERROR"`, the workflow name, monitoring URL, and results directory | Yes |
 
 Each test:
-1. Sets `PSIMULATE_SLACK_WEBHOOK=https://hooks.slack.com/workflows/test`
-   via `monkeypatch.setenv`.
+1. Sets `PSIMULATE_SLACK_BOT_TOKEN=xoxb-test-token` via `monkeypatch.setenv`.
 2. Sets `USER=testuser` via `monkeypatch.setenv`.
-3. Mocks `requests.post` to return a `MagicMock` with `status_code=200`.
-4. Calls `send_slack_notification(workflow_name="my_pipeline", status=...,
+3. Ensures `PSIMULATE_SLACK_CHANNEL` is unset (DM mode).
+4. Mocks `requests.post` to return canned Slack API responses for each
+   sequential call:
+   - Call 1 (`users.lookupByEmail`): `{"ok": true, "user": {"id": "U12345"}}`
+   - Call 2 (`conversations.open`): `{"ok": true, "channel": {"id": "D67890"}}`
+   - Call 3 (`chat.postMessage`): `{"ok": true}`
+5. Calls `send_slack_notification(workflow_name="my_pipeline", status=...,
    monitoring_url="https://jobmon.example.com/#/workflow/123",
    results_dir="/tmp/results")`.
-5. Asserts on the `requests.post` call:
-   - First arg is the webhook URL.
-   - `json=` kwarg is a dict with keys `workflow_name`, `status`,
-     `monitoring_url`, `results_dir`, `user`.
-   - `status` value is `"DONE"` for test 1, `"ERROR"` for test 2.
-   - `user` value is `"testuser"`.
+6. Asserts on the three `requests.post` calls:
+   - Call 1: URL ends with `users.lookupByEmail`, body contains `testuser@uw.edu`.
+   - Call 2: URL ends with `conversations.open`, body contains user ID `U12345`.
+   - Call 3: URL ends with `chat.postMessage`, body contains channel `D67890`
+     and a `text` with `"DONE"` / `"ERROR"`, the workflow name, monitoring URL,
+     and results dir.
 
 **Stubs needed**:
 
@@ -127,12 +139,10 @@ def send_slack_notification(
 ) -> None:
     """Send a Slack notification after a workflow completes.
 
-    POSTs workflow details to a Slack Workflow webhook URL read from
-    ``PSIMULATE_SLACK_WEBHOOK``. The SLURM ``$USER`` is included in
-    the payload so the Slack Workflow can route/mention appropriately.
-
-    If the webhook URL is unset or the POST fails, logs a warning and
-    returns without raising.
+    Resolves the SLURM ``$USER`` to a Slack user via ``{user}@uw.edu``
+    email lookup using the Slack API. Reads ``PSIMULATE_SLACK_BOT_TOKEN``
+    from the environment. If the token is unset or any API call fails,
+    logs a warning and returns without raising.
     """
     raise NotImplementedError
 ```
@@ -148,7 +158,7 @@ After this phase, the xfail-marked tests should report unexpected passes
 
 | File | Change Description |
 |------|--------------------|
-| `src/vivarium_cluster_tools/psimulate/notifications.py` | Implement `send_slack_notification()`: read env vars, format payload, POST to webhook, handle errors gracefully |
+| `src/vivarium_cluster_tools/psimulate/notifications.py` | Implement `send_slack_notification()`: resolve user via Slack email lookup, format message, DM or channel post via `chat.postMessage`, handle errors gracefully |
 | `src/vivarium_cluster_tools/psimulate/runner.py` | Call `send_slack_notification()` in `workflow_main()` and `main()` after `_bind_and_run_workflow()` returns; refactor `_bind_and_run_workflow` to return `monitoring_url` alongside the status |
 
 ### Implementation Details
@@ -157,23 +167,44 @@ After this phase, the xfail-marked tests should report unexpected passes
 
 - **File**: `src/vivarium_cluster_tools/psimulate/notifications.py`
 - **Changes**:
-  1. Read `PSIMULATE_SLACK_WEBHOOK` from `os.environ`. If unset, log a
+  1. Read `PSIMULATE_SLACK_BOT_TOKEN` from `os.environ`. If unset, log a
      debug message via `loguru.logger` and return early.
   2. Get the SLURM username from `os.environ.get("USER", "unknown")`.
-  3. Map the Jobmon status code to a human-readable string:
-     `"DONE"` if `status == "D"` else `"ERROR"`.
-  4. Build the JSON payload:
-     ```python
-     {
-         "workflow_name": workflow_name,
-         "status": status_text,       # "DONE" or "ERROR"
-         "monitoring_url": monitoring_url or "",
-         "results_dir": results_dir or "",
-         "user": username,
-     }
+  3. Build the auth headers: `{"Authorization": f"Bearer {token}"}`.
+  4. Call Slack `users.lookupByEmail` API via `requests.post`:
      ```
-  5. POST to the webhook URL via `requests.post(webhook_url, json=payload)`.
-  6. Wrap the entire function body in a `try/except Exception` block. On
+     POST https://slack.com/api/users.lookupByEmail
+     Authorization: Bearer {token}
+     Content-Type: application/x-www-form-urlencoded
+     Body: email={username}@uw.edu
+     ```
+     Extract `user["id"]` from the response JSON.
+  5. Determine the channel to post to:
+     - If `PSIMULATE_SLACK_CHANNEL` is set, use that channel ID and
+       mention the user with `<@{user_id}>` in the message text.
+     - Otherwise (DM mode), call `conversations.open`:
+       ```
+       POST https://slack.com/api/conversations.open
+       Authorization: Bearer {token}
+       Content-Type: application/json
+       Body: {"users": "{user_id}"}
+       ```
+       Extract `channel["id"]` from the response.
+  6. Build the message string:
+     - Status text: `"DONE"` if `status == "D"` else `"ERROR"`.
+     - Emoji: `✅` if done, `❌` if error.
+     - Line 1: `{emoji} psimulate workflow {status_text}: {workflow_name}`
+     - Line 2 (conditional): `Monitor: {monitoring_url}` (only if not None)
+     - Line 3 (conditional): `Results: {results_dir}` (only if not None)
+     - In channel mode, prepend `<@{user_id}>` to the message.
+  7. Call Slack `chat.postMessage` API via `requests.post`:
+     ```
+     POST https://slack.com/api/chat.postMessage
+     Authorization: Bearer {token}
+     Content-Type: application/json
+     Body: {"channel": "{channel_id}", "text": "{message}"}
+     ```
+  8. Wrap the entire function body in a `try/except Exception` block. On
      failure, log a warning via `loguru.logger` and return (never raise).
 
 #### `runner.py`
@@ -226,6 +257,8 @@ make check
 - [ ] All `@pytest.mark.xfail` markers removed
 - [ ] All tests pass locally
 - [ ] `make check` passes
-- [ ] Notification is skipped gracefully when `PSIMULATE_SLACK_WEBHOOK` is unset (no test failures in CI)
-- [ ] HTTP failures are caught and logged, never raised
+- [ ] Notification is skipped gracefully when `PSIMULATE_SLACK_BOT_TOKEN` is unset (no test failures in CI)
+- [ ] Slack API failures are caught and logged, never raised
 - [ ] Both `psimulate run` and `psimulate workflow` trigger notifications
+- [ ] DM mode works when `PSIMULATE_SLACK_CHANNEL` is unset
+- [ ] Channel mention mode works when `PSIMULATE_SLACK_CHANNEL` is set
