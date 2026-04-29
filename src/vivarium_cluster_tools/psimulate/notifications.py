@@ -1,7 +1,5 @@
 """Slack notification support for psimulate workflows."""
 
-# mypy: ignore-errors
-
 from __future__ import annotations
 
 import os
@@ -10,6 +8,7 @@ import requests
 from loguru import logger
 
 SLACK_API_BASE = "https://slack.com/api"
+SLACK_TIMEOUT = 10  # seconds
 
 
 def send_slack_notification(
@@ -24,6 +23,17 @@ def send_slack_notification(
     email lookup using the Slack API. Reads ``PSIMULATE_SLACK_BOT_TOKEN``
     from the environment. If the token is unset or any API call fails,
     logs a warning and returns without raising.
+
+    Parameters
+    ----------
+    workflow_name
+        The name of the workflow to include in the message.
+    status
+        The workflow status, e.g. ``"D"`` for DONE or ``"E"`` for ERROR.
+    monitoring_url
+        Optional URL to the Jobmon monitoring page for this workflow.
+    results_dir
+        Optional path to the results directory for this workflow.
     """
     try:
         token = os.environ.get("PSIMULATE_SLACK_BOT_TOKEN")
@@ -40,6 +50,7 @@ def send_slack_notification(
             f"{SLACK_API_BASE}/users.lookupByEmail",
             headers=headers,
             data={"email": email},
+            timeout=SLACK_TIMEOUT,
         )
         lookup_data = lookup_resp.json()
         if not lookup_data.get("ok"):
@@ -54,6 +65,7 @@ def send_slack_notification(
             f"{SLACK_API_BASE}/conversations.open",
             headers=headers,
             json={"users": user_id},
+            timeout=SLACK_TIMEOUT,
         )
         convo_data = convo_resp.json()
         if not convo_data.get("ok"):
@@ -72,11 +84,15 @@ def send_slack_notification(
         message = "\n".join(lines)
 
         # Post the message
-        requests.post(
+        msg_resp = requests.post(
             f"{SLACK_API_BASE}/chat.postMessage",
             headers=headers,
             json={"channel": slack_id, "text": message},
+            timeout=SLACK_TIMEOUT,
         )
+        msg_data = msg_resp.json()
+        if not msg_data.get("ok"):
+            logger.warning(f"Slack chat.postMessage failed: {msg_data.get('error')}")
 
     except Exception as e:
         logger.warning(f"Slack notification failed: {e}")

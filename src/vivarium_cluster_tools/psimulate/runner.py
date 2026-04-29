@@ -70,8 +70,7 @@ def _bind_and_run_workflow(
 
     Returns
     -------
-    tuple[str, str]
-        A ``(wf_status, monitoring_url)`` pair.  *wf_status* is the
+        A ``(wf_status, monitoring_url)`` tuple.  *wf_status* is the
         workflow status string from Jobmon (e.g. ``"D"`` for DONE).
         *monitoring_url* is the Jobmon GUI URL (may be empty).
     """

@@ -38,6 +38,16 @@ def _mock_slack_responses() -> MagicMock:
     return mock
 
 
+def test_no_token_skips_notification(monkeypatch: pytest.MonkeyPatch) -> None:
+    """When PSIMULATE_SLACK_BOT_TOKEN is unset, no Slack API calls are made."""
+    monkeypatch.delenv("PSIMULATE_SLACK_BOT_TOKEN", raising=False)
+    with patch(
+        "vivarium_cluster_tools.psimulate.notifications.requests.post",
+    ) as mock_post:
+        send_slack_notification(workflow_name=WORKFLOW_NAME, status="D")
+        mock_post.assert_not_called()
+
+
 def test_notification_on_workflow_success(monkeypatch: pytest.MonkeyPatch) -> None:
     """A successful workflow DMs the user via the Slack bot with a DONE message."""
     monkeypatch.setenv("PSIMULATE_SLACK_BOT_TOKEN", BOT_TOKEN)
