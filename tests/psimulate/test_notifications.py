@@ -38,17 +38,16 @@ def _mock_slack_responses() -> MagicMock:
     return mock
 
 
-@pytest.mark.xfail(reason="send_slack_notification not yet implemented", strict=True)
 def test_notification_on_workflow_success(monkeypatch: pytest.MonkeyPatch) -> None:
     """A successful workflow DMs the user via the Slack bot with a DONE message."""
     monkeypatch.setenv("PSIMULATE_SLACK_BOT_TOKEN", BOT_TOKEN)
     monkeypatch.setenv("USER", "testuser")
-    monkeypatch.delenv("PSIMULATE_SLACK_CHANNEL", raising=False)
 
+    mock_post = _mock_slack_responses()
     with patch(
         "vivarium_cluster_tools.psimulate.notifications.requests.post",
-        new_callable=lambda: _mock_slack_responses,
-    ) as mock_post:
+        mock_post,
+    ):
         send_slack_notification(
             workflow_name=WORKFLOW_NAME,
             status="D",
@@ -71,7 +70,11 @@ def test_notification_on_workflow_success(monkeypatch: pytest.MonkeyPatch) -> No
         # Call 3: chat.postMessage
         msg_call = mock_post.call_args_list[2]
         assert msg_call[0][0] == f"{SLACK_API}/chat.postMessage"
-        msg_json = msg_call[1].get("json") or msg_call[0][1] if len(msg_call[0]) > 1 else msg_call[1].get("json")
+        msg_json = (
+            msg_call[1].get("json") or msg_call[0][1]
+            if len(msg_call[0]) > 1
+            else msg_call[1].get("json")
+        )
         assert msg_json["channel"] == "D67890"
         assert "DONE" in msg_json["text"]
         assert WORKFLOW_NAME in msg_json["text"]
@@ -79,17 +82,16 @@ def test_notification_on_workflow_success(monkeypatch: pytest.MonkeyPatch) -> No
         assert RESULTS_DIR in msg_json["text"]
 
 
-@pytest.mark.xfail(reason="send_slack_notification not yet implemented", strict=True)
 def test_notification_on_workflow_failure(monkeypatch: pytest.MonkeyPatch) -> None:
     """A failed workflow DMs the user via the Slack bot with an ERROR message."""
     monkeypatch.setenv("PSIMULATE_SLACK_BOT_TOKEN", BOT_TOKEN)
     monkeypatch.setenv("USER", "testuser")
-    monkeypatch.delenv("PSIMULATE_SLACK_CHANNEL", raising=False)
 
+    mock_post = _mock_slack_responses()
     with patch(
         "vivarium_cluster_tools.psimulate.notifications.requests.post",
-        new_callable=lambda: _mock_slack_responses,
-    ) as mock_post:
+        mock_post,
+    ):
         send_slack_notification(
             workflow_name=WORKFLOW_NAME,
             status="F",
@@ -112,7 +114,11 @@ def test_notification_on_workflow_failure(monkeypatch: pytest.MonkeyPatch) -> No
         # Call 3: chat.postMessage
         msg_call = mock_post.call_args_list[2]
         assert msg_call[0][0] == f"{SLACK_API}/chat.postMessage"
-        msg_json = msg_call[1].get("json") or msg_call[0][1] if len(msg_call[0]) > 1 else msg_call[1].get("json")
+        msg_json = (
+            msg_call[1].get("json") or msg_call[0][1]
+            if len(msg_call[0]) > 1
+            else msg_call[1].get("json")
+        )
         assert msg_json["channel"] == "D67890"
         assert "ERROR" in msg_json["text"]
         assert WORKFLOW_NAME in msg_json["text"]

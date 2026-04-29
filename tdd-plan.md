@@ -81,6 +81,35 @@ For **channel mode**, the bot must also be invited to the target channel.
 - The bot token stored in `PSIMULATE_SLACK_BOT_TOKEN` on the cluster.
 - PR #302 (Jobmon refactor) must be merged (it already is on this branch).
 
+## Token Deployment
+
+The bot token is distributed to all team members automatically via
+`vivarium_build_utils`. No per-user setup is required.
+
+### How it works
+
+1. **One-time setup**: A team member creates a shared token file on the
+   cluster filesystem:
+   ```bash
+   mkdir -p /mnt/team/simulation_science/priv/engineering/config
+   cat > /mnt/team/simulation_science/priv/engineering/config/slack_bot_config.sh << 'EOF'
+   export PSIMULATE_SLACK_BOT_TOKEN="xoxb-your-actual-token-here"
+   EOF
+   chmod 640 /mnt/team/simulation_science/priv/engineering/config/slack_bot_config.sh
+   ```
+
+2. **`vivarium_build_utils` change**: The `install` target in
+   `resources/makefiles/base.mk` calls a new `setup-slack` target that
+   copies the token file into the conda env's activation directory
+   (`$CONDA_PREFIX/etc/conda/activate.d/`). A corresponding deactivation
+   script unsets the variable on `conda deactivate`.
+
+3. **Result**: Any team member running `make build-env` on any vivarium repo
+   gets the token automatically. `conda activate <env>` sets
+   `PSIMULATE_SLACK_BOT_TOKEN`; `conda deactivate` unsets it. If the shared
+   file doesn't exist, `make install` prints a note and continues — Slack
+   notifications are simply disabled.
+
 ---
 
 ## Phase 1: Tests and Stubs
