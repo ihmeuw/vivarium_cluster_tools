@@ -248,4 +248,4 @@ class OutputPaths(NamedTuple):
         ]:
             vct_utils.mkdir(dir, exists_ok=True, parents=True)
         for dir in [self.logging_root, self.worker_logging_root]:
-            vct_utils.mkdir(dir, parents=True)
+            vct_utils.mkdir(dir, exists_ok=True, parents=True)
