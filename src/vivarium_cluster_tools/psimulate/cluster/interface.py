@@ -107,15 +107,15 @@ def get_workflow_timeout_seconds() -> int:
     Raises
     ------
     RuntimeError
-        If ``SLURM_JOB_ID`` is not set, the remaining time is less than the safety
+        If the remaining time is less than the safety
         buffer, or the remaining time cannot be determined from ``squeue``.
     """
     job_id = os.environ.get("SLURM_JOB_ID")
     if job_id is None:
-        raise RuntimeError(
-            "SLURM_JOB_ID is not set. psimulate must be run from within a "
-            "SLURM allocation (e.g. via srun)."
-        )
+        logger.info("SLURM_JOB_ID is unset. The workflow is likely being run"
+                    "from a SLURM-capable host without an explicit resource allocation"
+                    "e.g. Jenkins. The timeout will be set to the default 36000 seconds (10 hours).")
+        return 36000
 
     try:
         # squeue -h -j <job_id> -o %L gives the remaining time as D-HH:MM:SS
