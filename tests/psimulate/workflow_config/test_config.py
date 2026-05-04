@@ -596,7 +596,7 @@ class TestPytestStepConfig:
             output_directory=Path("/tmp/results"),
             path="tests/",
         )
-        assert config.supported_arguments() == {"path", "k", "--runslow", "xdist"}
+        assert config.supported_arguments() == {"path", "k", "runslow", "xdist"}
 
     def test_rejects_neither_path_nor_k(self) -> None:
         with pytest.raises(ValueError, match="at least one of 'path' or 'k'"):
@@ -639,7 +639,7 @@ class TestPytestStepConfig:
 
     def test_from_dict_deserialization(self) -> None:
         step_dict = make_pytest_step_dict(
-            args={"path": "tests/unit", "k": "test_foo", "--runslow": True, "xdist": 2},
+            args={"path": "tests/unit", "k": "test_foo", "runslow": True, "xdist": 2},
             resources={"memory_gb": 8, "runtime": "02:00:00", "cores": 4},
         )
         config = PytestStepConfig.from_dict(
@@ -693,7 +693,7 @@ class TestPytestStepConfig:
             "args": {
                 "path": "tests/unit",
                 "k": "test_foo",
-                "--runslow": True,
+                "runslow": True,
                 "xdist": 4,
             },
         }
@@ -707,7 +707,7 @@ class TestPytestStepConfig:
         )
         result = config.to_dict()
         assert "k" not in result["args"]
-        assert "--runslow" not in result["args"]
+        assert "runslow" not in result["args"]
         assert "xdist" not in result["args"]
 
     def test_get_tasks_builds_correct_command(self) -> None:
