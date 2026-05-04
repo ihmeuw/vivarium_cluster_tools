@@ -622,14 +622,14 @@ class PytestStepConfig(BaseStepConfig):
             args:
               path: tests/
               k: "not slow"
-              --runslow: true
+              runslow: true
               xdist: 4
     """
 
     _SUPPORTED_ARGS: ClassVar[set[str]] = {
         "path",
         "k",
-        "--runslow",
+        "runslow",
         "xdist",
     }
 
@@ -724,7 +724,7 @@ class PytestStepConfig(BaseStepConfig):
         if self.k is not None:
             args["k"] = self.k
         if self.runslow:
-            args["--runslow"] = True
+            args["runslow"] = True
         if self.xdist > 1:
             args["xdist"] = self.xdist
 
@@ -756,7 +756,7 @@ class PytestStepConfig(BaseStepConfig):
             environment=data.get("environment"),
             path=args.get("path"),
             k=args.get("k"),
-            runslow=args.get("--runslow", False),
+            runslow=args.get("runslow", False),
             xdist=args.get("xdist", 1),
         )
 
