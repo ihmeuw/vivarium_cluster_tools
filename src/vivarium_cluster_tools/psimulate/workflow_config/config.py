@@ -647,16 +647,24 @@ class PytestStepConfig(BaseStepConfig):
     """Optional pytest -k expression to filter tests by name."""
     runslow: bool = False
     """Whether to pass --runslow flag."""
-    xdist: int | None = None
-    """Number of parallel workers for pytest-xdist (-n). Must be <= resources.cores."""
+    xdist: int = 1
+    """Number of parallel workers for pytest-xdist (-n). Defaults to 1 (no parallelism). Must be <= resources.cores."""
 
     def _validate(self) -> None:
         """Validate pytest step configuration."""
-        raise NotImplementedError
+        if not self.path and not self.k:
+            raise ValueError(
+                f"Step '{self.name}': pytest type requires at least one of 'path' or 'k'."
+            )
+        if self.xdist > self.resources.cores:
+            raise ValueError(
+                f"Step '{self.name}': xdist ({self.xdist}) must not exceed "
+                f"cores ({self.resources.cores})."
+            )
 
     def supported_arguments(self) -> set[str]:
         """Return valid keys for the 'args' section of pytest steps."""
-        raise NotImplementedError
+        return self._SUPPORTED_ARGS
 
     def get_tasks(
         self,
@@ -667,18 +675,90 @@ class PytestStepConfig(BaseStepConfig):
         is_resume: bool = False,
     ) -> list[Task]:
         """Create a single Jobmon Task for this pytest step."""
-        raise NotImplementedError
+        task_template = tool.get_task_template(
+            template_name="workflow_command_step",
+            command_template="conda run --no-capture-output -n {env} {command}",
+            node_args=["command"],
+            task_args=[],
+            op_args=["env"],
+            default_cluster_name="slurm",
+        )
+        native_spec = self.native_specification
+        compute_resources = native_spec.to_jobmon_spec(
+            worker_logging_root=self.output_directory,
+        )
+        task = task_template.create_task(
+            name=self.name,
+            compute_resources=compute_resources,
+            env=env,
+            command=self._build_command(),
+        )
+        return [task]
+
+    def _build_command(self) -> str:
+        """Build the pytest command string from structured arguments."""
+        parts = ["pytest"]
+        if self.path:
+            parts.append(self.path)
+        if self.k:
+            parts.append(f'-k "{self.k}"')
+        if self.runslow:
+            parts.append("--runslow")
+        if self.xdist > 1:
+            parts.append(f"-n {self.xdist}")
+        return " ".join(parts)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to a dictionary with type: pytest."""
-        raise NotImplementedError
+        result: dict[str, Any] = {
+            "name": self.name,
+            "type": "pytest",
+            "resources": self.resources.to_dict(),
+        }
+        if self.environment is not None:
+            result["environment"] = self.environment
+
+        args: dict[str, Any] = {}
+        if self.path is not None:
+            args["path"] = self.path
+        if self.k is not None:
+            args["k"] = self.k
+        if self.runslow:
+            args["--runslow"] = True
+        if self.xdist > 1:
+            args["xdist"] = self.xdist
+
+        result["args"] = args
+        return result
 
     @classmethod
     def from_dict(
         cls, data: dict[str, Any], output_directory: Path, *, project: str, queue: str
     ) -> PytestStepConfig:
         """Create a PytestStepConfig from a dictionary."""
-        raise NotImplementedError
+        args = data.get("args", {}) or {}
+
+        # Validate that only supported arguments are in args
+        unsupported = set(args) - cls._SUPPORTED_ARGS
+        if unsupported:
+            step_name = data.get("name", "<unnamed>")
+            raise ValueError(
+                f"Step '{step_name}': unsupported args {sorted(unsupported)}. "
+                f"Supported args: {sorted(cls._SUPPORTED_ARGS)}."
+            )
+
+        return cls(
+            name=data["name"],
+            resources=ResourceConfig.from_dict(
+                data["resources"], workflow_project=project, workflow_queue=queue
+            ),
+            output_directory=output_directory,
+            environment=data.get("environment"),
+            path=args.get("path"),
+            k=args.get("k"),
+            runslow=args.get("--runslow", False),
+            xdist=args.get("xdist", 1),
+        )
 
 
 @dataclass

@@ -589,9 +589,6 @@ class TestSimulationStepConfig:
 class TestPytestStepConfig:
     """Tests for PytestStepConfig - the pytest step type."""
 
-    @pytest.mark.xfail(
-        reason="Phase 1 stub - not yet implemented", raises=NotImplementedError
-    )
     def test_supported_arguments_returns_expected_set(self) -> None:
         config = PytestStepConfig(
             name="tests",
@@ -601,9 +598,6 @@ class TestPytestStepConfig:
         )
         assert config.supported_arguments() == {"path", "k", "--runslow", "xdist"}
 
-    @pytest.mark.xfail(
-        reason="Phase 1 stub - not yet implemented", raises=NotImplementedError
-    )
     def test_rejects_neither_path_nor_k(self) -> None:
         with pytest.raises(ValueError, match="at least one of 'path' or 'k'"):
             PytestStepConfig(
@@ -614,9 +608,6 @@ class TestPytestStepConfig:
                 output_directory=Path("/tmp/results"),
             )
 
-    @pytest.mark.xfail(
-        reason="Phase 1 stub - not yet implemented", raises=NotImplementedError
-    )
     def test_accepts_all_supported_args(self) -> None:
         config = PytestStepConfig(
             name="tests",
@@ -634,9 +625,6 @@ class TestPytestStepConfig:
         assert config.runslow is True
         assert config.xdist == 4
 
-    @pytest.mark.xfail(
-        reason="Phase 1 stub - not yet implemented", raises=NotImplementedError
-    )
     def test_xdist_must_not_exceed_cores(self) -> None:
         with pytest.raises(ValueError, match="xdist.*cores"):
             PytestStepConfig(
@@ -649,9 +637,6 @@ class TestPytestStepConfig:
                 xdist=4,
             )
 
-    @pytest.mark.xfail(
-        reason="Phase 1 stub - not yet implemented", raises=NotImplementedError
-    )
     def test_from_dict_deserialization(self) -> None:
         step_dict = make_pytest_step_dict(
             args={"path": "tests/unit", "k": "test_foo", "--runslow": True, "xdist": 2},
@@ -670,9 +655,6 @@ class TestPytestStepConfig:
         assert config.runslow is True
         assert config.xdist == 2
 
-    @pytest.mark.xfail(
-        reason="Phase 1 stub - not yet implemented", raises=NotImplementedError
-    )
     def test_from_dict_rejects_unsupported_args(self) -> None:
         step_dict = make_pytest_step_dict(
             args={"path": "tests/", "bogus_flag": "nope"},
@@ -685,9 +667,6 @@ class TestPytestStepConfig:
                 queue="all.q",
             )
 
-    @pytest.mark.xfail(
-        reason="Phase 1 stub - not yet implemented", raises=NotImplementedError
-    )
     def test_to_dict_serialization(self) -> None:
         config = PytestStepConfig(
             name="tests",
@@ -719,9 +698,6 @@ class TestPytestStepConfig:
             },
         }
 
-    @pytest.mark.xfail(
-        reason="Phase 1 stub - not yet implemented", raises=NotImplementedError
-    )
     def test_to_dict_omits_unset_optional_fields(self) -> None:
         config = PytestStepConfig(
             name="tests",
@@ -734,9 +710,6 @@ class TestPytestStepConfig:
         assert "--runslow" not in result["args"]
         assert "xdist" not in result["args"]
 
-    @pytest.mark.xfail(
-        reason="Phase 1 stub - not yet implemented", raises=NotImplementedError
-    )
     def test_get_tasks_builds_correct_command(self) -> None:
         config = PytestStepConfig(
             name="tests",
@@ -764,9 +737,6 @@ class TestPytestStepConfig:
             'pytest tests/unit -k "test_foo or test_bar" --runslow -n 4'
         )
 
-    @pytest.mark.xfail(
-        reason="Phase 1 stub - not yet implemented", raises=NotImplementedError
-    )
     def test_routes_to_pytest_step_from_yaml(self, tmp_path: Path) -> None:
         steps = [make_pytest_step_dict()]
         workflow_dict = make_workflow_dict(steps=steps)
