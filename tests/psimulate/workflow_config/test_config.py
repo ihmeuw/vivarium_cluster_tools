@@ -9,12 +9,14 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from tests.psimulate.workflow_config.utilities import (
+    make_pytest_step_dict,
     make_step_dict,
     make_workflow_dict,
     write_workflow_yaml,
 )
 from vivarium_cluster_tools.psimulate.workflow_config.config import (
     CommandStepConfig,
+    PytestStepConfig,
     ResourceConfig,
     SimulationStepConfig,
     WorkflowConfig,
@@ -582,3 +584,195 @@ class TestSimulationStepConfig:
 
             # -- Assert: returns whatever get_task_list returns --
             assert result is sentinel_tasks
+
+
+class TestPytestStepConfig:
+    """Tests for PytestStepConfig - the pytest step type."""
+
+    @pytest.mark.xfail(
+        reason="Phase 1 stub - not yet implemented", raises=NotImplementedError
+    )
+    def test_supported_arguments_returns_expected_set(self) -> None:
+        config = PytestStepConfig(
+            name="tests",
+            resources=ResourceConfig(memory_gb=4, project="proj_simscience", queue="all.q"),
+            output_directory=Path("/tmp/results"),
+            path="tests/",
+        )
+        assert config.supported_arguments() == {"path", "k", "--runslow", "xdist"}
+
+    @pytest.mark.xfail(
+        reason="Phase 1 stub - not yet implemented", raises=NotImplementedError
+    )
+    def test_rejects_neither_path_nor_k(self) -> None:
+        with pytest.raises(ValueError, match="at least one of 'path' or 'k'"):
+            PytestStepConfig(
+                name="tests",
+                resources=ResourceConfig(
+                    memory_gb=4, project="proj_simscience", queue="all.q"
+                ),
+                output_directory=Path("/tmp/results"),
+            )
+
+    @pytest.mark.xfail(
+        reason="Phase 1 stub - not yet implemented", raises=NotImplementedError
+    )
+    def test_accepts_all_supported_args(self) -> None:
+        config = PytestStepConfig(
+            name="tests",
+            resources=ResourceConfig(
+                memory_gb=4, project="proj_simscience", queue="all.q", cores=4
+            ),
+            output_directory=Path("/tmp/results"),
+            path="tests/unit",
+            k="not slow",
+            runslow=True,
+            xdist=4,
+        )
+        assert config.path == "tests/unit"
+        assert config.k == "not slow"
+        assert config.runslow is True
+        assert config.xdist == 4
+
+    @pytest.mark.xfail(
+        reason="Phase 1 stub - not yet implemented", raises=NotImplementedError
+    )
+    def test_xdist_must_not_exceed_cores(self) -> None:
+        with pytest.raises(ValueError, match="xdist.*cores"):
+            PytestStepConfig(
+                name="tests",
+                resources=ResourceConfig(
+                    memory_gb=4, project="proj_simscience", queue="all.q", cores=2
+                ),
+                output_directory=Path("/tmp/results"),
+                path="tests/",
+                xdist=4,
+            )
+
+    @pytest.mark.xfail(
+        reason="Phase 1 stub - not yet implemented", raises=NotImplementedError
+    )
+    def test_from_dict_deserialization(self) -> None:
+        step_dict = make_pytest_step_dict(
+            args={"path": "tests/unit", "k": "test_foo", "--runslow": True, "xdist": 2},
+            resources={"memory_gb": 8, "runtime": "02:00:00", "cores": 4},
+        )
+        config = PytestStepConfig.from_dict(
+            step_dict,
+            output_directory=Path("/tmp/results"),
+            project="proj_simscience",
+            queue="all.q",
+        )
+        assert isinstance(config, PytestStepConfig)
+        assert config.name == "run_tests"
+        assert config.path == "tests/unit"
+        assert config.k == "test_foo"
+        assert config.runslow is True
+        assert config.xdist == 2
+
+    @pytest.mark.xfail(
+        reason="Phase 1 stub - not yet implemented", raises=NotImplementedError
+    )
+    def test_from_dict_rejects_unsupported_args(self) -> None:
+        step_dict = make_pytest_step_dict(
+            args={"path": "tests/", "bogus_flag": "nope"},
+        )
+        with pytest.raises(ValueError, match="unsupported args"):
+            PytestStepConfig.from_dict(
+                step_dict,
+                output_directory=Path("/tmp/results"),
+                project="proj_simscience",
+                queue="all.q",
+            )
+
+    @pytest.mark.xfail(
+        reason="Phase 1 stub - not yet implemented", raises=NotImplementedError
+    )
+    def test_to_dict_serialization(self) -> None:
+        config = PytestStepConfig(
+            name="tests",
+            resources=ResourceConfig(
+                memory_gb=8, project="proj_simscience", queue="all.q", cores=4
+            ),
+            output_directory=Path("/tmp/results"),
+            path="tests/unit",
+            k="test_foo",
+            runslow=True,
+            xdist=4,
+        )
+        result = config.to_dict()
+        assert result == {
+            "name": "tests",
+            "type": "pytest",
+            "resources": {
+                "memory_gb": 8,
+                "runtime": "01:00:00",
+                "project": "proj_simscience",
+                "queue": "all.q",
+                "cores": 4,
+            },
+            "args": {
+                "path": "tests/unit",
+                "k": "test_foo",
+                "--runslow": True,
+                "xdist": 4,
+            },
+        }
+
+    @pytest.mark.xfail(
+        reason="Phase 1 stub - not yet implemented", raises=NotImplementedError
+    )
+    def test_to_dict_omits_unset_optional_fields(self) -> None:
+        config = PytestStepConfig(
+            name="tests",
+            resources=ResourceConfig(memory_gb=4, project="proj_simscience", queue="all.q"),
+            output_directory=Path("/tmp/results"),
+            path="tests/",
+        )
+        result = config.to_dict()
+        assert "k" not in result["args"]
+        assert "--runslow" not in result["args"]
+        assert "xdist" not in result["args"]
+
+    @pytest.mark.xfail(
+        reason="Phase 1 stub - not yet implemented", raises=NotImplementedError
+    )
+    def test_get_tasks_builds_correct_command(self) -> None:
+        config = PytestStepConfig(
+            name="tests",
+            resources=ResourceConfig(
+                memory_gb=4, project="proj_simscience", queue="all.q", cores=4
+            ),
+            output_directory=Path("/tmp/results"),
+            path="tests/unit",
+            k="test_foo or test_bar",
+            runslow=True,
+            xdist=4,
+        )
+        mock_tool = MagicMock()
+        mock_template = MagicMock()
+        mock_task = MagicMock()
+        mock_tool.get_task_template.return_value = mock_template
+        mock_template.create_task.return_value = mock_task
+
+        tasks = config.get_tasks(
+            mock_tool, env="my_env", build_timestamp="2026_05_04_10_00_00"
+        )
+        assert tasks == [mock_task]
+        call_kwargs = mock_template.create_task.call_args[1]
+        assert call_kwargs["command"] == (
+            'pytest tests/unit -k "test_foo or test_bar" --runslow -n 4'
+        )
+
+    @pytest.mark.xfail(
+        reason="Phase 1 stub - not yet implemented", raises=NotImplementedError
+    )
+    def test_routes_to_pytest_step_from_yaml(self, tmp_path: Path) -> None:
+        steps = [make_pytest_step_dict()]
+        workflow_dict = make_workflow_dict(steps=steps)
+        yaml_path = write_workflow_yaml(tmp_path, workflow_dict)
+
+        config = WorkflowConfig.from_yaml_with_cli_overrides(yaml_path)
+        assert len(config.steps) == 1
+        assert isinstance(config.steps[0], PytestStepConfig)
+        assert config.steps[0].name == "run_tests"

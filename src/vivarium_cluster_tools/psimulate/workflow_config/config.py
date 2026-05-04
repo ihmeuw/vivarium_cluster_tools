@@ -602,12 +602,93 @@ class SimulationStepConfig(BaseStepConfig):
 
 
 @dataclass
+class PytestStepConfig(BaseStepConfig):
+    """Configuration for a pytest-based workflow step.
+
+    This step type constructs a ``pytest`` command from structured arguments
+    and runs it as a single Jobmon task.
+
+    Examples
+    --------
+    YAML configuration::
+
+        steps:
+          - name: unit_tests
+            type: pytest
+            resources:
+              memory_gb: 8
+              runtime: "01:00:00"
+              cores: 4
+            args:
+              path: tests/
+              k: "not slow"
+              --runslow: true
+              xdist: 4
+    """
+
+    _SUPPORTED_ARGS: ClassVar[set[str]] = {
+        "path",
+        "k",
+        "--runslow",
+        "xdist",
+    }
+
+    name: str
+    """Unique name for this step within the workflow."""
+    resources: ResourceConfig
+    """Compute resources for this step."""
+    output_directory: Path
+    """Output directory for this step. Inherited from the workflow's output_directory."""
+    environment: str | None = None
+    """Optional environment name to use for this step."""
+    path: str | None = None
+    """Optional test path (file or directory) to pass to pytest."""
+    k: str | None = None
+    """Optional pytest -k expression to filter tests by name."""
+    runslow: bool = False
+    """Whether to pass --runslow flag."""
+    xdist: int | None = None
+    """Number of parallel workers for pytest-xdist (-n). Must be <= resources.cores."""
+
+    def _validate(self) -> None:
+        """Validate pytest step configuration."""
+        raise NotImplementedError
+
+    def supported_arguments(self) -> set[str]:
+        """Return valid keys for the 'args' section of pytest steps."""
+        raise NotImplementedError
+
+    def get_tasks(
+        self,
+        tool: Tool,
+        *,
+        env: str,
+        build_timestamp: str,
+        is_resume: bool = False,
+    ) -> list[Task]:
+        """Create a single Jobmon Task for this pytest step."""
+        raise NotImplementedError
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize to a dictionary with type: pytest."""
+        raise NotImplementedError
+
+    @classmethod
+    def from_dict(
+        cls, data: dict[str, Any], output_directory: Path, *, project: str, queue: str
+    ) -> PytestStepConfig:
+        """Create a PytestStepConfig from a dictionary."""
+        raise NotImplementedError
+
+
+@dataclass
 class WorkflowConfig:
     """Parsed and validated workflow configuration."""
 
     # Step type mappings - add new step types here as they are implemented
     SUPPORTED_STEP_TYPES: ClassVar[dict[str, type[BaseStepConfig]]] = {
         "simulation": SimulationStepConfig,
+        "pytest": PytestStepConfig,
     }
 
     name: str
