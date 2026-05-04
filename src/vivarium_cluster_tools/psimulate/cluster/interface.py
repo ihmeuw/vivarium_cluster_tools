@@ -112,9 +112,11 @@ def get_workflow_timeout_seconds() -> int:
     """
     job_id = os.environ.get("SLURM_JOB_ID")
     if job_id is None:
-        logger.info("SLURM_JOB_ID is unset. The workflow is likely being run"
-                    "from a SLURM-capable host without an explicit resource allocation"
-                    "e.g. Jenkins. The timeout will be set to the default 36000 seconds (10 hours).")
+        logger.info(
+            "SLURM_JOB_ID is unset. The workflow is likely being run"
+            "from a SLURM-capable host without an explicit resource allocation"
+            "e.g. Jenkins. The timeout will be set to the default 36000 seconds (10 hours)."
+        )
         return 36000
 
     try:
