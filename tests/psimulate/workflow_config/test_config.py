@@ -763,6 +763,38 @@ class TestPytestStepConfig:
         )
         assert "--numprocesses" not in config._build_command()
 
+    def test_build_command_multiple_paths(self) -> None:
+        config = PytestStepConfig(
+            name="tests",
+            resources=ResourceConfig(memory_gb=4, project="proj_simscience", queue="all.q"),
+            output_directory=Path("/tmp/results"),
+            path=["tests/unit", "tests/integration"],
+        )
+        assert config._build_command() == "pytest tests/unit tests/integration"
+
+    def test_to_dict_multiple_paths(self) -> None:
+        config = PytestStepConfig(
+            name="tests",
+            resources=ResourceConfig(memory_gb=4, project="proj_simscience", queue="all.q"),
+            output_directory=Path("/tmp/results"),
+            path=["tests/unit", "tests/integration"],
+        )
+        result = config.to_dict()
+        assert result["args"] == {"path": ["tests/unit", "tests/integration"]}
+
+    def test_from_dict_multiple_paths(self) -> None:
+        step_dict = make_pytest_step_dict(
+            args={"path": ["tests/unit", "tests/integration"]},
+        )
+        config = PytestStepConfig.from_dict(
+            step_dict,
+            output_directory=Path("/tmp/results"),
+            project="proj_simscience",
+            queue="all.q",
+        )
+        assert config.path == ["tests/unit", "tests/integration"]
+        assert config._build_command() == "pytest tests/unit tests/integration"
+
     def test_routes_to_pytest_step_from_yaml(self, tmp_path: Path) -> None:
         steps = [make_pytest_step_dict()]
         workflow_dict = make_workflow_dict(steps=steps)

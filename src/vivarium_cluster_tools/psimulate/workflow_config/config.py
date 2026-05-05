@@ -642,6 +642,19 @@ class PytestStepConfig(BaseStepConfig):
               k: "not slow"
               runslow: true
               numprocesses: 4
+
+    Multiple paths::
+
+        steps:
+          - name: unit_and_integration
+            type: pytest
+            resources:
+              memory_gb: 8
+              runtime: "01:00:00"
+            args:
+              path:
+                - tests/unit
+                - tests/integration
     """
 
     _SUPPORTED_ARGS: ClassVar[set[str]] = {
@@ -659,8 +672,9 @@ class PytestStepConfig(BaseStepConfig):
     """Output directory for this step. Inherited from the workflow's output_directory."""
     environment: str | None = None
     """Optional environment name to use for this step."""
-    path: str | None = None
-    """Test path (file or directory) to pass to pytest. At least one of ``path`` or ``k`` is required."""
+    path: str | list[str] | None = None
+    """Test path(s) (file or directory) to pass to pytest. Can be a single string
+    or a list of strings. At least one of ``path`` or ``k`` is required."""
     k: str | None = None
     """Pytest ``-k`` expression to filter tests by name. At least one of ``path`` or ``k`` is required."""
     runslow: bool = False
@@ -707,7 +721,10 @@ class PytestStepConfig(BaseStepConfig):
         """Build the pytest command string from structured arguments."""
         parts = ["pytest"]
         if self.path:
-            parts.append(shlex.quote(self.path))
+            if isinstance(self.path, list):
+                parts.extend(shlex.quote(p) for p in self.path)
+            else:
+                parts.append(shlex.quote(self.path))
         if self.k:
             parts.append(f"-k {shlex.quote(self.k)}")
         if self.runslow:
@@ -728,7 +745,7 @@ class PytestStepConfig(BaseStepConfig):
 
         args: dict[str, Any] = {}
         if self.path is not None:
-            args["path"] = self.path
+            args["path"] = self.path  # str or list[str]
         if self.k is not None:
             args["k"] = self.k
         if self.runslow:
