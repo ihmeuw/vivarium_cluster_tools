@@ -623,14 +623,14 @@ class PytestStepConfig(BaseStepConfig):
               path: tests/
               k: "not slow"
               runslow: true
-              xdist: 4
+              numprocesses: 4
     """
 
     _SUPPORTED_ARGS: ClassVar[set[str]] = {
         "path",
         "k",
         "runslow",
-        "xdist",
+        "numprocesses",
     }
 
     name: str
@@ -647,8 +647,8 @@ class PytestStepConfig(BaseStepConfig):
     """Optional pytest -k expression to filter tests by name."""
     runslow: bool = False
     """Whether to pass --runslow flag."""
-    xdist: int = 1
-    """Number of parallel workers for pytest-xdist (-n). Defaults to 1 (no parallelism). Must be <= resources.cores."""
+    numprocesses: int = 1
+    """Number of parallel workers for pytest-xdist (``-n``/``--numprocesses``). Defaults to 1 (no parallelism). Must be <= resources.cores."""
 
     def _validate(self) -> None:
         """Validate pytest step configuration."""
@@ -656,9 +656,9 @@ class PytestStepConfig(BaseStepConfig):
             raise ValueError(
                 f"Step '{self.name}': pytest type requires at least one of 'path' or 'k'."
             )
-        if self.xdist > self.resources.cores:
+        if self.numprocesses > self.resources.cores:
             raise ValueError(
-                f"Step '{self.name}': xdist ({self.xdist}) must not exceed "
+                f"Step '{self.name}': numprocesses ({self.numprocesses}) must not exceed "
                 f"cores ({self.resources.cores})."
             )
 
@@ -704,8 +704,8 @@ class PytestStepConfig(BaseStepConfig):
             parts.append(f'-k "{self.k}"')
         if self.runslow:
             parts.append("--runslow")
-        if self.xdist > 1:
-            parts.append(f"-n {self.xdist}")
+        if self.numprocesses > 1:
+            parts.append(f"-n {self.numprocesses}")
         return " ".join(parts)
 
     def to_dict(self) -> dict[str, Any]:
@@ -725,8 +725,8 @@ class PytestStepConfig(BaseStepConfig):
             args["k"] = self.k
         if self.runslow:
             args["runslow"] = True
-        if self.xdist > 1:
-            args["xdist"] = self.xdist
+        if self.numprocesses > 1:
+            args["numprocesses"] = self.numprocesses
 
         result["args"] = args
         return result
@@ -747,18 +747,25 @@ class PytestStepConfig(BaseStepConfig):
                 f"Supported args: {sorted(cls._SUPPORTED_ARGS)}."
             )
 
-        return cls(
-            name=data["name"],
-            resources=ResourceConfig.from_dict(
+        kwargs: dict[str, Any] = {
+            "name": data["name"],
+            "resources": ResourceConfig.from_dict(
                 data["resources"], workflow_project=project, workflow_queue=queue
             ),
-            output_directory=output_directory,
-            environment=data.get("environment"),
-            path=args.get("path"),
-            k=args.get("k"),
-            runslow=args.get("runslow", False),
-            xdist=args.get("xdist", 1),
-        )
+            "output_directory": output_directory,
+        }
+        if "environment" in data:
+            kwargs["environment"] = data["environment"]
+        if "path" in args:
+            kwargs["path"] = args["path"]
+        if "k" in args:
+            kwargs["k"] = args["k"]
+        if "runslow" in args:
+            kwargs["runslow"] = args["runslow"]
+        if "numprocesses" in args:
+            kwargs["numprocesses"] = args["numprocesses"]
+
+        return cls(**kwargs)
 
 
 @dataclass

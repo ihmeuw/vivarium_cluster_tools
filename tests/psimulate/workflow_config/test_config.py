@@ -596,7 +596,7 @@ class TestPytestStepConfig:
             output_directory=Path("/tmp/results"),
             path="tests/",
         )
-        assert config.supported_arguments() == {"path", "k", "runslow", "xdist"}
+        assert config.supported_arguments() == {"path", "k", "runslow", "numprocesses"}
 
     def test_rejects_neither_path_nor_k(self) -> None:
         with pytest.raises(ValueError, match="at least one of 'path' or 'k'"):
@@ -618,15 +618,15 @@ class TestPytestStepConfig:
             path="tests/unit",
             k="not slow",
             runslow=True,
-            xdist=4,
+            numprocesses=4,
         )
         assert config.path == "tests/unit"
         assert config.k == "not slow"
         assert config.runslow is True
-        assert config.xdist == 4
+        assert config.numprocesses == 4
 
-    def test_xdist_must_not_exceed_cores(self) -> None:
-        with pytest.raises(ValueError, match="xdist.*cores"):
+    def test_numprocesses_must_not_exceed_cores(self) -> None:
+        with pytest.raises(ValueError, match="numprocesses.*cores"):
             PytestStepConfig(
                 name="tests",
                 resources=ResourceConfig(
@@ -634,12 +634,12 @@ class TestPytestStepConfig:
                 ),
                 output_directory=Path("/tmp/results"),
                 path="tests/",
-                xdist=4,
+                numprocesses=4,
             )
 
     def test_from_dict_deserialization(self) -> None:
         step_dict = make_pytest_step_dict(
-            args={"path": "tests/unit", "k": "test_foo", "runslow": True, "xdist": 2},
+            args={"path": "tests/unit", "k": "test_foo", "runslow": True, "numprocesses": 2},
             resources={"memory_gb": 8, "runtime": "02:00:00", "cores": 4},
         )
         config = PytestStepConfig.from_dict(
@@ -653,7 +653,7 @@ class TestPytestStepConfig:
         assert config.path == "tests/unit"
         assert config.k == "test_foo"
         assert config.runslow is True
-        assert config.xdist == 2
+        assert config.numprocesses == 2
 
     def test_from_dict_rejects_unsupported_args(self) -> None:
         step_dict = make_pytest_step_dict(
@@ -677,7 +677,7 @@ class TestPytestStepConfig:
             path="tests/unit",
             k="test_foo",
             runslow=True,
-            xdist=4,
+            numprocesses=4,
         )
         result = config.to_dict()
         assert result == {
@@ -694,7 +694,7 @@ class TestPytestStepConfig:
                 "path": "tests/unit",
                 "k": "test_foo",
                 "runslow": True,
-                "xdist": 4,
+                "numprocesses": 4,
             },
         }
 
@@ -708,7 +708,7 @@ class TestPytestStepConfig:
         result = config.to_dict()
         assert "k" not in result["args"]
         assert "runslow" not in result["args"]
-        assert "xdist" not in result["args"]
+        assert "numprocesses" not in result["args"]
 
     def test_get_tasks_builds_correct_command(self) -> None:
         config = PytestStepConfig(
@@ -720,7 +720,7 @@ class TestPytestStepConfig:
             path="tests/unit",
             k="test_foo or test_bar",
             runslow=True,
-            xdist=4,
+            numprocesses=4,
         )
         mock_tool = MagicMock()
         mock_template = MagicMock()
