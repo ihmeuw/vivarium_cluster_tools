@@ -706,9 +706,7 @@ class TestPytestStepConfig:
             path="tests/",
         )
         result = config.to_dict()
-        assert "k" not in result["args"]
-        assert "runslow" not in result["args"]
-        assert "numprocesses" not in result["args"]
+        assert result["args"] == {"path": "tests/"}
 
     def test_get_tasks_builds_correct_command(self) -> None:
         config = PytestStepConfig(
@@ -734,8 +732,36 @@ class TestPytestStepConfig:
         assert tasks == [mock_task]
         call_kwargs = mock_template.create_task.call_args[1]
         assert call_kwargs["command"] == (
-            'pytest tests/unit -k "test_foo or test_bar" --runslow -n 4'
+            "pytest tests/unit -k 'test_foo or test_bar' --runslow --numprocesses 4"
         )
+
+    def test_build_command_path_only(self) -> None:
+        config = PytestStepConfig(
+            name="tests",
+            resources=ResourceConfig(memory_gb=4, project="proj_simscience", queue="all.q"),
+            output_directory=Path("/tmp/results"),
+            path="tests/",
+        )
+        assert config._build_command() == "pytest tests/"
+
+    def test_build_command_k_only(self) -> None:
+        config = PytestStepConfig(
+            name="tests",
+            resources=ResourceConfig(memory_gb=4, project="proj_simscience", queue="all.q"),
+            output_directory=Path("/tmp/results"),
+            k="test_specific",
+        )
+        assert config._build_command() == "pytest -k test_specific"
+
+    def test_build_command_numprocesses_one_omitted(self) -> None:
+        config = PytestStepConfig(
+            name="tests",
+            resources=ResourceConfig(memory_gb=4, project="proj_simscience", queue="all.q"),
+            output_directory=Path("/tmp/results"),
+            path="tests/",
+            numprocesses=1,
+        )
+        assert "--numprocesses" not in config._build_command()
 
     def test_routes_to_pytest_step_from_yaml(self, tmp_path: Path) -> None:
         steps = [make_pytest_step_dict()]

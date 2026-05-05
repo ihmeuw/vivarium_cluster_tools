@@ -10,6 +10,7 @@ Parse and validate workflow YAML configuration files.
 from __future__ import annotations
 
 import re
+import shlex
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
@@ -294,6 +295,40 @@ class BaseStepConfig(ABC):
         """
         pass
 
+    def _create_single_command_task(self, tool: Tool, *, env: str, command: str) -> Task:
+        """Create a single Jobmon task that runs a command under conda.
+
+        Parameters
+        ----------
+        tool
+            The Jobmon Tool instance to create task templates from.
+        env
+            Conda environment name to wrap the command with.
+        command
+            The command string to execute.
+
+        Returns
+        -------
+            A Jobmon Task instance.
+        """
+        task_template = tool.get_task_template(
+            template_name="workflow_command_step",
+            command_template="conda run --no-capture-output -n {env} {command}",
+            node_args=["command"],
+            task_args=[],
+            op_args=["env"],
+            default_cluster_name="slurm",
+        )
+        compute_resources = self.native_specification.to_jobmon_spec(
+            worker_logging_root=self.output_directory,
+        )
+        return task_template.create_task(
+            name=self.name,
+            compute_resources=compute_resources,
+            env=env,
+            command=command,
+        )
+
     @abstractmethod
     def to_dict(self) -> dict[str, Any]:
         """Serialize the step configuration to a dictionary.
@@ -344,25 +379,7 @@ class CommandStepConfig(BaseStepConfig):
         is_resume: bool = False,
     ) -> list[Task]:
         """Create a single Jobmon Task for this command step."""
-        task_template = tool.get_task_template(
-            template_name="workflow_command_step",
-            command_template="conda run --no-capture-output -n {env} {command}",
-            node_args=["command"],
-            task_args=[],
-            op_args=["env"],
-            default_cluster_name="slurm",
-        )
-        native_spec = self.native_specification
-        compute_resources = native_spec.to_jobmon_spec(
-            worker_logging_root=self.output_directory,
-        )
-        task = task_template.create_task(
-            name=self.name,
-            compute_resources=compute_resources,
-            env=env,
-            command=self.command,
-        )
-        return [task]
+        return [self._create_single_command_task(tool, env=env, command=self.command)]
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to a dictionary, omitting None values."""
@@ -642,9 +659,9 @@ class PytestStepConfig(BaseStepConfig):
     environment: str | None = None
     """Optional environment name to use for this step."""
     path: str | None = None
-    """Optional test path (file or directory) to pass to pytest."""
+    """Test path (file or directory) to pass to pytest. At least one of ``path`` or ``k`` is required."""
     k: str | None = None
-    """Optional pytest -k expression to filter tests by name."""
+    """Pytest ``-k`` expression to filter tests by name. At least one of ``path`` or ``k`` is required."""
     runslow: bool = False
     """Whether to pass --runslow flag."""
     numprocesses: int = 1
@@ -675,33 +692,17 @@ class PytestStepConfig(BaseStepConfig):
         is_resume: bool = False,
     ) -> list[Task]:
         """Create a single Jobmon Task for this pytest step."""
-        task_template = tool.get_task_template(
-            template_name="workflow_command_step",
-            command_template="conda run --no-capture-output -n {env} {command}",
-            node_args=["command"],
-            task_args=[],
-            op_args=["env"],
-            default_cluster_name="slurm",
-        )
-        native_spec = self.native_specification
-        compute_resources = native_spec.to_jobmon_spec(
-            worker_logging_root=self.output_directory,
-        )
-        task = task_template.create_task(
-            name=self.name,
-            compute_resources=compute_resources,
-            env=env,
-            command=self._build_command(),
-        )
-        return [task]
+        return [
+            self._create_single_command_task(tool, env=env, command=self._build_command())
+        ]
 
     def _build_command(self) -> str:
         """Build the pytest command string from structured arguments."""
         parts = ["pytest"]
         if self.path:
-            parts.append(self.path)
+            parts.append(shlex.quote(self.path))
         if self.k:
-            parts.append(f'-k "{self.k}"')
+            parts.append(f"-k {shlex.quote(self.k)}")
         if self.runslow:
             parts.append("--runslow")
         if self.numprocesses > 1:
