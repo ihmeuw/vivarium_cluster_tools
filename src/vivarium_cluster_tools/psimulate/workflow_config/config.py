@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar
 
 import yaml
+from loguru import logger
 
 from vivarium_cluster_tools.psimulate import COMMANDS, branches
 from vivarium_cluster_tools.psimulate.cluster.interface import NativeSpecification
@@ -677,6 +678,12 @@ class PytestStepConfig(BaseStepConfig):
             raise ValueError(
                 f"Step '{self.name}': numprocesses ({self.numprocesses}) must not exceed "
                 f"cores ({self.resources.cores})."
+            )
+        if self.resources.cores > 1 and self.numprocesses < self.resources.cores:
+            logger.warning(
+                f"Step '{self.name}': resources.cores is {self.resources.cores} but "
+                f"numprocesses is {self.numprocesses}. The extra cores will be allocated "
+                f"but unused. Set numprocesses to utilize them or reduce cores."
             )
 
     def supported_arguments(self) -> set[str]:
