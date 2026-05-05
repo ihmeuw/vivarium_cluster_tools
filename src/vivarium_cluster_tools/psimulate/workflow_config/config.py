@@ -346,7 +346,7 @@ class CommandStepConfig(BaseStepConfig):
         """Create a single Jobmon Task for this command step."""
         task_template = tool.get_task_template(
             template_name="workflow_command_step",
-            command_template="conda run --no-capture-output -n {env} -- {command}",
+            command_template="conda run --no-capture-output -n {env} {command}",
             node_args=["command"],
             task_args=[],
             op_args=["env"],
@@ -677,7 +677,7 @@ class PytestStepConfig(BaseStepConfig):
         """Create a single Jobmon Task for this pytest step."""
         task_template = tool.get_task_template(
             template_name="workflow_command_step",
-            command_template="conda run --no-capture-output -n {env} -- {command}",
+            command_template="conda run --no-capture-output -n {env} {command}",
             node_args=["command"],
             task_args=[],
             op_args=["env"],
