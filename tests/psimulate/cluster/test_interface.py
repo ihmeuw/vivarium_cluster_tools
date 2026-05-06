@@ -9,6 +9,7 @@ import pytest
 from vivarium_cluster_tools.psimulate.cluster import validate_cluster_environment
 from vivarium_cluster_tools.psimulate.cluster.interface import (
     _SLURM_TIMEOUT_BUFFER_SECONDS,
+    JOBMON_DEFAULT_TIMEOUT,
     NativeSpecification,
     _parse_slurm_time,
     get_workflow_timeout_seconds,
@@ -180,7 +181,7 @@ class TestGetRunnerNodeRemainingSeconds:
     def test_no_slurm_job_id(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Raise when not inside a SLURM allocation."""
         monkeypatch.delenv("SLURM_JOB_ID")
-        assert get_workflow_timeout_seconds() == 36000
+        assert get_workflow_timeout_seconds() == JOBMON_DEFAULT_TIMEOUT
 
     def test_returns_remaining_minus_buffer(self) -> None:
         """Return remaining seconds minus the safety buffer."""
