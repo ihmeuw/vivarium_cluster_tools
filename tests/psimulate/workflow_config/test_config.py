@@ -811,7 +811,6 @@ class TestPytestStepConfig:
 class TestPythonStepConfig:
     """Tests for PythonStepConfig - the python script step type."""
 
-    @pytest.mark.xfail(reason="Phase 1 stub", raises=NotImplementedError, strict=True)
     def test_supported_arguments_returns_expected_set(self) -> None:
         config = PythonStepConfig(
             name="run_script",
@@ -821,7 +820,6 @@ class TestPythonStepConfig:
         )
         assert config.supported_arguments() == {"path"}
 
-    @pytest.mark.xfail(reason="Phase 1 stub", raises=NotImplementedError, strict=True)
     @pytest.mark.parametrize(
         "args, match",
         [
@@ -849,7 +847,6 @@ class TestPythonStepConfig:
                 args=args,
             )
 
-    @pytest.mark.xfail(reason="Phase 1 stub", raises=NotImplementedError, strict=True)
     def test_accepts_valid_configuration(self) -> None:
         config = PythonStepConfig(
             name="run_script",
@@ -869,7 +866,6 @@ class TestPythonStepConfig:
         assert config.args["verbose"] is True
         assert config.args["ratio"] == 0.5
 
-    @pytest.mark.xfail(reason="Phase 1 stub", raises=NotImplementedError, strict=True)
     @pytest.mark.parametrize(
         "args, expected_command",
         [
@@ -916,7 +912,6 @@ class TestPythonStepConfig:
         )
         assert config._build_command() == expected_command
 
-    @pytest.mark.xfail(reason="Phase 1 stub", raises=NotImplementedError, strict=True)
     def test_from_dict_deserialization(self) -> None:
         step_dict = make_python_step_dict(
             args={
@@ -937,7 +932,6 @@ class TestPythonStepConfig:
         assert config.args["input_dir"] == "/mnt/data"
         assert config.args["verbose"] is True
 
-    @pytest.mark.xfail(reason="Phase 1 stub", raises=NotImplementedError, strict=True)
     def test_from_dict_rejects_missing_path(self) -> None:
         step_dict = make_python_step_dict(args={"input_dir": "/mnt/data"})
         with pytest.raises(ValueError, match="path"):
@@ -948,7 +942,6 @@ class TestPythonStepConfig:
                 queue="all.q",
             )
 
-    @pytest.mark.xfail(reason="Phase 1 stub", raises=NotImplementedError, strict=True)
     def test_to_dict_round_trip(self) -> None:
         config = PythonStepConfig(
             name="run_script",
@@ -970,7 +963,6 @@ class TestPythonStepConfig:
         assert restored.name == config.name
         assert restored.args == config.args
 
-    @pytest.mark.xfail(reason="Phase 1 stub", raises=NotImplementedError, strict=True)
     def test_get_tasks_creates_single_task(self) -> None:
         config = PythonStepConfig(
             name="run_script",
@@ -991,7 +983,6 @@ class TestPythonStepConfig:
         call_kwargs = mock_template.create_task.call_args[1]
         assert call_kwargs["command"] == "python scripts/run.py --verbose"
 
-    @pytest.mark.xfail(reason="Phase 1 stub", raises=NotImplementedError, strict=True)
     def test_routes_to_python_step_from_yaml(self, tmp_path: Path) -> None:
         steps = [make_python_step_dict()]
         workflow_dict = make_workflow_dict(steps=steps)
