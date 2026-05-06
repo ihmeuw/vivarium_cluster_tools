@@ -9,6 +9,7 @@ Parse and validate workflow YAML configuration files.
 
 from __future__ import annotations
 
+import copy
 import re
 import shlex
 from abc import ABC, abstractmethod
@@ -820,6 +821,18 @@ class PythonStepConfig(BaseStepConfig):
                 verbose: true
                 num_workers: 4
 
+    Notes
+    -----
+    Positional arguments are appended in list order. Keyword arguments are
+    emitted in alphabetical order by key.
+
+    Keyword argument value handling:
+
+    - ``true`` → bare flag (``--key``)
+    - ``false`` → omitted from the command entirely
+    - ``null`` → bare flag (``--key``), same as ``true``
+    - Any other scalar → ``--key value``
+
     """
 
     _SUPPORTED_ARGS: ClassVar[set[str]] = {"path", "positional_args", "keyword_args"}
@@ -836,7 +849,7 @@ class PythonStepConfig(BaseStepConfig):
     args: dict[str, Any] = field(default_factory=dict)
     """Args dictionary from YAML. Must contain 'path' (str). May optionally contain
     'positional_args' (list of scalars passed in order) and 'keyword_args' (dict of
-    named arguments passed as ``--key value``)."""
+    named arguments; see class-level Notes for how values map to CLI flags)."""
 
     def _validate(self) -> None:
         """Validate python step configuration."""
@@ -953,7 +966,7 @@ class PythonStepConfig(BaseStepConfig):
         }
         if self.environment is not None:
             result["environment"] = self.environment
-        result["args"] = dict(self.args)
+        result["args"] = copy.deepcopy(self.args)
         return result
 
     @classmethod
@@ -961,11 +974,6 @@ class PythonStepConfig(BaseStepConfig):
         cls, data: dict[str, Any], output_directory: Path, *, project: str, queue: str
     ) -> PythonStepConfig:
         """Create a PythonStepConfig from a dictionary."""
-        args = data.get("args")
-        if not args or "path" not in args:
-            step_name = data.get("name", "<unnamed>")
-            raise ValueError(f"Step '{step_name}': python type requires 'path' in args.")
-
         return cls(
             name=data["name"],
             resources=ResourceConfig.from_dict(
@@ -973,7 +981,7 @@ class PythonStepConfig(BaseStepConfig):
             ),
             output_directory=output_directory,
             environment=data.get("environment"),
-            args=args,
+            args=copy.deepcopy(data["args"]),
         )
 
 

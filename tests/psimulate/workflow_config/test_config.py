@@ -981,6 +981,28 @@ class TestPythonStepConfig:
                 queue="all.q",
             )
 
+    def test_from_dict_rejects_missing_args_key(self) -> None:
+        step_dict = make_python_step_dict()
+        del step_dict["args"]
+        with pytest.raises(KeyError, match="args"):
+            PythonStepConfig.from_dict(
+                step_dict,
+                output_directory=Path("/tmp/results"),
+                project="proj_simscience",
+                queue="all.q",
+            )
+
+    def test_rejects_none_in_positional_args(self) -> None:
+        with pytest.raises(ValueError, match="scalar"):
+            PythonStepConfig(
+                name="bad",
+                resources=ResourceConfig(
+                    memory_gb=4, project="proj_simscience", queue="all.q"
+                ),
+                output_directory=Path("/tmp/results"),
+                args={"path": "ok.py", "positional_args": [None]},
+            )
+
     def test_to_dict_round_trip(self) -> None:
         config = PythonStepConfig(
             name="run_script",
