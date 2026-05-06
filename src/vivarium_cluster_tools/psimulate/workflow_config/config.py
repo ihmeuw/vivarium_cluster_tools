@@ -12,7 +12,7 @@ from __future__ import annotations
 import re
 import shlex
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar
 
@@ -794,6 +794,72 @@ class PytestStepConfig(BaseStepConfig):
 
 
 @dataclass
+class PythonStepConfig(BaseStepConfig):
+    """Configuration for a Python script workflow step.
+
+    This step type constructs a ``python`` command from a script path and
+    optional arguments, running it as a single Jobmon task.
+
+    Examples
+    --------
+    YAML configuration::
+
+        steps:
+          - name: postprocess
+            type: python
+            resources:
+              memory_gb: 8
+              runtime: "00:30:00"
+            args:
+              path: scripts/postprocess.py
+              input_dir: /mnt/results/model_29
+              verbose: true
+              num_workers: 4
+    """
+
+    _SUPPORTED_ARGS: ClassVar[set[str]] = {"path"}
+
+    name: str
+    """Unique name for this step within the workflow."""
+    resources: ResourceConfig
+    """Compute resources for this step."""
+    output_directory: Path
+    """Output directory for this step. Inherited from the workflow's output_directory."""
+    environment: str | None = None
+    """Optional environment name to use for this step."""
+    args: dict[str, Any] = field(default_factory=dict)
+    """Full args dictionary from YAML. Must contain 'path' key."""
+
+    def _validate(self) -> None:
+        raise NotImplementedError
+
+    def supported_arguments(self) -> set[str]:
+        raise NotImplementedError
+
+    def get_tasks(
+        self,
+        tool: Tool,
+        *,
+        env: str,
+        build_timestamp: str,
+        is_resume: bool = False,
+    ) -> list[Task]:
+        raise NotImplementedError
+
+    def _build_command(self) -> str:
+        raise NotImplementedError
+
+    def to_dict(self) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @classmethod
+    def from_dict(
+        cls, data: dict[str, Any], output_directory: Path, *, project: str, queue: str
+    ) -> PythonStepConfig:
+        raise NotImplementedError
+
+
+@dataclass
 class WorkflowConfig:
     """Parsed and validated workflow configuration."""
 
@@ -801,6 +867,7 @@ class WorkflowConfig:
     SUPPORTED_STEP_TYPES: ClassVar[dict[str, type[BaseStepConfig]]] = {
         "simulation": SimulationStepConfig,
         "pytest": PytestStepConfig,
+        "python": PythonStepConfig,
     }
 
     name: str

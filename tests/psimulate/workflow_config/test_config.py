@@ -10,6 +10,7 @@ import pytest
 
 from tests.psimulate.workflow_config.utilities import (
     make_pytest_step_dict,
+    make_python_step_dict,
     make_step_dict,
     make_workflow_dict,
     write_workflow_yaml,
@@ -17,6 +18,7 @@ from tests.psimulate.workflow_config.utilities import (
 from vivarium_cluster_tools.psimulate.workflow_config.config import (
     CommandStepConfig,
     PytestStepConfig,
+    PythonStepConfig,
     ResourceConfig,
     SimulationStepConfig,
     WorkflowConfig,
@@ -804,3 +806,198 @@ class TestPytestStepConfig:
         assert len(config.steps) == 1
         assert isinstance(config.steps[0], PytestStepConfig)
         assert config.steps[0].name == "run_tests"
+
+
+class TestPythonStepConfig:
+    """Tests for PythonStepConfig - the python script step type."""
+
+    @pytest.mark.xfail(reason="Phase 1 stub", raises=NotImplementedError, strict=True)
+    def test_supported_arguments_returns_expected_set(self) -> None:
+        config = PythonStepConfig(
+            name="run_script",
+            resources=ResourceConfig(memory_gb=4, project="proj_simscience", queue="all.q"),
+            output_directory=Path("/tmp/results"),
+            args={"path": "scripts/process.py"},
+        )
+        assert config.supported_arguments() == {"path"}
+
+    @pytest.mark.xfail(reason="Phase 1 stub", raises=NotImplementedError, strict=True)
+    @pytest.mark.parametrize(
+        "args, match",
+        [
+            ({}, "path"),  # missing path
+            ({"path": "script_no_ext"}, r"\.py"),  # non-.py path
+            (
+                {"path": "ok.py", "nested": {"a": 1}},
+                "scalar",
+            ),  # non-scalar arg value
+            (
+                {"path": "ok.py", "bad key!": "val"},
+                "identifier",
+            ),  # shell metacharacters in key
+        ],
+        ids=["missing_path", "non_py_path", "non_scalar_value", "invalid_key"],
+    )
+    def test_rejects_invalid_configurations(self, args: dict[str, Any], match: str) -> None:
+        with pytest.raises(ValueError, match=match):
+            PythonStepConfig(
+                name="bad",
+                resources=ResourceConfig(
+                    memory_gb=4, project="proj_simscience", queue="all.q"
+                ),
+                output_directory=Path("/tmp/results"),
+                args=args,
+            )
+
+    @pytest.mark.xfail(reason="Phase 1 stub", raises=NotImplementedError, strict=True)
+    def test_accepts_valid_configuration(self) -> None:
+        config = PythonStepConfig(
+            name="run_script",
+            resources=ResourceConfig(memory_gb=4, project="proj_simscience", queue="all.q"),
+            output_directory=Path("/tmp/results"),
+            args={
+                "path": "scripts/process.py",
+                "input_dir": "/mnt/data",
+                "num_workers": 4,
+                "verbose": True,
+                "ratio": 0.5,
+            },
+        )
+        assert config.args["path"] == "scripts/process.py"
+        assert config.args["input_dir"] == "/mnt/data"
+        assert config.args["num_workers"] == 4
+        assert config.args["verbose"] is True
+        assert config.args["ratio"] == 0.5
+
+    @pytest.mark.xfail(reason="Phase 1 stub", raises=NotImplementedError, strict=True)
+    @pytest.mark.parametrize(
+        "args, expected_command",
+        [
+            (
+                {"path": "scripts/run.py"},
+                "python scripts/run.py",
+            ),
+            (
+                {"path": "scripts/run.py", "alpha": "hello", "beta": 42},
+                "python scripts/run.py --alpha hello --beta 42",
+            ),
+            (
+                {"path": "scripts/run.py", "verbose": True},
+                "python scripts/run.py --verbose",
+            ),
+            (
+                {"path": "scripts/run.py", "debug": False},
+                "python scripts/run.py",
+            ),
+            (
+                {"path": "scripts/run.py", "flag": None},
+                "python scripts/run.py --flag",
+            ),
+            (
+                {"path": "scripts/run.py", "msg": "hello world"},
+                "python scripts/run.py --msg 'hello world'",
+            ),
+        ],
+        ids=[
+            "path_only",
+            "path_with_args_sorted",
+            "bool_true_as_flag",
+            "bool_false_omitted",
+            "none_as_flag",
+            "value_with_spaces_quoted",
+        ],
+    )
+    def test_build_command(self, args: dict[str, Any], expected_command: str) -> None:
+        config = PythonStepConfig(
+            name="run_script",
+            resources=ResourceConfig(memory_gb=4, project="proj_simscience", queue="all.q"),
+            output_directory=Path("/tmp/results"),
+            args=args,
+        )
+        assert config._build_command() == expected_command
+
+    @pytest.mark.xfail(reason="Phase 1 stub", raises=NotImplementedError, strict=True)
+    def test_from_dict_deserialization(self) -> None:
+        step_dict = make_python_step_dict(
+            args={
+                "path": "scripts/process.py",
+                "input_dir": "/mnt/data",
+                "verbose": True,
+            },
+        )
+        config = PythonStepConfig.from_dict(
+            step_dict,
+            output_directory=Path("/tmp/results"),
+            project="proj_simscience",
+            queue="all.q",
+        )
+        assert isinstance(config, PythonStepConfig)
+        assert config.name == "run_script"
+        assert config.args["path"] == "scripts/process.py"
+        assert config.args["input_dir"] == "/mnt/data"
+        assert config.args["verbose"] is True
+
+    @pytest.mark.xfail(reason="Phase 1 stub", raises=NotImplementedError, strict=True)
+    def test_from_dict_rejects_missing_path(self) -> None:
+        step_dict = make_python_step_dict(args={"input_dir": "/mnt/data"})
+        with pytest.raises(ValueError, match="path"):
+            PythonStepConfig.from_dict(
+                step_dict,
+                output_directory=Path("/tmp/results"),
+                project="proj_simscience",
+                queue="all.q",
+            )
+
+    @pytest.mark.xfail(reason="Phase 1 stub", raises=NotImplementedError, strict=True)
+    def test_to_dict_round_trip(self) -> None:
+        config = PythonStepConfig(
+            name="run_script",
+            resources=ResourceConfig(memory_gb=4, project="proj_simscience", queue="all.q"),
+            output_directory=Path("/tmp/results"),
+            args={
+                "path": "scripts/process.py",
+                "input_dir": "/mnt/data",
+                "verbose": True,
+            },
+        )
+        serialized = config.to_dict()
+        restored = PythonStepConfig.from_dict(
+            serialized,
+            output_directory=Path("/tmp/results"),
+            project="proj_simscience",
+            queue="all.q",
+        )
+        assert restored.name == config.name
+        assert restored.args == config.args
+
+    @pytest.mark.xfail(reason="Phase 1 stub", raises=NotImplementedError, strict=True)
+    def test_get_tasks_creates_single_task(self) -> None:
+        config = PythonStepConfig(
+            name="run_script",
+            resources=ResourceConfig(memory_gb=4, project="proj_simscience", queue="all.q"),
+            output_directory=Path("/tmp/results"),
+            args={"path": "scripts/run.py", "verbose": True},
+        )
+        mock_tool = MagicMock()
+        mock_template = MagicMock()
+        mock_task = MagicMock()
+        mock_tool.get_task_template.return_value = mock_template
+        mock_template.create_task.return_value = mock_task
+
+        tasks = config.get_tasks(
+            mock_tool, env="my_env", build_timestamp="2026_05_06_10_00_00"
+        )
+        assert tasks == [mock_task]
+        call_kwargs = mock_template.create_task.call_args[1]
+        assert call_kwargs["command"] == "python scripts/run.py --verbose"
+
+    @pytest.mark.xfail(reason="Phase 1 stub", raises=NotImplementedError, strict=True)
+    def test_routes_to_python_step_from_yaml(self, tmp_path: Path) -> None:
+        steps = [make_python_step_dict()]
+        workflow_dict = make_workflow_dict(steps=steps)
+        yaml_path = write_workflow_yaml(tmp_path, workflow_dict)
+
+        config = WorkflowConfig.from_yaml_with_cli_overrides(yaml_path)
+        assert len(config.steps) == 1
+        assert isinstance(config.steps[0], PythonStepConfig)
+        assert config.steps[0].name == "run_script"

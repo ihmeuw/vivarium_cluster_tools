@@ -153,3 +153,24 @@ def make_pytest_step_dict(**overrides: Any) -> dict[str, Any]:
     }
     defaults.update(overrides)
     return defaults
+
+
+def make_python_step_dict(**overrides: Any) -> dict[str, Any]:
+    """Create a minimal valid python step dict with sensible defaults.
+
+    Returns a dict suitable for inclusion in a workflow's steps list.
+    Override any field or provide additional args.
+    """
+    defaults: dict[str, Any] = {
+        "name": "run_script",
+        "type": "python",
+        "resources": {
+            "memory_gb": 4,
+            "runtime": "01:00:00",
+        },
+        "args": {
+            "path": "scripts/process.py",
+        },
+    }
+    defaults.update(overrides)
+    return defaults
