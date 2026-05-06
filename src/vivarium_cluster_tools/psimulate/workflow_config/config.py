@@ -818,6 +818,7 @@ class PythonStepConfig(BaseStepConfig):
     """
 
     _SUPPORTED_ARGS: ClassVar[set[str]] = {"path"}
+    _SCALAR_TYPES: ClassVar[tuple[type, ...]] = (str, int, float, bool, type(None))
 
     name: str
     """Unique name for this step within the workflow."""
@@ -828,13 +829,44 @@ class PythonStepConfig(BaseStepConfig):
     environment: str | None = None
     """Optional environment name to use for this step."""
     args: dict[str, Any] = field(default_factory=dict)
-    """Full args dictionary from YAML. Must contain 'path' key."""
+    """Full args dictionary from YAML. Must contain 'path' key and any other key-value 
+    pairs to be passed as CLI arguments to the python script."""
 
     def _validate(self) -> None:
-        raise NotImplementedError
+        """Validate python step configuration."""
+        if "path" not in self.args:
+            raise ValueError(f"Step '{self.name}': python type requires 'path' in args.")
+        path = self.args["path"]
+        if not isinstance(path, str) or not path.endswith(".py"):
+            raise ValueError(
+                f"Step '{self.name}': 'path' must be a string ending with .py, "
+                f"got {path!r}."
+            )
+        for key, value in self.args.items():
+            if key == "path":
+                continue
+            self._validate_cli_arg_format(key, value)
+
+    def _validate_cli_arg_format(self, key: str, value: Any) -> None:
+        """Validate that a single arg key/value pair is safe for CLI usage.
+
+        Keys must be alphanumeric with hyphens/underscores only (no spaces or
+        shell metacharacters). Values must be scalar types.
+        """
+        if not re.match(r"^[a-zA-Z0-9_-]+$", key):
+            raise ValueError(
+                f"Step '{self.name}': arg key {key!r} is not a valid identifier. "
+                "Keys must match [a-zA-Z0-9_-]+."
+            )
+        if not isinstance(value, self._SCALAR_TYPES):
+            raise ValueError(
+                f"Step '{self.name}': arg '{key}' must be a scalar type "
+                f"(str, int, float, bool, None), got {type(value).__name__}."
+            )
 
     def supported_arguments(self) -> set[str]:
-        raise NotImplementedError
+        """Return the set of required known args for python steps."""
+        return self._SUPPORTED_ARGS
 
     def get_tasks(
         self,
@@ -844,19 +876,55 @@ class PythonStepConfig(BaseStepConfig):
         build_timestamp: str,
         is_resume: bool = False,
     ) -> list[Task]:
-        raise NotImplementedError
+        """Create a single Jobmon Task for this python step."""
+        return [
+            self._create_single_command_task(tool, env=env, command=self._build_command())
+        ]
 
     def _build_command(self) -> str:
-        raise NotImplementedError
+        """Build the python command string from the script path and args."""
+        parts = ["python", shlex.quote(self.args["path"])]
+        for key in sorted(k for k in self.args if k != "path"):
+            value = self.args[key]
+            if value is True or value is None:
+                parts.append(f"--{key}")
+            elif value is False:
+                continue
+            else:
+                parts.append(f"--{key} {shlex.quote(str(value))}")
+        return " ".join(parts)
 
     def to_dict(self) -> dict[str, Any]:
-        raise NotImplementedError
+        """Serialize to a dictionary with type: python."""
+        result: dict[str, Any] = {
+            "name": self.name,
+            "type": "python",
+            "resources": self.resources.to_dict(),
+        }
+        if self.environment is not None:
+            result["environment"] = self.environment
+        result["args"] = dict(self.args)
+        return result
 
     @classmethod
     def from_dict(
         cls, data: dict[str, Any], output_directory: Path, *, project: str, queue: str
     ) -> PythonStepConfig:
-        raise NotImplementedError
+        """Create a PythonStepConfig from a dictionary."""
+        args = data.get("args")
+        if not args or "path" not in args:
+            step_name = data.get("name", "<unnamed>")
+            raise ValueError(f"Step '{step_name}': python type requires 'path' in args.")
+
+        return cls(
+            name=data["name"],
+            resources=ResourceConfig.from_dict(
+                data["resources"], workflow_project=project, workflow_queue=queue
+            ),
+            output_directory=output_directory,
+            environment=data.get("environment"),
+            args=args,
+        )
 
 
 @dataclass
