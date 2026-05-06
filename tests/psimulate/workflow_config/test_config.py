@@ -818,7 +818,7 @@ class TestPythonStepConfig:
             output_directory=Path("/tmp/results"),
             args={"path": "scripts/process.py"},
         )
-        assert config.supported_arguments() == {"path"}
+        assert config.supported_arguments() == {"path", "positional_args", "keyword_args"}
 
     @pytest.mark.parametrize(
         "args, match",
@@ -826,15 +826,40 @@ class TestPythonStepConfig:
             ({}, "path"),  # missing path
             ({"path": "script_no_ext"}, r"\.py"),  # non-.py path
             (
-                {"path": "ok.py", "nested": {"a": 1}},
+                {"path": "ok.py", "keyword_args": {"nested": {"a": 1}}},
                 "scalar",
-            ),  # non-scalar arg value
+            ),  # non-scalar keyword arg value
             (
-                {"path": "ok.py", "bad key!": "val"},
+                {"path": "ok.py", "keyword_args": {"bad key!": "val"}},
                 "identifier",
-            ),  # shell metacharacters in key
+            ),  # shell metacharacters in keyword key
+            (
+                {"path": "ok.py", "positional_args": "not_a_list"},
+                "list",
+            ),  # positional_args must be a list
+            (
+                {"path": "ok.py", "positional_args": [{"nested": 1}]},
+                "scalar",
+            ),  # positional_args items must be scalar
+            (
+                {"path": "ok.py", "keyword_args": ["not", "a", "dict"]},
+                "dict",
+            ),  # keyword_args must be a dict
+            (
+                {"path": "ok.py", "unknown_key": "val"},
+                "unexpected keys",
+            ),  # unexpected top-level key in args
         ],
-        ids=["missing_path", "non_py_path", "non_scalar_value", "invalid_key"],
+        ids=[
+            "missing_path",
+            "non_py_path",
+            "non_scalar_keyword_value",
+            "invalid_keyword_key",
+            "positional_not_list",
+            "positional_non_scalar_item",
+            "keyword_args_not_dict",
+            "unexpected_top_level_key",
+        ],
     )
     def test_rejects_invalid_configurations(self, args: dict[str, Any], match: str) -> None:
         with pytest.raises(ValueError, match=match):
@@ -854,17 +879,17 @@ class TestPythonStepConfig:
             output_directory=Path("/tmp/results"),
             args={
                 "path": "scripts/process.py",
-                "input_dir": "/mnt/data",
-                "num_workers": 4,
-                "verbose": True,
-                "ratio": 0.5,
+                "positional_args": ["/mnt/data", 4],
+                "keyword_args": {
+                    "verbose": True,
+                    "ratio": 0.5,
+                },
             },
         )
         assert config.args["path"] == "scripts/process.py"
-        assert config.args["input_dir"] == "/mnt/data"
-        assert config.args["num_workers"] == 4
-        assert config.args["verbose"] is True
-        assert config.args["ratio"] == 0.5
+        assert config.args["positional_args"] == ["/mnt/data", 4]
+        assert config.args["keyword_args"]["verbose"] is True
+        assert config.args["keyword_args"]["ratio"] == 0.5
 
     @pytest.mark.parametrize(
         "args, expected_command",
@@ -874,33 +899,47 @@ class TestPythonStepConfig:
                 "python scripts/run.py",
             ),
             (
-                {"path": "scripts/run.py", "alpha": "hello", "beta": 42},
+                {"path": "scripts/run.py", "positional_args": ["cal_raleigh", "home_runs"]},
+                "python scripts/run.py cal_raleigh home_runs",
+            ),
+            (
+                {"path": "scripts/run.py", "keyword_args": {"alpha": "hello", "beta": 42}},
                 "python scripts/run.py --alpha hello --beta 42",
             ),
             (
-                {"path": "scripts/run.py", "verbose": True},
+                {"path": "scripts/run.py", "keyword_args": {"verbose": True}},
                 "python scripts/run.py --verbose",
             ),
             (
-                {"path": "scripts/run.py", "debug": False},
+                {"path": "scripts/run.py", "keyword_args": {"debug": False}},
                 "python scripts/run.py",
             ),
             (
-                {"path": "scripts/run.py", "flag": None},
+                {"path": "scripts/run.py", "keyword_args": {"flag": None}},
                 "python scripts/run.py --flag",
             ),
             (
-                {"path": "scripts/run.py", "msg": "hello world"},
+                {"path": "scripts/run.py", "keyword_args": {"msg": "hello world"}},
                 "python scripts/run.py --msg 'hello world'",
+            ),
+            (
+                {
+                    "path": "scripts/run.py",
+                    "positional_args": ["input.csv", 42],
+                    "keyword_args": {"verbose": True, "output": "/tmp/out"},
+                },
+                "python scripts/run.py input.csv 42 --output /tmp/out --verbose",
             ),
         ],
         ids=[
             "path_only",
-            "path_with_args_sorted",
+            "positional_args_only",
+            "keyword_args_sorted",
             "bool_true_as_flag",
             "bool_false_omitted",
             "none_as_flag",
             "value_with_spaces_quoted",
+            "positional_and_keyword_mixed",
         ],
     )
     def test_build_command(self, args: dict[str, Any], expected_command: str) -> None:
@@ -916,8 +955,8 @@ class TestPythonStepConfig:
         step_dict = make_python_step_dict(
             args={
                 "path": "scripts/process.py",
-                "input_dir": "/mnt/data",
-                "verbose": True,
+                "positional_args": ["/mnt/data"],
+                "keyword_args": {"verbose": True},
             },
         )
         config = PythonStepConfig.from_dict(
@@ -929,8 +968,8 @@ class TestPythonStepConfig:
         assert isinstance(config, PythonStepConfig)
         assert config.name == "run_script"
         assert config.args["path"] == "scripts/process.py"
-        assert config.args["input_dir"] == "/mnt/data"
-        assert config.args["verbose"] is True
+        assert config.args["positional_args"] == ["/mnt/data"]
+        assert config.args["keyword_args"]["verbose"] is True
 
     def test_from_dict_rejects_missing_path(self) -> None:
         step_dict = make_python_step_dict(args={"input_dir": "/mnt/data"})
@@ -949,8 +988,8 @@ class TestPythonStepConfig:
             output_directory=Path("/tmp/results"),
             args={
                 "path": "scripts/process.py",
-                "input_dir": "/mnt/data",
-                "verbose": True,
+                "positional_args": ["/mnt/data"],
+                "keyword_args": {"verbose": True},
             },
         )
         serialized = config.to_dict()
@@ -968,7 +1007,7 @@ class TestPythonStepConfig:
             name="run_script",
             resources=ResourceConfig(memory_gb=4, project="proj_simscience", queue="all.q"),
             output_directory=Path("/tmp/results"),
-            args={"path": "scripts/run.py", "verbose": True},
+            args={"path": "scripts/run.py", "keyword_args": {"verbose": True}},
         )
         mock_tool = MagicMock()
         mock_template = MagicMock()

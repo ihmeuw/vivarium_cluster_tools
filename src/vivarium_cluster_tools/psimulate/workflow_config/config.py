@@ -812,12 +812,17 @@ class PythonStepConfig(BaseStepConfig):
               runtime: "00:30:00"
             args:
               path: scripts/postprocess.py
-              input_dir: /mnt/results/model_29
-              verbose: true
-              num_workers: 4
+              positional_args:
+                - "foo"
+                - "bar"
+              keyword_args:
+                input_dir: /mnt/results/model_29
+                verbose: true
+                num_workers: 4
+
     """
 
-    _SUPPORTED_ARGS: ClassVar[set[str]] = {"path"}
+    _SUPPORTED_ARGS: ClassVar[set[str]] = {"path", "positional_args", "keyword_args"}
     _SCALAR_TYPES: ClassVar[tuple[type, ...]] = (str, int, float, bool, type(None))
 
     name: str
@@ -829,8 +834,9 @@ class PythonStepConfig(BaseStepConfig):
     environment: str | None = None
     """Optional environment name to use for this step."""
     args: dict[str, Any] = field(default_factory=dict)
-    """Full args dictionary from YAML. Must contain 'path' key and any other key-value 
-    pairs to be passed as CLI arguments to the python script."""
+    """Args dictionary from YAML. Must contain 'path' (str). May optionally contain
+    'positional_args' (list of scalars passed in order) and 'keyword_args' (dict of
+    named arguments passed as ``--key value``)."""
 
     def _validate(self) -> None:
         """Validate python step configuration."""
@@ -842,27 +848,63 @@ class PythonStepConfig(BaseStepConfig):
                 f"Step '{self.name}': 'path' must be a string ending with .py, "
                 f"got {path!r}."
             )
-        for key, value in self.args.items():
-            if key == "path":
-                continue
-            self._validate_cli_arg_format(key, value)
+        # Reject unexpected top-level keys
+        unexpected = set(self.args) - self._SUPPORTED_ARGS
+        if unexpected:
+            raise ValueError(
+                f"Step '{self.name}': unexpected keys in args: {sorted(unexpected)}. "
+                f"Allowed keys are: {sorted(self._SUPPORTED_ARGS)}."
+            )
+        if "positional_args" in self.args:
+            self._validate_positional_args(self.args["positional_args"])
+        if "keyword_args" in self.args:
+            self._validate_keyword_args(self.args["keyword_args"])
 
-    def _validate_cli_arg_format(self, key: str, value: Any) -> None:
-        """Validate that a single arg key/value pair is safe for CLI usage.
+    def _validate_scalar(self, value: Any, label: str, *, allow_none: bool = True) -> None:
+        """Validate that *value* is a scalar type suitable for CLI usage.
 
-        Keys must be alphanumeric with hyphens/underscores only (no spaces or
-        shell metacharacters). Values must be scalar types.
+        Parameters
+        ----------
+        value
+            The value to check.
+        label
+            Human-readable label for error messages (e.g. ``"positional_args[0]"``).
+        allow_none
+            Whether ``None`` is accepted. Positional args do not allow ``None``
+            (it has no CLI representation), while keyword args do (treated as a flag).
         """
-        if not re.match(r"^[a-zA-Z0-9_-]+$", key):
+        allowed = self._SCALAR_TYPES if allow_none else (str, int, float, bool)
+        if not isinstance(value, allowed):
             raise ValueError(
-                f"Step '{self.name}': arg key {key!r} is not a valid identifier. "
-                "Keys must match [a-zA-Z0-9_-]+."
+                f"Step '{self.name}': {label} must be a scalar type "
+                f"({', '.join(t.__name__ for t in allowed)}), "
+                f"got {type(value).__name__}."
             )
-        if not isinstance(value, self._SCALAR_TYPES):
+
+    def _validate_positional_args(self, positional_args: Any) -> None:
+        """Validate that positional_args is a list of scalar values."""
+        if not isinstance(positional_args, list):
             raise ValueError(
-                f"Step '{self.name}': arg '{key}' must be a scalar type "
-                f"(str, int, float, bool, None), got {type(value).__name__}."
+                f"Step '{self.name}': 'positional_args' must be a list, "
+                f"got {type(positional_args).__name__}."
             )
+        for arg_index, item in enumerate(positional_args):
+            self._validate_scalar(item, f"positional_args[{arg_index}]", allow_none=False)
+
+    def _validate_keyword_args(self, keyword_args: Any) -> None:
+        """Validate that keyword_args is a dict with valid keys and scalar values."""
+        if not isinstance(keyword_args, dict):
+            raise ValueError(
+                f"Step '{self.name}': 'keyword_args' must be a dict, "
+                f"got {type(keyword_args).__name__}."
+            )
+        for key, value in keyword_args.items():
+            if not re.match(r"^[a-zA-Z0-9_-]+$", key):
+                raise ValueError(
+                    f"Step '{self.name}': keyword_args key {key!r} is not a valid "
+                    "identifier. Keys must match [a-zA-Z0-9_-]+."
+                )
+            self._validate_scalar(value, f"keyword_args['{key}']")
 
     def supported_arguments(self) -> set[str]:
         """Return the set of required known args for python steps."""
@@ -882,10 +924,18 @@ class PythonStepConfig(BaseStepConfig):
         ]
 
     def _build_command(self) -> str:
-        """Build the python command string from the script path and args."""
+        """Build the python command string from the script path and args.
+
+        Positional arguments are appended first (in the order provided),
+        followed by keyword arguments (sorted alphabetically by key).
+        """
         parts = ["python", shlex.quote(self.args["path"])]
-        for key in sorted(k for k in self.args if k != "path"):
-            value = self.args[key]
+        # Positional args: appended in list order
+        for value in self.args.get("positional_args", []):
+            parts.append(shlex.quote(str(value)))
+        # Keyword args: sorted by key, with --key prefix
+        for key in sorted(self.args.get("keyword_args", {})):
+            value = self.args["keyword_args"][key]
             if value is True or value is None:
                 parts.append(f"--{key}")
             elif value is False:
