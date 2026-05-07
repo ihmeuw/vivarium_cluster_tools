@@ -89,16 +89,12 @@ class NativeSpecification(NamedTuple):
         return _parse_slurm_time(runtime_str)
 
 
-# Default timeout in seconds for the jobmon workflow when no SLURM allocation
-# is detected (e.g. running from Jenkins).  10 hours.
-JOBMON_DEFAULT_TIMEOUT = 36000
-
 # Buffer in seconds to subtract from the remaining SLURM time so the jobmon
 # workflow shuts down cleanly before SLURM kills the runner node.
 _SLURM_TIMEOUT_BUFFER_SECONDS = 120
 
 
-def get_workflow_timeout_seconds() -> int:
+def get_workflow_timeout_seconds() -> int | None:
     """Get jobmon workflow's timeout in seconds.
 
     The result includes a small buffer so that the workflow can shut down
@@ -106,7 +102,9 @@ def get_workflow_timeout_seconds() -> int:
 
     Returns
     -------
-        Remaining time in seconds (with buffer subtracted).
+        Remaining time in seconds (with buffer subtracted), or ``None`` if
+        there is no SLURM allocation (in which case Jobmon's built-in default
+        timeout is used).
 
     Raises
     ------
@@ -117,11 +115,11 @@ def get_workflow_timeout_seconds() -> int:
     job_id = os.environ.get("SLURM_JOB_ID")
     if job_id is None:
         logger.info(
-            "SLURM_JOB_ID is unset. The workflow is likely being run"
-            "from a SLURM-capable host without an explicit resource allocation"
-            f"e.g. Jenkins. The timeout will be set to the default {JOBMON_DEFAULT_TIMEOUT} seconds."
+            "SLURM_JOB_ID is unset. The workflow is likely being run "
+            "from a SLURM-capable host without an explicit resource allocation "
+            "e.g. Jenkins. Deferring to Jobmon's default timeout."
         )
-        return JOBMON_DEFAULT_TIMEOUT
+        return None
 
     try:
         # squeue -h -j <job_id> -o %L gives the remaining time as D-HH:MM:SS
