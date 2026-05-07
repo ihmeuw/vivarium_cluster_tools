@@ -262,7 +262,7 @@ class TestBaseStepConfig:
                     "resources": ResourceConfig(
                         memory_gb=4, project="proj_simscience", queue="all.q"
                     ),
-                    "path": "tests/",
+                    "path": str(Path(__file__).parent),
                     "output_directory": Path("/tmp/results"),
                 },
                 {"path", "k", "runslow"},
@@ -648,24 +648,24 @@ class TestPytestStepConfig:
                 output_directory=Path("/tmp/results"),
             )
 
-    def test_accepts_all_supported_args(self) -> None:
+    def test_accepts_all_supported_args(self, valid_pytest_path: str) -> None:
         config = PytestStepConfig(
             name="tests",
             resources=ResourceConfig(
                 memory_gb=4, project="proj_simscience", queue="all.q", cores=4
             ),
             output_directory=Path("/tmp/results"),
-            path="tests/unit",
+            path=valid_pytest_path,
             k="not slow",
             runslow=True,
         )
-        assert config.path == "tests/unit"
+        assert config.path == valid_pytest_path
         assert config.k == "not slow"
         assert config.runslow is True
 
-    def test_from_dict_deserialization(self) -> None:
+    def test_from_dict_deserialization(self, valid_pytest_path: str) -> None:
         step_dict = make_pytest_step_dict(
-            args={"path": "tests/unit", "k": "test_foo", "runslow": True},
+            args={"path": valid_pytest_path, "k": "test_foo", "runslow": True},
             resources={"memory_gb": 8, "runtime": "02:00:00", "cores": 4},
         )
         config = PytestStepConfig.from_dict(
@@ -676,14 +676,14 @@ class TestPytestStepConfig:
         )
         assert isinstance(config, PytestStepConfig)
         assert config.name == "run_tests"
-        assert config.path == "tests/unit"
+        assert config.path == valid_pytest_path
         assert config.k == "test_foo"
         assert config.runslow is True
         assert config.resources.cores == 4
 
-    def test_from_dict_rejects_unsupported_args(self) -> None:
+    def test_from_dict_rejects_unsupported_args(self, valid_pytest_path: str) -> None:
         step_dict = make_pytest_step_dict(
-            args={"path": "tests/", "bogus_flag": "nope"},
+            args={"path": valid_pytest_path, "bogus_flag": "nope"},
         )
         with pytest.raises(ValueError, match="unsupported args"):
             PytestStepConfig.from_dict(
@@ -693,14 +693,14 @@ class TestPytestStepConfig:
                 queue="all.q",
             )
 
-    def test_to_dict_serialization(self) -> None:
+    def test_to_dict_serialization(self, valid_pytest_path: str) -> None:
         config = PytestStepConfig(
             name="tests",
             resources=ResourceConfig(
                 memory_gb=8, project="proj_simscience", queue="all.q", cores=4
             ),
             output_directory=Path("/tmp/results"),
-            path="tests/unit",
+            path=valid_pytest_path,
             k="test_foo",
             runslow=True,
         )
@@ -716,30 +716,30 @@ class TestPytestStepConfig:
                 "cores": 4,
             },
             "args": {
-                "path": "tests/unit",
+                "path": valid_pytest_path,
                 "k": "test_foo",
                 "runslow": True,
             },
         }
 
-    def test_to_dict_omits_unset_optional_fields(self) -> None:
+    def test_to_dict_omits_unset_optional_fields(self, valid_pytest_path: str) -> None:
         config = PytestStepConfig(
             name="tests",
             resources=ResourceConfig(memory_gb=4, project="proj_simscience", queue="all.q"),
             output_directory=Path("/tmp/results"),
-            path="tests/",
+            path=valid_pytest_path,
         )
         result = config.to_dict()
-        assert result["args"] == {"path": "tests/"}
+        assert result["args"] == {"path": valid_pytest_path}
 
-    def test_get_tasks_builds_correct_command(self) -> None:
+    def test_get_tasks_builds_correct_command(self, valid_pytest_path: str) -> None:
         config = PytestStepConfig(
             name="tests",
             resources=ResourceConfig(
                 memory_gb=4, project="proj_simscience", queue="all.q", cores=4
             ),
             output_directory=Path("/tmp/results"),
-            path="tests/unit",
+            path=valid_pytest_path,
             k="test_foo or test_bar",
             runslow=True,
         )
@@ -755,17 +755,17 @@ class TestPytestStepConfig:
         assert tasks == [mock_task]
         call_kwargs = mock_template.create_task.call_args[1]
         assert call_kwargs["command"] == (
-            "pytest tests/unit -k 'test_foo or test_bar' --runslow --numprocesses 4"
+            f"pytest {valid_pytest_path} -k 'test_foo or test_bar' --runslow --numprocesses 4"
         )
 
-    def test_build_command_path_only(self) -> None:
+    def test_build_command_path_only(self, valid_pytest_path: str) -> None:
         config = PytestStepConfig(
             name="tests",
             resources=ResourceConfig(memory_gb=4, project="proj_simscience", queue="all.q"),
             output_directory=Path("/tmp/results"),
-            path="tests/",
+            path=valid_pytest_path,
         )
-        assert config._build_command() == "pytest tests/"
+        assert config._build_command() == f"pytest {valid_pytest_path}"
 
     def test_build_command_k_only(self) -> None:
         config = PytestStepConfig(
@@ -785,28 +785,28 @@ class TestPytestStepConfig:
         )
         assert "--numprocesses" not in config._build_command()
 
-    def test_build_command_multiple_paths(self) -> None:
+    def test_build_command_multiple_paths(self, valid_pytest_paths: list[str]) -> None:
         config = PytestStepConfig(
             name="tests",
             resources=ResourceConfig(memory_gb=4, project="proj_simscience", queue="all.q"),
             output_directory=Path("/tmp/results"),
-            path=["tests/unit", "tests/integration"],
+            path=valid_pytest_paths,
         )
-        assert config._build_command() == "pytest tests/unit tests/integration"
+        assert config._build_command() == f"pytest {valid_pytest_paths[0]} {valid_pytest_paths[1]}"
 
-    def test_to_dict_multiple_paths(self) -> None:
+    def test_to_dict_multiple_paths(self, valid_pytest_paths: list[str]) -> None:
         config = PytestStepConfig(
             name="tests",
             resources=ResourceConfig(memory_gb=4, project="proj_simscience", queue="all.q"),
             output_directory=Path("/tmp/results"),
-            path=["tests/unit", "tests/integration"],
+            path=valid_pytest_paths,
         )
         result = config.to_dict()
-        assert result["args"] == {"path": ["tests/unit", "tests/integration"]}
+        assert result["args"] == {"path": valid_pytest_paths}
 
-    def test_from_dict_multiple_paths(self) -> None:
+    def test_from_dict_multiple_paths(self, valid_pytest_paths: list[str]) -> None:
         step_dict = make_pytest_step_dict(
-            args={"path": ["tests/unit", "tests/integration"]},
+            args={"path": valid_pytest_paths},
         )
         config = PytestStepConfig.from_dict(
             step_dict,
@@ -814,8 +814,8 @@ class TestPytestStepConfig:
             project="proj_simscience",
             queue="all.q",
         )
-        assert config.path == ["tests/unit", "tests/integration"]
-        assert config._build_command() == "pytest tests/unit tests/integration"
+        assert config.path == valid_pytest_paths
+        assert config._build_command() == f"pytest {valid_pytest_paths[0]} {valid_pytest_paths[1]}"
 
     def test_routes_to_pytest_step_from_yaml(self, tmp_path: Path) -> None:
         steps = [make_pytest_step_dict()]
