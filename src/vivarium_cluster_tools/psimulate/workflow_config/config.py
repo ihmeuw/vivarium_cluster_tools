@@ -888,23 +888,6 @@ class PythonStepConfig(BaseStepConfig):
                 )
             self._validate_scalar(value, f"keyword_args['{key}']")
 
-    def supported_arguments(self) -> set[str]:
-        """Return the set of required known args for python steps."""
-        return self._SUPPORTED_ARGS
-
-    def get_tasks(
-        self,
-        tool: Tool,
-        *,
-        env: str,
-        build_timestamp: str,
-        is_resume: bool = False,
-    ) -> list[Task]:
-        """Create a single Jobmon Task for this python step."""
-        return [
-            self._create_single_command_task(tool, env=env, command=self._build_command())
-        ]
-
     def _build_command(self) -> str:
         """Build the python command string from the script path and args.
 
