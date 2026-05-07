@@ -149,6 +149,7 @@ class ResourceConfig:
             peak_memory=float(self.memory_gb),
             max_runtime=self.runtime,
             hardware=self.hardware or [],
+            cores=self.cores,
         )
 
 
@@ -168,6 +169,10 @@ class BaseStepConfig(ABC):
     resources: ResourceConfig
     output_directory: Path
     environment: str | None
+
+    _SUPPORTED_ARGS: ClassVar[set[str] | None] = None
+    """Subclasses override this with a set of valid 'args' keys, or leave as
+    None for step types that don't have an 'args' section."""
 
     def __post_init__(self) -> None:
         """Common validation for all step types, then call subclass validation.
@@ -207,7 +212,6 @@ class BaseStepConfig(ABC):
         """
         pass
 
-    @abstractmethod
     def supported_arguments(self) -> set[str] | None:
         """Return the set of argument names valid in the 'args' section.
 
@@ -218,16 +222,13 @@ class BaseStepConfig(ABC):
         that can appear in the 'args' section. These correspond to CLI options
         users can pass to that step type's command.
 
-        The _validate() method should check that any provided args are in this
-        set (for typed steps) or that no args are provided (for command steps).
-
         Returns
         -------
             None for command-based steps, or set of supported argument names
             for typed steps (e.g., {"config", "model_specification",
             "branch_configuration", "artifact_path", "hardware", ...}).
         """
-        pass
+        return self._SUPPORTED_ARGS
 
     @classmethod
     @abstractmethod
@@ -258,7 +259,6 @@ class BaseStepConfig(ABC):
         """
         pass
 
-    @abstractmethod
     def get_tasks(
         self,
         tool: Tool,
@@ -269,13 +269,9 @@ class BaseStepConfig(ABC):
     ) -> list[Task]:
         """Create Jobmon Tasks for this step.
 
-        Returns one or more tasks to add to the workflow. Command steps
-        return a single task; simulation steps return one task per
-        (draw, seed, branch) combination.
-
-        Resources (including project and queue) are read from
-        ``self.resources``, which has workflow-level defaults resolved
-        at construction time via :meth:`ResourceConfig.from_dict`.
+        The default implementation creates a single task by calling
+        ``_build_command``.  Subclasses that need multiple tasks
+        (e.g. simulation steps) should override this method.
 
         Parameters
         ----------
@@ -294,6 +290,18 @@ class BaseStepConfig(ABC):
         Returns
         -------
             A list of Jobmon Task instances ready to be added to a workflow.
+        """
+        return [
+            self._create_single_command_task(tool, env=env, command=self._build_command())
+        ]
+
+    @abstractmethod
+    def _build_command(self) -> str:
+        """Build the command string for this step.
+
+        Returns
+        -------
+            The shell command to execute.
         """
         pass
 
@@ -368,20 +376,9 @@ class CommandStepConfig(BaseStepConfig):
         if not self.command:
             raise ValueError(f"Step '{self.name}': 'command' is required.")
 
-    def supported_arguments(self) -> set[str] | None:
-        """Command-based steps don't have an 'args' section."""
-        return None
-
-    def get_tasks(
-        self,
-        tool: Tool,
-        *,
-        env: str,
-        build_timestamp: str,
-        is_resume: bool = False,
-    ) -> list[Task]:
-        """Create a single Jobmon Task for this command step."""
-        return [self._create_single_command_task(tool, env=env, command=self.command)]
+    def _build_command(self) -> str:
+        """Return the raw command string."""
+        return self.command
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to a dictionary, omitting None values."""
@@ -497,9 +494,11 @@ class SimulationStepConfig(BaseStepConfig):
                 f"Step '{self.name}': simulation type requires 'branch_configuration'."
             )
 
-    def supported_arguments(self) -> set[str]:
-        """Return valid keys for the 'args' section of simulation steps."""
-        return self._SUPPORTED_ARGS
+    def _build_command(self) -> str:
+        """Not used -- simulation steps override get_tasks directly."""
+        raise NotImplementedError(
+            "SimulationStepConfig does not use _build_command. " "Use get_tasks() instead."
+        )
 
     def get_tasks(
         self,
@@ -627,6 +626,12 @@ class PytestStepConfig(BaseStepConfig):
     This step type constructs a ``pytest`` command from structured arguments
     and runs it as a single Jobmon task.
 
+    When ``resources.cores`` is greater than 1, the generated command includes
+    ``--numprocesses <cores>`` to enable parallel test execution via
+    `pytest-xdist <https://pypi.org/project/pytest-xdist/>`_.  The test
+    environment **must** have ``pytest-xdist`` installed when ``cores > 1``;
+    otherwise pytest will fail with an "unrecognized arguments" error.
+
     Examples
     --------
     YAML configuration::
@@ -640,9 +645,8 @@ class PytestStepConfig(BaseStepConfig):
               cores: 4
             args:
               path: tests/
-              k: "not slow"
+              k: "test_foo"
               runslow: true
-              numprocesses: 4
 
     Multiple paths::
 
@@ -662,7 +666,6 @@ class PytestStepConfig(BaseStepConfig):
         "path",
         "k",
         "runslow",
-        "numprocesses",
     }
 
     name: str
@@ -680,8 +683,6 @@ class PytestStepConfig(BaseStepConfig):
     """Pytest ``-k`` expression to filter tests by name. At least one of ``path`` or ``k`` is required."""
     runslow: bool = False
     """Whether to pass --runslow flag."""
-    numprocesses: int = 1
-    """Number of parallel workers for pytest-xdist (``-n``/``--numprocesses``). Defaults to 1 (no parallelism). Must be <= resources.cores."""
 
     def _validate(self) -> None:
         """Validate pytest step configuration."""
@@ -689,34 +690,6 @@ class PytestStepConfig(BaseStepConfig):
             raise ValueError(
                 f"Step '{self.name}': pytest type requires at least one of 'path' or 'k'."
             )
-        if self.numprocesses > self.resources.cores:
-            raise ValueError(
-                f"Step '{self.name}': numprocesses ({self.numprocesses}) must not exceed "
-                f"cores ({self.resources.cores})."
-            )
-        if self.resources.cores > 1 and self.numprocesses < self.resources.cores:
-            logger.warning(
-                f"Step '{self.name}': resources.cores is {self.resources.cores} but "
-                f"numprocesses is {self.numprocesses}. The extra cores will be allocated "
-                f"but unused. Set numprocesses to utilize them or reduce cores."
-            )
-
-    def supported_arguments(self) -> set[str]:
-        """Return valid keys for the 'args' section of pytest steps."""
-        return self._SUPPORTED_ARGS
-
-    def get_tasks(
-        self,
-        tool: Tool,
-        *,
-        env: str,
-        build_timestamp: str,
-        is_resume: bool = False,
-    ) -> list[Task]:
-        """Create a single Jobmon Task for this pytest step."""
-        return [
-            self._create_single_command_task(tool, env=env, command=self._build_command())
-        ]
 
     def _build_command(self) -> str:
         """Build the pytest command string from structured arguments."""
@@ -730,8 +703,8 @@ class PytestStepConfig(BaseStepConfig):
             parts.append(f"-k {shlex.quote(self.k)}")
         if self.runslow:
             parts.append("--runslow")
-        if self.numprocesses > 1:
-            parts.append(f"--numprocesses {self.numprocesses}")
+        if self.resources.cores > 1:
+            parts.append(f"--numprocesses {self.resources.cores}")
         return " ".join(parts)
 
     def to_dict(self) -> dict[str, Any]:
@@ -751,8 +724,6 @@ class PytestStepConfig(BaseStepConfig):
             args["k"] = self.k
         if self.runslow:
             args["runslow"] = True
-        if self.numprocesses > 1:
-            args["numprocesses"] = self.numprocesses
 
         result["args"] = args
         return result
@@ -788,8 +759,6 @@ class PytestStepConfig(BaseStepConfig):
             kwargs["k"] = args["k"]
         if "runslow" in args:
             kwargs["runslow"] = args["runslow"]
-        if "numprocesses" in args:
-            kwargs["numprocesses"] = args["numprocesses"]
 
         return cls(**kwargs)
 

@@ -598,7 +598,7 @@ class TestPytestStepConfig:
             output_directory=Path("/tmp/results"),
             path="tests/",
         )
-        assert config.supported_arguments() == {"path", "k", "runslow", "numprocesses"}
+        assert config.supported_arguments() == {"path", "k", "runslow"}
 
     def test_rejects_neither_path_nor_k(self) -> None:
         with pytest.raises(ValueError, match="at least one of 'path' or 'k'"):
@@ -620,28 +620,14 @@ class TestPytestStepConfig:
             path="tests/unit",
             k="not slow",
             runslow=True,
-            numprocesses=4,
         )
         assert config.path == "tests/unit"
         assert config.k == "not slow"
         assert config.runslow is True
-        assert config.numprocesses == 4
-
-    def test_numprocesses_must_not_exceed_cores(self) -> None:
-        with pytest.raises(ValueError, match="numprocesses.*cores"):
-            PytestStepConfig(
-                name="tests",
-                resources=ResourceConfig(
-                    memory_gb=4, project="proj_simscience", queue="all.q", cores=2
-                ),
-                output_directory=Path("/tmp/results"),
-                path="tests/",
-                numprocesses=4,
-            )
 
     def test_from_dict_deserialization(self) -> None:
         step_dict = make_pytest_step_dict(
-            args={"path": "tests/unit", "k": "test_foo", "runslow": True, "numprocesses": 2},
+            args={"path": "tests/unit", "k": "test_foo", "runslow": True},
             resources={"memory_gb": 8, "runtime": "02:00:00", "cores": 4},
         )
         config = PytestStepConfig.from_dict(
@@ -655,7 +641,7 @@ class TestPytestStepConfig:
         assert config.path == "tests/unit"
         assert config.k == "test_foo"
         assert config.runslow is True
-        assert config.numprocesses == 2
+        assert config.resources.cores == 4
 
     def test_from_dict_rejects_unsupported_args(self) -> None:
         step_dict = make_pytest_step_dict(
@@ -679,7 +665,6 @@ class TestPytestStepConfig:
             path="tests/unit",
             k="test_foo",
             runslow=True,
-            numprocesses=4,
         )
         result = config.to_dict()
         assert result == {
@@ -696,7 +681,6 @@ class TestPytestStepConfig:
                 "path": "tests/unit",
                 "k": "test_foo",
                 "runslow": True,
-                "numprocesses": 4,
             },
         }
 
@@ -720,7 +704,6 @@ class TestPytestStepConfig:
             path="tests/unit",
             k="test_foo or test_bar",
             runslow=True,
-            numprocesses=4,
         )
         mock_tool = MagicMock()
         mock_template = MagicMock()
@@ -755,13 +738,12 @@ class TestPytestStepConfig:
         )
         assert config._build_command() == "pytest -k test_specific"
 
-    def test_build_command_numprocesses_one_omitted(self) -> None:
+    def test_build_command_single_core_omits_numprocesses(self) -> None:
         config = PytestStepConfig(
             name="tests",
             resources=ResourceConfig(memory_gb=4, project="proj_simscience", queue="all.q"),
             output_directory=Path("/tmp/results"),
             path="tests/",
-            numprocesses=1,
         )
         assert "--numprocesses" not in config._build_command()
 
