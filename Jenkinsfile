@@ -25,7 +25,7 @@ Note that updating the shared repo will take affect on the next pipeline invocat
 @Library("get_vbu_version@main") _
 
 // Load the full vivarium_build_utils library at the expected version
-library("vivarium_build_utils@${get_vbu_version()}")
+library("vivarium_build_utils@pnast/hotfix/3.2.2")
 
 reusable_pipeline(
     scheduled_branches: [
