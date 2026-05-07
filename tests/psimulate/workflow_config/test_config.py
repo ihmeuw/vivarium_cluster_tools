@@ -245,7 +245,7 @@ class TestCommandStepConfig:
             command="echo test",
             output_directory=Path("/tmp/results"),
         )
-        assert config.supported_arguments() is None
+        assert config.supported_arguments is None
 
     def test_get_tasks_creates_single_task(self) -> None:
         config = CommandStepConfig(
@@ -596,7 +596,7 @@ class TestPytestStepConfig:
             output_directory=Path("/tmp/results"),
             path="tests/",
         )
-        assert config.supported_arguments() == {"path", "k", "runslow"}
+        assert config.supported_arguments == {"path", "k", "runslow"}
 
     def test_rejects_neither_path_nor_k(self) -> None:
         with pytest.raises(ValueError, match="at least one of 'path' or 'k'"):
