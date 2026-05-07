@@ -171,8 +171,8 @@ class BaseStepConfig(ABC):
     environment: str | None
 
     _SUPPORTED_ARGS: ClassVar[set[str] | None] = None
-    """Subclasses override this with a set of valid 'args' keys, or leave as
-    None for step types that don't have an 'args' section."""
+    """Arguments supported in the 'args' section of the step configuration. Arguments not 
+    in this set will be rejected with a validation error."""
 
     def __post_init__(self) -> None:
         """Common validation for all step types, then call subclass validation.
@@ -212,6 +212,7 @@ class BaseStepConfig(ABC):
         """
         pass
 
+    @property
     def supported_arguments(self) -> set[str] | None:
         """Return the set of argument names valid in the 'args' section.
 
@@ -625,12 +626,6 @@ class PytestStepConfig(BaseStepConfig):
 
     This step type constructs a ``pytest`` command from structured arguments
     and runs it as a single Jobmon task.
-
-    When ``resources.cores`` is greater than 1, the generated command includes
-    ``--numprocesses <cores>`` to enable parallel test execution via
-    `pytest-xdist <https://pypi.org/project/pytest-xdist/>`_.  The test
-    environment **must** have ``pytest-xdist`` installed when ``cores > 1``;
-    otherwise pytest will fail with an "unrecognized arguments" error.
 
     Examples
     --------

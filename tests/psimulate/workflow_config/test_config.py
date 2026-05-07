@@ -289,7 +289,7 @@ class TestBaseStepConfig:
         expected: set[str] | None,
     ) -> None:
         config = cls(**kwargs)
-        assert config.supported_arguments() == expected
+        assert config.supported_arguments == expected
 
     def test_get_tasks_creates_single_task(self) -> None:
         """Base class get_tasks wires _build_command into a single Jobmon task."""
@@ -731,6 +731,32 @@ class TestPytestStepConfig:
         )
         result = config.to_dict()
         assert result["args"] == {"path": "tests/"}
+
+    def test_get_tasks_builds_correct_command(self) -> None:
+        config = PytestStepConfig(
+            name="tests",
+            resources=ResourceConfig(
+                memory_gb=4, project="proj_simscience", queue="all.q", cores=4
+            ),
+            output_directory=Path("/tmp/results"),
+            path="tests/unit",
+            k="test_foo or test_bar",
+            runslow=True,
+        )
+        mock_tool = MagicMock()
+        mock_template = MagicMock()
+        mock_task = MagicMock()
+        mock_tool.get_task_template.return_value = mock_template
+        mock_template.create_task.return_value = mock_task
+
+        tasks = config.get_tasks(
+            mock_tool, env="my_env", build_timestamp="2026_05_04_10_00_00"
+        )
+        assert tasks == [mock_task]
+        call_kwargs = mock_template.create_task.call_args[1]
+        assert call_kwargs["command"] == (
+            "pytest tests/unit -k 'test_foo or test_bar' --runslow --numprocesses 4"
+        )
 
     def test_build_command_path_only(self) -> None:
         config = PytestStepConfig(
