@@ -237,19 +237,62 @@ class TestResourceConfigValidation:
         assert rc.cores == 4
 
 
-class TestCommandStepConfig:
-    """Tests for CommandStepConfig - the default command-based step type."""
+class TestBaseStepConfig:
+    """Tests for behavior implemented in BaseStepConfig (tested via concrete subclasses)."""
 
-    def test_supported_arguments_returns_none(self) -> None:
-        config = CommandStepConfig(
-            name="test_step",
-            resources=ResourceConfig(memory_gb=4, project="proj_simscience", queue="all.q"),
-            command="echo test",
-            output_directory=Path("/tmp/results"),
-        )
-        assert config.supported_arguments() is None
+    @pytest.mark.parametrize(
+        "cls, kwargs, expected",
+        [
+            (
+                CommandStepConfig,
+                {
+                    "name": "cmd",
+                    "resources": ResourceConfig(
+                        memory_gb=4, project="proj_simscience", queue="all.q"
+                    ),
+                    "command": "echo hi",
+                    "output_directory": Path("/tmp/results"),
+                },
+                None,
+            ),
+            (
+                PytestStepConfig,
+                {
+                    "name": "tests",
+                    "resources": ResourceConfig(
+                        memory_gb=4, project="proj_simscience", queue="all.q"
+                    ),
+                    "path": "tests/",
+                    "output_directory": Path("/tmp/results"),
+                },
+                {"path", "k", "runslow"},
+            ),
+            (
+                PythonStepConfig,
+                {
+                    "name": "script",
+                    "resources": ResourceConfig(
+                        memory_gb=4, project="proj_simscience", queue="all.q"
+                    ),
+                    "args": {"path": "run.py"},
+                    "output_directory": Path("/tmp/results"),
+                },
+                {"path", "positional_args", "keyword_args"},
+            ),
+        ],
+        ids=["command", "pytest", "python"],
+    )
+    def test_supported_arguments(
+        self,
+        cls: type,
+        kwargs: dict[str, Any],
+        expected: set[str] | None,
+    ) -> None:
+        config = cls(**kwargs)
+        assert config.supported_arguments() == expected
 
     def test_get_tasks_creates_single_task(self) -> None:
+        """Base class get_tasks wires _build_command into a single Jobmon task."""
         config = CommandStepConfig(
             name="test_step",
             resources=ResourceConfig(memory_gb=4, project="proj_simscience", queue="all.q"),
@@ -281,6 +324,10 @@ class TestCommandStepConfig:
             env="my_env",
             command="echo hello world",
         )
+
+
+class TestCommandStepConfig:
+    """Tests for CommandStepConfig - the default command-based step type."""
 
     def test_to_dict(self) -> None:
         config = CommandStepConfig(
@@ -591,15 +638,6 @@ class TestSimulationStepConfig:
 class TestPytestStepConfig:
     """Tests for PytestStepConfig - the pytest step type."""
 
-    def test_supported_arguments_returns_expected_set(self) -> None:
-        config = PytestStepConfig(
-            name="tests",
-            resources=ResourceConfig(memory_gb=4, project="proj_simscience", queue="all.q"),
-            output_directory=Path("/tmp/results"),
-            path="tests/",
-        )
-        assert config.supported_arguments() == {"path", "k", "runslow"}
-
     def test_rejects_neither_path_nor_k(self) -> None:
         with pytest.raises(ValueError, match="at least one of 'path' or 'k'"):
             PytestStepConfig(
@@ -694,32 +732,6 @@ class TestPytestStepConfig:
         result = config.to_dict()
         assert result["args"] == {"path": "tests/"}
 
-    def test_get_tasks_builds_correct_command(self) -> None:
-        config = PytestStepConfig(
-            name="tests",
-            resources=ResourceConfig(
-                memory_gb=4, project="proj_simscience", queue="all.q", cores=4
-            ),
-            output_directory=Path("/tmp/results"),
-            path="tests/unit",
-            k="test_foo or test_bar",
-            runslow=True,
-        )
-        mock_tool = MagicMock()
-        mock_template = MagicMock()
-        mock_task = MagicMock()
-        mock_tool.get_task_template.return_value = mock_template
-        mock_template.create_task.return_value = mock_task
-
-        tasks = config.get_tasks(
-            mock_tool, env="my_env", build_timestamp="2026_05_04_10_00_00"
-        )
-        assert tasks == [mock_task]
-        call_kwargs = mock_template.create_task.call_args[1]
-        assert call_kwargs["command"] == (
-            "pytest tests/unit -k 'test_foo or test_bar' --runslow --numprocesses 4"
-        )
-
     def test_build_command_path_only(self) -> None:
         config = PytestStepConfig(
             name="tests",
@@ -792,15 +804,6 @@ class TestPytestStepConfig:
 
 class TestPythonStepConfig:
     """Tests for PythonStepConfig - the python script step type."""
-
-    def test_supported_arguments_returns_expected_set(self) -> None:
-        config = PythonStepConfig(
-            name="run_script",
-            resources=ResourceConfig(memory_gb=4, project="proj_simscience", queue="all.q"),
-            output_directory=Path("/tmp/results"),
-            args={"path": "scripts/process.py"},
-        )
-        assert config.supported_arguments() == {"path", "positional_args", "keyword_args"}
 
     @pytest.mark.parametrize(
         "args, match",
@@ -1005,26 +1008,6 @@ class TestPythonStepConfig:
         )
         assert restored.name == config.name
         assert restored.args == config.args
-
-    def test_get_tasks_creates_single_task(self) -> None:
-        config = PythonStepConfig(
-            name="run_script",
-            resources=ResourceConfig(memory_gb=4, project="proj_simscience", queue="all.q"),
-            output_directory=Path("/tmp/results"),
-            args={"path": "scripts/run.py", "keyword_args": {"verbose": True}},
-        )
-        mock_tool = MagicMock()
-        mock_template = MagicMock()
-        mock_task = MagicMock()
-        mock_tool.get_task_template.return_value = mock_template
-        mock_template.create_task.return_value = mock_task
-
-        tasks = config.get_tasks(
-            mock_tool, env="my_env", build_timestamp="2026_05_06_10_00_00"
-        )
-        assert tasks == [mock_task]
-        call_kwargs = mock_template.create_task.call_args[1]
-        assert call_kwargs["command"] == "python scripts/run.py --verbose"
 
     def test_routes_to_python_step_from_yaml(self, tmp_path: Path) -> None:
         steps = [make_python_step_dict()]
