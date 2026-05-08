@@ -15,7 +15,9 @@ import shlex
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, ClassVar, Self
+from typing import TYPE_CHECKING, Any, ClassVar
+
+from typing_extensions import Self
 
 import yaml
 
