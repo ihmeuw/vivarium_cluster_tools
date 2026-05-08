@@ -1174,40 +1174,45 @@ class TestNotebookStepConfig:
         [
             (
                 {},
-                "mkdir -p {out_parent} && papermill {input} {output}",
+                "mkdir -p {out_parent} && papermill {input} {output} --cwd {input_parent}",
             ),
             (
                 {"parameters": {"name": "alice"}},
-                "mkdir -p {out_parent} && papermill {input} {output} -p name alice",
+                "mkdir -p {out_parent} && papermill {input} {output}"
+                " -p name alice --cwd {input_parent}",
             ),
             (
                 {"parameters": {"verbose": True}},
-                "mkdir -p {out_parent} && papermill {input} {output} -y verbose true",
+                "mkdir -p {out_parent} && papermill {input} {output}"
+                " -y verbose true --cwd {input_parent}",
             ),
             (
                 {"parameters": {"flag": False}},
-                "mkdir -p {out_parent} && papermill {input} {output} -y flag false",
+                "mkdir -p {out_parent} && papermill {input} {output}"
+                " -y flag false --cwd {input_parent}",
             ),
             (
                 {"parameters": {"missing": None}},
-                "mkdir -p {out_parent} && papermill {input} {output} -y missing null",
+                "mkdir -p {out_parent} && papermill {input} {output}"
+                " -y missing null --cwd {input_parent}",
             ),
             (
                 {"parameters": {"name": "alice", "verbose": True, "year": 2020}},
                 "mkdir -p {out_parent} && papermill {input} {output}"
-                " -p name alice -y verbose true -p year 2020",
+                " -p name alice -y verbose true -p year 2020 --cwd {input_parent}",
             ),
             (
                 {"cwd": Path("/tmp/notebooks")},
-                "mkdir -p {out_parent} && papermill {input} {output}" " --cwd /tmp/notebooks",
+                "mkdir -p {out_parent} && papermill {input} {output} --cwd /tmp/notebooks",
             ),
             (
                 {"parameters": {"msg": "hello world"}},
-                "mkdir -p {out_parent} && papermill {input} {output}" " -p msg 'hello world'",
+                "mkdir -p {out_parent} && papermill {input} {output}"
+                " -p msg 'hello world' --cwd {input_parent}",
             ),
         ],
         ids=[
-            "no_parameters",
+            "no_parameters_defaults_cwd_to_path_parent",
             "string_parameter",
             "bool_true_via_y",
             "bool_false_via_y",
@@ -1229,6 +1234,7 @@ class TestNotebookStepConfig:
         expected = expected_command_template.format(
             out_parent=output_path.parent,
             input=valid_notebook_path,
+            input_parent=valid_notebook_path.parent,
             output=output_path,
         )
         assert config._build_command() == expected
