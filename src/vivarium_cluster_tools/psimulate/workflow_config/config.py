@@ -974,6 +974,58 @@ class PythonStepConfig(BaseStepConfig):
 
 
 @dataclass
+class NotebookStepConfig(BaseStepConfig):
+    """Configuration for a notebook-based workflow step.
+
+    Currently routes to ``papermill`` under the hood, but exposes a
+    notebook-agnostic schema so the executor can be swapped later.
+    """
+
+    _SUPPORTED_ARGS: ClassVar[set[str]] = {"path", "parameters", "output_path", "cwd"}
+    _SCALAR_TYPES: ClassVar[tuple[type, ...]] = (str, int, float, bool)
+
+    name: str
+    """Unique name for this step within the workflow."""
+    resources: ResourceConfig
+    """Compute resources for this step."""
+    output_directory: Path
+    """Output directory for this step. Inherited from the workflow's output_directory."""
+    path: Path
+    """Path to the input notebook (.ipynb). Both relative and absolute paths are
+    accepted; resolved to absolute when serialized."""
+    output_path: Path
+    """Where to write the executed notebook (.ipynb). Both relative and absolute
+    paths are accepted."""
+    environment: str | None = None
+    """Optional environment name to use for this step."""
+    parameters: dict[str, Any] = field(default_factory=dict)
+    """Notebook parameters injected as cell-level variables. Scalar values only."""
+    cwd: Path | None = None
+    """Optional working directory for notebook execution. Both relative and absolute
+    paths are accepted."""
+
+    def _validate(self) -> None:
+        pass
+
+    def _build_command(self) -> str:
+        raise NotImplementedError
+
+    def to_dict(self) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @classmethod
+    def _build_from_dict(
+        cls,
+        data: dict[str, Any],
+        output_directory: Path,
+        *,
+        project: str,
+        queue: str,
+    ) -> NotebookStepConfig:
+        raise NotImplementedError
+
+
+@dataclass
 class WorkflowConfig:
     """Parsed and validated workflow configuration."""
 
@@ -982,6 +1034,7 @@ class WorkflowConfig:
         "simulation": SimulationStepConfig,
         "pytest": PytestStepConfig,
         "python": PythonStepConfig,
+        "notebook": NotebookStepConfig,
     }
 
     name: str
