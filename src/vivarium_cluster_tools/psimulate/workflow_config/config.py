@@ -17,9 +17,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar
 
-from typing_extensions import Self
-
 import yaml
+from typing_extensions import Self
 
 from vivarium_cluster_tools.psimulate import COMMANDS, branches
 from vivarium_cluster_tools.psimulate.cluster.interface import NativeSpecification
