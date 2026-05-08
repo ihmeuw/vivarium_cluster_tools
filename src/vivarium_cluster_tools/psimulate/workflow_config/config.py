@@ -15,10 +15,9 @@ import shlex
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar, Self
 
 import yaml
-from loguru import logger
 
 from vivarium_cluster_tools.psimulate import COMMANDS, branches
 from vivarium_cluster_tools.psimulate.cluster.interface import NativeSpecification
@@ -269,7 +268,7 @@ class BaseStepConfig(ABC):
         *,
         project: str,
         queue: str,
-    ) -> BaseStepConfig:
+    ) -> Self:
         """Create a step config from a raw YAML dictionary.
 
         Performs common validation (unsupported args check), then delegates
@@ -290,11 +289,10 @@ class BaseStepConfig(ABC):
         -------
             A new step config instance.
         """
-        args = data.get("args") or {}
+        # CommandStepConfig does not have 'args'
+        args = data.get("args", {})
         cls._check_supported_args(args, data.get("name", "<unnamed>"))
-        return cls._build_from_dict(
-            data, output_directory, project=project, queue=queue
-        )
+        return cls._build_from_dict(data, output_directory, project=project, queue=queue)
 
     @classmethod
     @abstractmethod
@@ -305,7 +303,7 @@ class BaseStepConfig(ABC):
         *,
         project: str,
         queue: str,
-    ) -> BaseStepConfig:
+    ) -> Self:
         """Subclass-specific construction from a raw YAML dictionary.
 
         Called by ``from_dict`` after common validation has passed.
