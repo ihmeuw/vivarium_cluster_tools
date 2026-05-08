@@ -324,6 +324,7 @@ class BaseStepConfig(ABC):
         to subclass-specific ``_build_from_dict`` for construction.
 
         Parameters
+        ----------
         data
             Dictionary from workflow YAML.
         output_directory

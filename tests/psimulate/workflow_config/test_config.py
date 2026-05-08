@@ -1123,7 +1123,6 @@ class TestNotebookStepConfig:
         with pytest.raises(TypeError, match=omitted_field):
             NotebookStepConfig(**kwargs)
 
-    @pytest.mark.xfail(strict=True, reason="phase 1 stub: implementation pending")
     @pytest.mark.parametrize(
         "overrides, match",
         [
@@ -1163,12 +1162,10 @@ class TestNotebookStepConfig:
                 queue="all.q",
             )
 
-    @pytest.mark.xfail(strict=True, reason="phase 1 stub: implementation pending")
     def test_required_paths_only_contains_input(self, valid_notebook_path: Path) -> None:
         config = NotebookStepConfig(**self._base_kwargs(valid_notebook_path))
         assert config.required_paths == [valid_notebook_path]
 
-    @pytest.mark.xfail(strict=True, reason="phase 1 stub: implementation pending")
     @pytest.mark.parametrize(
         "field_overrides, expected_command_template",
         [
@@ -1239,7 +1236,6 @@ class TestNotebookStepConfig:
         )
         assert config._build_command() == expected
 
-    @pytest.mark.xfail(strict=True, reason="phase 1 stub: implementation pending")
     def test_to_dict_serialization(self, valid_notebook_path: Path) -> None:
         config = NotebookStepConfig(
             name="run_notebook",
@@ -1265,7 +1261,6 @@ class TestNotebookStepConfig:
         )
         assert result["args"]["cwd"] == str(Path("/tmp/notebooks"))
 
-    @pytest.mark.xfail(strict=True, reason="phase 1 stub: implementation pending")
     def test_to_dict_round_trip(self, valid_notebook_path: Path) -> None:
         config = NotebookStepConfig(
             name="run_notebook",
@@ -1287,7 +1282,6 @@ class TestNotebookStepConfig:
         assert restored.parameters == config.parameters
         assert restored.output_path == config.output_path
 
-    @pytest.mark.xfail(strict=True, reason="phase 1 stub: implementation pending")
     def test_from_dict_resolves_paths(
         self, tmp_path: Path, valid_notebook_path: Path
     ) -> None:
@@ -1308,7 +1302,6 @@ class TestNotebookStepConfig:
         assert config.output_path is not None and config.output_path.is_absolute()
         assert config.cwd is not None and config.cwd.is_absolute()
 
-    @pytest.mark.xfail(strict=True, reason="phase 1 stub: implementation pending")
     def test_routes_to_notebook_step_from_yaml(
         self, tmp_path: Path, valid_notebook_path: Path
     ) -> None:
