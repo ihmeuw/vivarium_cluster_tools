@@ -195,10 +195,7 @@ class BaseStepConfig(ABC):
                 "configured. Set them at the step level or provide workflow-level defaults."
             )
 
-        # Call subclass-specific validation
         self._validate()
-
-        # Validate that all required paths exist
         self._validate_required_paths()
 
         # Build the Jobmon-facing resource specification once at construction.
