@@ -1171,40 +1171,40 @@ class TestNotebookStepConfig:
         [
             (
                 {},
-                "mkdir -p {out_parent} && papermill {input} {output} --cwd {input_parent}",
+                "mkdir -p {out_parent} && papermill {input} {output} -k python3 --cwd {input_parent}",
             ),
             (
                 {"parameters": {"name": "alice"}},
-                "mkdir -p {out_parent} && papermill {input} {output}"
+                "mkdir -p {out_parent} && papermill {input} {output} -k python3"
                 " -p name alice --cwd {input_parent}",
             ),
             (
                 {"parameters": {"verbose": True}},
-                "mkdir -p {out_parent} && papermill {input} {output}"
+                "mkdir -p {out_parent} && papermill {input} {output} -k python3"
                 " -y verbose true --cwd {input_parent}",
             ),
             (
                 {"parameters": {"flag": False}},
-                "mkdir -p {out_parent} && papermill {input} {output}"
+                "mkdir -p {out_parent} && papermill {input} {output} -k python3"
                 " -y flag false --cwd {input_parent}",
             ),
             (
                 {"parameters": {"missing": None}},
-                "mkdir -p {out_parent} && papermill {input} {output}"
+                "mkdir -p {out_parent} && papermill {input} {output} -k python3"
                 " -y missing null --cwd {input_parent}",
             ),
             (
                 {"parameters": {"name": "alice", "verbose": True, "year": 2020}},
-                "mkdir -p {out_parent} && papermill {input} {output}"
+                "mkdir -p {out_parent} && papermill {input} {output} -k python3"
                 " -p name alice -y verbose true -p year 2020 --cwd {input_parent}",
             ),
             (
                 {"cwd": Path("/tmp/notebooks")},
-                "mkdir -p {out_parent} && papermill {input} {output} --cwd /tmp/notebooks",
+                "mkdir -p {out_parent} && papermill {input} {output} -k python3 --cwd /tmp/notebooks",
             ),
             (
                 {"parameters": {"msg": "hello world"}},
-                "mkdir -p {out_parent} && papermill {input} {output}"
+                "mkdir -p {out_parent} && papermill {input} {output} -k python3"
                 " -p msg 'hello world' --cwd {input_parent}",
             ),
         ],

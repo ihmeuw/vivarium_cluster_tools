@@ -1097,6 +1097,7 @@ class NotebookStepConfig(BaseStepConfig):
             "papermill",
             shlex.quote(str(self.path)),
             shlex.quote(str(self.output_path)),
+            "-k python3",
         ]
         for key in sorted(self.parameters):
             value = self.parameters[key]
