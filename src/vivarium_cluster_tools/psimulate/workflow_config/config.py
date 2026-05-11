@@ -55,6 +55,35 @@ _IDENTIFIER_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
 """Pattern for keys in scalar-dict step args (``keyword_args``, ``parameters``)."""
 
 
+def _check_scalar(
+    value: object,
+    *,
+    label: str,
+    step_name: str,
+    allow_none: bool = True,
+) -> None:
+    """Validate that *value* is a scalar type.
+
+    Parameters
+    ----------
+    value
+        The value to check.
+    label
+        Human-readable label for error messages (e.g. ``"positional_args[0]"``).
+    step_name
+        Name of the owning step, used in error messages.
+    allow_none
+        Whether ``None`` is an acceptable value.
+    """
+    allowed = (*_SCALAR_TYPES, type(None)) if allow_none else _SCALAR_TYPES
+    if not isinstance(value, allowed):
+        raise ValueError(
+            f"Step '{step_name}': {label} must be a scalar type "
+            f"({', '.join(t.__name__ for t in allowed)}), "
+            f"got {type(value).__name__}."
+        )
+
+
 def _validate_scalar_dict(
     configuration: object,
     *,
@@ -83,19 +112,18 @@ def _validate_scalar_dict(
             f"Step '{step_name}': '{field_name}' must be a dict, "
             f"got {type(configuration).__name__}."
         )
-    allowed = (*_SCALAR_TYPES, type(None)) if allow_none_values else _SCALAR_TYPES
     for key, value in configuration.items():
         if not isinstance(key, str) or not _IDENTIFIER_RE.match(key):
             raise ValueError(
                 f"Step '{step_name}': {field_name} key {key!r} is not a valid "
                 "identifier. Keys must match [a-zA-Z0-9_-]+."
             )
-        if not isinstance(value, allowed):
-            raise ValueError(
-                f"Step '{step_name}': {field_name}['{key}'] must be a scalar type "
-                f"({', '.join(t.__name__ for t in allowed)}), "
-                f"got {type(value).__name__}."
-            )
+        _check_scalar(
+            value,
+            label=f"{field_name}['{key}']",
+            step_name=step_name,
+            allow_none=allow_none_values,
+        )
 
 
 @dataclass
@@ -929,27 +957,6 @@ class PythonStepConfig(BaseStepConfig):
         """Return paths that must exist for python steps."""
         return [Path(self.args["path"])]
 
-    def _validate_scalar(self, value: Any, label: str, *, allow_none: bool = True) -> None:
-        """Validate that *value* is a scalar type suitable for CLI usage.
-
-        Parameters
-        ----------
-        value
-            The value to check.
-        label
-            Human-readable label for error messages (e.g. ``"positional_args[0]"``).
-        allow_none
-            Whether ``None`` is accepted. Positional args do not allow ``None``
-            (it has no CLI representation), while keyword args do (treated as a flag).
-        """
-        allowed = (*_SCALAR_TYPES, type(None)) if allow_none else _SCALAR_TYPES
-        if not isinstance(value, allowed):
-            raise ValueError(
-                f"Step '{self.name}': {label} must be a scalar type "
-                f"({', '.join(t.__name__ for t in allowed)}), "
-                f"got {type(value).__name__}."
-            )
-
     def _validate_positional_args(self, positional_args: Any) -> None:
         """Validate that positional_args is a list of scalar values."""
         if not isinstance(positional_args, list):
@@ -958,7 +965,12 @@ class PythonStepConfig(BaseStepConfig):
                 f"got {type(positional_args).__name__}."
             )
         for arg_index, item in enumerate(positional_args):
-            self._validate_scalar(item, f"positional_args[{arg_index}]", allow_none=False)
+            _check_scalar(
+                item,
+                label=f"positional_args[{arg_index}]",
+                step_name=self.name,
+                allow_none=False,
+            )
 
     def _build_command(self) -> str:
         """Build the python command string from the script path and args.
@@ -1069,6 +1081,14 @@ class NotebookStepConfig(BaseStepConfig):
     """Optional working directory for notebook execution. Both relative and absolute
     paths are accepted. If not provided, defaults to the parent directory of ``path``."""
 
+    _DEFAULT_KERNEL: ClassVar[str] = "python3"
+    """Jupyter kernel used for notebook execution. Not user-configurable;
+    extracted here for discoverability."""
+
+    _PYTHON_IDENTIFIER_RE: ClassVar[re.Pattern[str]] = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
+    """Parameter keys must be valid Python identifiers because papermill
+    injects them as variable assignments in a notebook cell."""
+
     def _validate(self) -> None:
         if not str(self.path).endswith(".ipynb"):
             raise ValueError(
@@ -1084,6 +1104,14 @@ class NotebookStepConfig(BaseStepConfig):
             field_name="parameters",
             step_name=self.name,
         )
+        for key in self.parameters:
+            if not self._PYTHON_IDENTIFIER_RE.match(key):
+                raise ValueError(
+                    f"Step '{self.name}': parameter key {key!r} is not a valid "
+                    "Python identifier. Papermill requires parameter names that "
+                    "are valid Python identifiers (letters, digits, underscores; "
+                    "cannot start with a digit)."
+                )
 
     @property
     def required_paths(self) -> list[Path]:
@@ -1097,7 +1125,7 @@ class NotebookStepConfig(BaseStepConfig):
             "papermill",
             shlex.quote(str(self.path)),
             shlex.quote(str(self.output_path)),
-            "-k python3",
+            f"-k {self._DEFAULT_KERNEL}",
         ]
         for key in sorted(self.parameters):
             value = self.parameters[key]
@@ -1105,7 +1133,7 @@ class NotebookStepConfig(BaseStepConfig):
                 yaml_value = (
                     "true" if value is True else "false" if value is False else "null"
                 )
-                parts.append(f"-y {key} {yaml_value}")
+                parts.append(f"-y {shlex.quote(f'{key}: {yaml_value}')}")
             else:
                 parts.append(f"-p {key} {shlex.quote(str(value))}")
         parts.append(f"--cwd {shlex.quote(str(cwd))}")
@@ -1142,6 +1170,12 @@ class NotebookStepConfig(BaseStepConfig):
         queue: str,
     ) -> NotebookStepConfig:
         args = copy.deepcopy(data["args"])
+        step_name = data.get("name", "<unnamed>")
+
+        if "output_path" not in args:
+            raise ValueError(
+                f"Step '{step_name}': notebook type requires 'output_path' in args."
+            )
 
         kwargs: dict[str, Any] = {
             "name": data["name"],

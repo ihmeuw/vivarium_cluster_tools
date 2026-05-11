@@ -1131,6 +1131,8 @@ class TestNotebookStepConfig:
             ({"parameters": [1, 2, 3]}, "dict"),
             ({"parameters": {"x": {"nested": 1}}}, "scalar"),
             ({"parameters": {"bad key!": 1}}, "identifier"),
+            ({"parameters": {"hyphen-key": 1}}, "Python identifier"),
+            ({"parameters": {"2startsdigit": 1}}, "Python identifier"),
         ],
         ids=[
             "non_ipynb_path",
@@ -1138,6 +1140,8 @@ class TestNotebookStepConfig:
             "parameters_not_dict",
             "non_scalar_parameter_value",
             "invalid_parameter_key",
+            "hyphenated_parameter_key",
+            "digit_start_parameter_key",
         ],
     )
     def test_rejects_invalid_configurations(
@@ -1149,6 +1153,18 @@ class TestNotebookStepConfig:
         kwargs = {**self._base_kwargs(valid_notebook_path), **overrides}
         with pytest.raises(ValueError, match=match):
             NotebookStepConfig(**kwargs)
+
+    def test_from_dict_rejects_missing_output_path(self, valid_notebook_path: Path) -> None:
+        step_dict = make_notebook_step_dict(
+            args={"path": str(valid_notebook_path)},
+        )
+        with pytest.raises(ValueError, match="output_path"):
+            NotebookStepConfig.from_dict(
+                step_dict,
+                output_directory=Path("/tmp/results"),
+                project="proj_simscience",
+                queue="all.q",
+            )
 
     def test_from_dict_rejects_unsupported_args(self, valid_notebook_path: Path) -> None:
         step_dict = make_notebook_step_dict(
@@ -1181,22 +1197,22 @@ class TestNotebookStepConfig:
             (
                 {"parameters": {"verbose": True}},
                 "mkdir -p {out_parent} && papermill {input} {output} -k python3"
-                " -y verbose true --cwd {input_parent}",
+                " -y 'verbose: true' --cwd {input_parent}",
             ),
             (
                 {"parameters": {"flag": False}},
                 "mkdir -p {out_parent} && papermill {input} {output} -k python3"
-                " -y flag false --cwd {input_parent}",
+                " -y 'flag: false' --cwd {input_parent}",
             ),
             (
                 {"parameters": {"missing": None}},
                 "mkdir -p {out_parent} && papermill {input} {output} -k python3"
-                " -y missing null --cwd {input_parent}",
+                " -y 'missing: null' --cwd {input_parent}",
             ),
             (
                 {"parameters": {"name": "alice", "verbose": True, "year": 2020}},
                 "mkdir -p {out_parent} && papermill {input} {output} -k python3"
-                " -p name alice -y verbose true -p year 2020 --cwd {input_parent}",
+                " -p name alice -y 'verbose: true' -p year 2020 --cwd {input_parent}",
             ),
             (
                 {"cwd": Path("/tmp/notebooks")},
