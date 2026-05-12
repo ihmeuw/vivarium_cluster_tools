@@ -116,7 +116,7 @@ def _validate_scalar_dict(
         if not isinstance(key, str) or not _IDENTIFIER_RE.match(key):
             raise ValueError(
                 f"Step '{step_name}': {field_name} key {key!r} is not a valid "
-                "identifier. Keys must match [a-zA-Z0-9_-]+."
+                "identifier. Keys must be alphanumeric, have dashes, or underscores."
             )
         _check_scalar(
             value,
@@ -1108,7 +1108,7 @@ class NotebookStepConfig(BaseStepConfig):
             if not self._PYTHON_IDENTIFIER_RE.match(key):
                 raise ValueError(
                     f"Step '{self.name}': parameter key {key!r} is not a valid "
-                    "Python identifier. Papermill requires parameter names that "
+                    "Python identifier. Notebooks require parameter names that "
                     "are valid Python identifiers (letters, digits, underscores; "
                     "cannot start with a digit)."
                 )
