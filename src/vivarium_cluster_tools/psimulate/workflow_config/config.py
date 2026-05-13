@@ -165,6 +165,12 @@ class ResourceConfig:
                 validate_runtime_and_queue(self.runtime, self.queue)
         if self.hardware is not None:
             validate_hardware(self.hardware)
+        if not isinstance(self.requires_archive_node, bool):
+            raise TypeError(
+                f"'requires_archive_node' must be a bool, "
+                f"got {type(self.requires_archive_node).__name__}: "
+                f"{self.requires_archive_node!r}."
+            )
 
     @classmethod
     def from_dict(
