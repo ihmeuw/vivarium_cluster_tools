@@ -25,6 +25,8 @@ class NativeSpecification(NamedTuple):
     hardware: list[str]
     cores: int = 1
     """Number of CPU cores to request from SLURM. Default is 1."""
+    requires_archive_node: bool = False
+    """Whether the task must land on a node tagged with the SLURM ``archive`` feature."""
 
     def to_jobmon_spec(self, worker_logging_root: Path) -> dict[str, Any]:
         """Build the Jobmon compute resources dict from this NativeSpecification.
@@ -42,8 +44,16 @@ class NativeSpecification(NamedTuple):
         -----
         * ``memory`` is passed in **GB** because the Jobmon SLURM plugin performs
           its own GB → MB conversion internally.
-        * ``constraints`` is a pipe-separated string of SLURM feature names
-          (e.g. ``"r650|r650v2"``), included only when hardware is requested.
+        * ``constraints`` is a SLURM ``--constraint`` expression built from
+          ``hardware`` and ``requires_archive_node``:
+
+          - hardware only: pipe-joined (OR), e.g. ``"r650|r650v2"``.
+          - archive only: ``"archive"``.
+          - both: AND-joined, e.g. ``"r650&archive"`` or
+            ``"(r650|r650v2)&archive"`` (the hardware group is
+            parenthesized when it has more than one entry).
+          - neither: the key is omitted.
+
         * ``standard_output`` and ``standard_error`` route SLURM stdout/stderr
           to the cluster logs directory. The Jobmon SLURM plugin appends the
           task name and SLURM job ID to these paths automatically.
@@ -57,9 +67,24 @@ class NativeSpecification(NamedTuple):
             "stdout": str(worker_logging_root),
             "stderr": str(worker_logging_root),
         }
-        if self.hardware:
-            resources["constraints"] = "|".join(self.hardware)
+        constraint = self._build_constraint()
+        if constraint is not None:
+            resources["constraints"] = constraint
         return resources
+
+    def _build_constraint(self) -> str | None:
+        """Build the SLURM ``--constraint`` expression, or ``None`` if unconstrained."""
+        parts: list[str] = []
+        if self.hardware:
+            hw = "|".join(self.hardware)
+            if len(self.hardware) > 1 and self.requires_archive_node:
+                hw = f"({hw})"
+            parts.append(hw)
+        if self.requires_archive_node:
+            parts.append("archive")
+        if not parts:
+            return None
+        return "&".join(parts)
 
     @staticmethod
     def _runtime_to_seconds(runtime_str: str) -> int:

@@ -142,6 +142,13 @@ class ResourceConfig:
     """Number of CPU cores to request. Default is 1."""
     hardware: list[str] | None = None
     """Optional list of hardware types to target (e.g. ``["r650", "r650v2"]``)."""
+    requires_archive_node: bool = False
+    """Whether the step requires landing on an archive node.
+
+    When ``False`` (default), tasks may land on any node — archive or
+    non-archive. When ``True``, tasks are constrained to archive nodes
+    only (those tagged with the SLURM ``archive`` feature).
+    """
 
     _RUNTIME_RE = re.compile(r"^\d{2}:\d{2}:\d{2}$")
 
@@ -190,6 +197,8 @@ class ResourceConfig:
             kwargs["cores"] = data["cores"]
         if "hardware" in data:
             kwargs["hardware"] = data["hardware"]
+        if "requires_archive_node" in data:
+            kwargs["requires_archive_node"] = data["requires_archive_node"]
         return cls(**kwargs)
 
     def to_dict(self) -> dict[str, Any]:
@@ -206,6 +215,8 @@ class ResourceConfig:
             result["cores"] = self.cores
         if self.hardware is not None:
             result["hardware"] = self.hardware
+        if self.requires_archive_node:
+            result["requires_archive_node"] = True
         return result
 
     def to_native_specification(self, job_name: str) -> NativeSpecification:
@@ -229,6 +240,7 @@ class ResourceConfig:
             max_runtime=self.runtime,
             hardware=self.hardware or [],
             cores=self.cores,
+            requires_archive_node=self.requires_archive_node,
         )
 
 
