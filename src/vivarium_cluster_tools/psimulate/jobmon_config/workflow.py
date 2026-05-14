@@ -9,6 +9,7 @@ Build and configure Jobmon workflows for psimulate runs.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -81,7 +82,9 @@ def get_task_list(
         "--command {command}"
     )
     if env is not None:
-        worker_command = f"conda run --no-capture-output -n {env} {worker_command}"
+        worker_command = (
+            f"{os.environ['CONDA_EXE']} run --no-capture-output -n {env} {worker_command}"
+        )
 
     task_template = tool.get_task_template(
         template_name=template_name,

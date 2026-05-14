@@ -10,6 +10,7 @@ Parse and validate workflow YAML configuration files.
 from __future__ import annotations
 
 import copy
+import os
 import re
 import shlex
 from abc import ABC, abstractmethod
@@ -469,7 +470,9 @@ class BaseStepConfig(ABC):
         """
         task_template = tool.get_task_template(
             template_name="workflow_command_step",
-            command_template="conda run --no-capture-output -n {env} {command}",
+            command_template=(
+                f"{os.environ['CONDA_EXE']} run --no-capture-output " "-n {env} {command}"
+            ),
             node_args=["command", "env"],
             task_args=[],
             op_args=[],
