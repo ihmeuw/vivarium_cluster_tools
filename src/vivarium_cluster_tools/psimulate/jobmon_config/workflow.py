@@ -35,6 +35,7 @@ def get_task_list(
     native_specification: NativeSpecification,
     max_attempts: int = 3,
     env: str | None = None,
+    template_name: str = "psimulate",
 ) -> list[Task]:
     """Create Jobmon tasks for a list of job parameters.
 
@@ -63,6 +64,10 @@ def get_task_list(
     env
         Optional conda environment name. When provided, the worker command
         is wrapped with ``conda run --no-capture-output -n <env>``.
+    template_name
+        Name to register the Jobmon ``TaskTemplate`` under. Must be unique
+        per Tool/Workflow; callers that build multiple simulation step
+        groups in a single workflow must pass a distinct value per group.
 
     Returns
     -------
@@ -79,7 +84,7 @@ def get_task_list(
         worker_command = f"conda run --no-capture-output -n {env} {worker_command}"
 
     task_template = tool.get_task_template(
-        template_name="psimulate",
+        template_name=template_name,
         command_template=worker_command,
         node_args=["task_id"],
         task_args=["metadata_dir", "results_dir"],

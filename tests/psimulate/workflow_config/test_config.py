@@ -699,6 +699,7 @@ class TestSimulationStepConfig:
                 worker_logging_root=Path("/out/logs"),
                 native_specification=config.native_specification,
                 env="test_env",
+                template_name="psimulate_sim_step",
             )
 
             # -- Assert: returns whatever get_task_list returns --

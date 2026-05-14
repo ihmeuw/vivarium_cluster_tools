@@ -698,6 +698,7 @@ class SimulationStepConfig(BaseStepConfig):
             worker_logging_root=output_paths.worker_logging_root,
             native_specification=self.native_specification,
             env=env,
+            template_name=f"psimulate_{self.name}",
         )
 
     def to_dict(self) -> dict[str, Any]:
