@@ -32,7 +32,6 @@ from tests.psimulate.test_e2e import (
     _EXPECTED_TOTAL_JOBS,
     _MODEL_SPEC,
     _assert_result_task_counts,
-    _find_output_dir,
     _read_metadata,
 )
 
@@ -99,22 +98,21 @@ def _write_step_scripts(script_dir: Path, output_dir: Path) -> dict[str, Path]:
     return {"init": init_script, "process": process_script}
 
 
-def _write_simulation_step_inputs(script_dir: Path, step_names: list[str]) -> dict[str, Path]:
-    """Copy the shared model spec into per-step files and return their paths.
+def _write_simulation_step_inputs(script_dir: Path, locations: list[str]) -> dict[str, Path]:
+    """Copy the shared model spec into per-location files and return their paths.
 
     The simulation step computes its output directory from
-    ``Path(model_spec_path).stem``.  Using a distinct filename per step
-    therefore keeps each step's outputs in its own subdirectory rather
-    than letting them collide on a shared ``<model_name>/<timestamp>``
-    path.
+    ``Path(model_spec_path).stem``.  Using the location name as the
+    filename keeps each location's outputs in its own subdirectory
+    (e.g. ``<output_dir>/kenya/<timestamp>``).
     """
     script_dir.mkdir(exist_ok=True)
     spec_paths: dict[str, Path] = {}
     spec_content = _MODEL_SPEC.read_text()
-    for step_name in step_names:
-        path = script_dir / f"{step_name}_model.yaml"
+    for location in locations:
+        path = script_dir / f"{location}.yaml"
         path.write_text(spec_content)
-        spec_paths[step_name] = path
+        spec_paths[location] = path
     return spec_paths
 
 
@@ -234,19 +232,23 @@ class TestPsimulateWorkflow:
     def test_sequential_simulation_steps(
         self, shared_tmp_path: Path, slurm_project: str
     ) -> None:
-        """Run a workflow with two sequential ``type: simulation`` steps.
+        """Run a workflow with two sequential simulation steps for different locations.
 
         This exercises the real-Jobmon simulation-step path (no mocks) and
         guards the fix from commit 3d229c2: two simulation steps in the
         same workflow must register distinct Jobmon ``TaskTemplate`` names
         (``psimulate_<step_name>``) rather than colliding on a shared
         ``"psimulate"`` template.
+
+        Each location gets its own model spec file (named after the location)
+        so that psimulate writes outputs to a location-specific directory
+        (``<output_dir>/<location>/<timestamp>/``).
         """
         output_dir = shared_tmp_path / "workflow_output"
         output_dir.mkdir()
         script_dir = shared_tmp_path / "scripts"
-        step_names = ["sims_a", "sims_b"]
-        spec_paths = _write_simulation_step_inputs(script_dir, step_names)
+        locations = ["kenya", "ethiopia"]
+        spec_paths = _write_simulation_step_inputs(script_dir, locations)
 
         config = {
             "workflow": {
@@ -256,15 +258,15 @@ class TestPsimulateWorkflow:
                 "output_directory": str(output_dir),
                 "steps": [
                     {
-                        "name": name,
+                        "name": location,
                         "type": "simulation",
                         "resources": {"memory_gb": 1, "runtime": "00:05:00"},
                         "args": {
-                            "model_specification": str(spec_paths[name]),
+                            "model_specification": str(spec_paths[location]),
                             "branch_configuration": str(_BRANCHES),
                         },
                     }
-                    for name in step_names
+                    for location in locations
                 ],
             }
         }
@@ -286,15 +288,25 @@ class TestPsimulateWorkflow:
             proc.returncode == 0
         ), f"psimulate workflow failed.\nSTDOUT:\n{proc.stdout}\nSTDERR:\n{proc.stderr}"
 
-        # Each step writes its outputs under <output_dir>/<model_name>/<timestamp>/.
-        # The two specs have distinct filenames so the model_name (= spec stem)
-        # differs per step and the directories don't collide.
-        for name in step_names:
-            step_root = output_dir / spec_paths[name].stem
-            step_output_dir = _find_output_dir(step_root)
+        # Each location writes outputs under <output_dir>/<location>/<timestamp>/.
+        # Verify both location directories exist under the output directory.
+        location_dirs = {d.name for d in output_dir.iterdir() if d.is_dir()}
+        assert set(locations) == location_dirs, (
+            f"Expected location directories {set(locations)}, "
+            f"found {location_dirs} in {output_dir}"
+        )
+
+        for location in locations:
+            location_root = output_dir / location
+            timestamp_dirs = [d for d in location_root.iterdir() if d.is_dir()]
+            assert len(timestamp_dirs) == 1, (
+                f"Expected exactly 1 timestamp directory in {location_root}, "
+                f"found {len(timestamp_dirs)}: {timestamp_dirs}"
+            )
+            step_output_dir = timestamp_dirs[0]
             metadata = _read_metadata(step_output_dir)
             assert len(metadata) == _EXPECTED_TOTAL_JOBS, (
-                f"Step '{name}': expected {_EXPECTED_TOTAL_JOBS} completed tasks, "
+                f"Location '{location}': expected {_EXPECTED_TOTAL_JOBS} completed tasks, "
                 f"got {len(metadata)}"
             )
             _assert_result_task_counts(step_output_dir / "results", _EXPECTED_TOTAL_JOBS)
