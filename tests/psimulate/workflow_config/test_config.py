@@ -705,6 +705,63 @@ class TestSimulationStepConfig:
             # -- Assert: returns whatever get_task_list returns --
             assert result is sentinel_tasks
 
+    def test_multiple_steps_register_distinct_jobmon_templates(
+        self,
+        valid_model_spec_file: Path,
+        valid_branch_config_file: Path,
+    ) -> None:
+        """Two SimulationStepConfigs in one workflow must register distinct
+        Jobmon TaskTemplates so their ``create_tasks`` calls don't collide."""
+        _cfg = "vivarium_cluster_tools.psimulate.workflow_config.config"
+        _wf = "vivarium_cluster_tools.psimulate.jobmon_config.workflow"
+        with (
+            patch(f"{_cfg}.OutputPaths") as mock_output_paths_cls,
+            patch(f"{_cfg}.branches.Keyspace") as mock_keyspace_cls,
+            patch(f"{_cfg}.build_job_parameters_from_keyspace") as mock_build_job_params,
+            patch(f"{_wf}.write_metadata"),
+        ):
+            mock_output_paths = MagicMock()
+            mock_output_paths.root = Path("/out/root")
+            mock_output_paths.worker_logging_root = Path("/out/logs")
+            mock_output_paths.backup_dir = Path("/out/backup")
+            mock_output_paths.backup_metadata_path = Path("/out/backup_meta.csv")
+            mock_output_paths.metadata_dir = Path("/out/metadata")
+            mock_output_paths.results_dir = Path("/out/results")
+            mock_output_paths_cls.from_entry_point_args.return_value = mock_output_paths
+            mock_keyspace_cls.from_branch_configuration.return_value = MagicMock()
+            mock_build_job_params.return_value = [MagicMock(task_id=0)]
+
+            resources = ResourceConfig(
+                memory_gb=4,
+                runtime="00:20:00",
+                project="proj_simscience",
+                queue="all.q",
+            )
+            steps = [
+                SimulationStepConfig(
+                    name=step_name,
+                    resources=resources,
+                    output_directory=Path("/tmp/results"),
+                    model_specification=valid_model_spec_file,
+                    branch_configuration=valid_branch_config_file,
+                )
+                for step_name in ("run_sim_ethiopia", "run_sim_nigeria")
+            ]
+
+            mock_tool = MagicMock()
+            for step in steps:
+                step.get_tasks(mock_tool, env="test_env", build_timestamp="ts")
+
+            template_names = [
+                call.kwargs["template_name"]
+                for call in mock_tool.get_task_template.call_args_list
+            ]
+            assert template_names == [
+                "psimulate_run_sim_ethiopia",
+                "psimulate_run_sim_nigeria",
+            ]
+            assert len(set(template_names)) == len(template_names)
+
 
 class TestPytestStepConfig:
     """Tests for PytestStepConfig - the pytest step type."""
