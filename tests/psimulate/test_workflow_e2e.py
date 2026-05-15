@@ -57,21 +57,10 @@ def _cleanup_dir(path: Path) -> None:
 
 
 @pytest.fixture
-def shared_tmp_path(request: pytest.FixtureRequest) -> Iterator[Path]:
+def shared_tmp_path() -> Iterator[Path]:
     """Temporary directory on a shared filesystem visible to all cluster nodes."""
     results_dir = _make_shared_tmp_dir()
-    # TEMPORARY: log the path and preserve it on failure so Jenkins worker
-    # logs can be inspected after the test tears down. Revert this fixture
-    # to its prior cleanup-always form once debugging is complete.
-    print(f"\n[shared_tmp_path] writing test output to: {results_dir}", flush=True)
     yield results_dir
-    failed = getattr(request.node, "rep_call", None) and request.node.rep_call.failed
-    if failed:
-        print(
-            f"\n[shared_tmp_path] test failed; preserving output at: {results_dir}",
-            flush=True,
-        )
-        return
     _cleanup_dir(results_dir)
 
 

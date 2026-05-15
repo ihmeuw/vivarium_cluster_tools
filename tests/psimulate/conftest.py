@@ -1,28 +1,13 @@
 """Shared fixtures for the psimulate test suite."""
 
 from pathlib import Path
-from typing import Any, Generator
+from typing import Any
 
 import pytest
 from _pytest.logging import LogCaptureFixture
 from loguru import logger
 
 from vivarium_cluster_tools.psimulate.jobs import JobParameters
-
-
-@pytest.hookimpl(hookwrapper=True)
-def pytest_runtest_makereport(
-    item: pytest.Item, call: pytest.CallInfo[None]
-) -> Generator[None, None, None]:
-    """Expose each phase's report on the test item so fixtures can detect failure.
-
-    Enables ``request.node.rep_call.failed`` checks in teardown, which the
-    e2e fixtures use to preserve the shared output directory on failure for
-    post-mortem inspection of worker logs.
-    """
-    outcome: Any = yield
-    report = outcome.get_result()
-    setattr(item, f"rep_{report.when}", report)
 
 
 def make_job_parameters(**overrides: Any) -> JobParameters:
