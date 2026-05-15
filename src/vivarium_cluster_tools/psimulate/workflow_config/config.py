@@ -143,12 +143,7 @@ class ResourceConfig:
     hardware: list[str] | None = None
     """Optional list of hardware types to target (e.g. ``["r650", "r650v2"]``)."""
     requires_archive_node: bool = False
-    """Whether the step requires landing on an archive node.
-
-    When ``False`` (default), tasks may land on any node — archive or
-    non-archive. When ``True``, tasks are constrained to archive nodes
-    only (those tagged with the SLURM ``archive`` feature).
-    """
+    """Whether to enforce landing on an archive node."""
 
     _RUNTIME_RE = re.compile(r"^\d{2}:\d{2}:\d{2}$")
 
