@@ -28,7 +28,6 @@ def _resources() -> ResourceConfig:
     return ResourceConfig(memory_gb=4, project="proj_simscience", queue="all.q")
 
 
-@pytest.mark.xfail(reason="not implemented: get_command_step")
 def test_get_command_step_returns_command_step_config() -> None:
     """API returns a CommandStepConfig with the supplied fields applied."""
     step = get_command_step(
@@ -44,7 +43,6 @@ def test_get_command_step_returns_command_step_config() -> None:
     assert step.environment == "my_env"
 
 
-@pytest.mark.xfail(reason="not implemented: get_simulation_step")
 def test_get_simulation_step_returns_simulation_step_config(
     valid_model_spec_file: Path,
     valid_branch_config_file: Path,
@@ -71,7 +69,6 @@ def test_get_simulation_step_returns_simulation_step_config(
     assert step.environment == "sim_env"
 
 
-@pytest.mark.xfail(reason="not implemented: get_pytest_step")
 def test_get_pytest_step_returns_pytest_step_config(valid_pytest_path: str) -> None:
     """API returns a PytestStepConfig with all supported args applied."""
     step = get_pytest_step(
@@ -88,7 +85,6 @@ def test_get_pytest_step_returns_pytest_step_config(valid_pytest_path: str) -> N
     assert step.runslow is True
 
 
-@pytest.mark.xfail(reason="not implemented: get_python_step")
 def test_get_python_step_returns_python_step_config(valid_python_script: str) -> None:
     """API returns a PythonStepConfig; path/positional_args/keyword_args are
     bundled into the dataclass's ``args`` dict."""
@@ -106,7 +102,6 @@ def test_get_python_step_returns_python_step_config(valid_python_script: str) ->
     assert step.args["keyword_args"] == {"verbose": True, "out_dir": "/tmp/out"}
 
 
-@pytest.mark.xfail(reason="not implemented: get_notebook_step")
 def test_get_notebook_step_returns_notebook_step_config(valid_notebook_path: Path) -> None:
     """API returns a NotebookStepConfig with all supported args applied."""
     step = get_notebook_step(
@@ -125,7 +120,6 @@ def test_get_notebook_step_returns_notebook_step_config(valid_notebook_path: Pat
     assert step.cwd == valid_notebook_path.parent
 
 
-@pytest.mark.xfail(reason="not implemented: validation propagates through API")
 @pytest.mark.parametrize(
     "api_fn, extra_kwargs, expected_error",
     [
