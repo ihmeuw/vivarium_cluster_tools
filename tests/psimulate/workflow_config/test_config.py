@@ -349,7 +349,9 @@ class TestBaseStepConfig:
         mock_template.create_task.return_value = mock_task
 
         tasks = config.get_tasks(
-            mock_tool, env="my_env", build_timestamp="2026_04_24_10_00_00"
+            mock_tool,
+            env_prefix="/path/to/envs/my_env",
+            build_timestamp="2026_04_24_10_00_00",
         )
 
         assert tasks == [mock_task]
@@ -364,13 +366,13 @@ class TestBaseStepConfig:
                 "stdout": "/tmp/results",
                 "stderr": "/tmp/results",
             },
-            env="my_env",
+            env_prefix="/path/to/envs/my_env",
             command="echo hello world",
         )
 
-    def test_get_tasks_includes_env_in_node_args(self) -> None:
-        """env must be a node_arg so two steps with the same command but
-        different envs produce distinct Jobmon task hashes."""
+    def test_get_tasks_includes_env_prefix_in_node_args(self) -> None:
+        """env_prefix must be a node_arg so two steps with the same command
+        but different envs produce distinct Jobmon task hashes."""
         config = CommandStepConfig(
             name="test_step",
             resources=ResourceConfig(memory_gb=4, project="proj_simscience", queue="all.q"),
@@ -378,11 +380,15 @@ class TestBaseStepConfig:
             output_directory=Path("/tmp/results"),
         )
         mock_tool = MagicMock()
-        config.get_tasks(mock_tool, env="my_env", build_timestamp="2026_04_24_10_00_00")
+        config.get_tasks(
+            mock_tool,
+            env_prefix="/path/to/envs/my_env",
+            build_timestamp="2026_04_24_10_00_00",
+        )
 
         template_kwargs = mock_tool.get_task_template.call_args.kwargs
-        assert "env" in template_kwargs["node_args"]
-        assert "env" not in template_kwargs["op_args"]
+        assert "env_prefix" in template_kwargs["node_args"]
+        assert "env_prefix" not in template_kwargs["op_args"]
 
     def test_validate_required_paths_rejects_nonexistent(self) -> None:
         with pytest.raises(FileNotFoundError, match="does not exist"):
@@ -658,7 +664,9 @@ class TestSimulationStepConfig:
             build_ts = "2026_04_24_10_00_00"
 
             # -- Act --
-            result = config.get_tasks(mock_tool, env="test_env", build_timestamp=build_ts)
+            result = config.get_tasks(
+                mock_tool, env_prefix="/envs/test_env", build_timestamp=build_ts
+            )
 
             # -- Assert: OutputPaths created correctly --
             mock_output_paths_cls.from_entry_point_args.assert_called_once_with(
@@ -698,7 +706,7 @@ class TestSimulationStepConfig:
                 results_dir=Path("/out/results"),
                 worker_logging_root=Path("/out/logs"),
                 native_specification=config.native_specification,
-                env="test_env",
+                env_prefix="/envs/test_env",
                 template_name="psimulate_sim_step",
             )
 
@@ -750,7 +758,7 @@ class TestSimulationStepConfig:
 
             mock_tool = MagicMock()
             for step in steps:
-                step.get_tasks(mock_tool, env="test_env", build_timestamp="ts")
+                step.get_tasks(mock_tool, env_prefix="/envs/test_env", build_timestamp="ts")
 
             template_names = [
                 call.kwargs["template_name"]
@@ -878,7 +886,9 @@ class TestPytestStepConfig:
         mock_template.create_task.return_value = mock_task
 
         tasks = config.get_tasks(
-            mock_tool, env="my_env", build_timestamp="2026_05_04_10_00_00"
+            mock_tool,
+            env_prefix="/envs/my_env",
+            build_timestamp="2026_05_04_10_00_00",
         )
         assert tasks == [mock_task]
         call_kwargs = mock_template.create_task.call_args[1]
