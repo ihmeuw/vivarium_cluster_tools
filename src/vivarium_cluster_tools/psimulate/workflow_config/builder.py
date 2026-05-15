@@ -9,14 +9,13 @@ Build Jobmon workflows from workflow configuration.
 
 from __future__ import annotations
 
-import os
 from datetime import datetime
 from typing import TYPE_CHECKING
 
 from jobmon.client.api import Tool
 
-from vivarium_cluster_tools.psimulate.jobmon_config.workflow import resolve_env_prefix
 from vivarium_cluster_tools.psimulate.workflow_config.config import WorkflowConfig
+from vivarium_cluster_tools.psimulate.workflow_config.interface import resolve_step_env_prefix
 
 if TYPE_CHECKING:
     from jobmon.client.task import Task
@@ -72,21 +71,11 @@ class WorkflowBuilder:
         all_tasks: list[Task] = []
 
         for step in self.config.steps:
-            env = (
-                step.environment
-                or self.config.default_environment
-                or os.environ.get("CONDA_DEFAULT_ENV")
-            )
-            if not env or env == "base":
-                raise ValueError(
-                    f"Step '{step.name}': a non-base conda environment is required. "
-                    "Set 'environment' on the step, 'default_environment' on the workflow, "
-                    "or activate a conda environment before running."
-                )
-
             step_tasks = step.get_tasks(
                 self._tool,
-                env_prefix=resolve_env_prefix(env),
+                env_prefix=resolve_step_env_prefix(
+                    step, default_environment=self.config.default_environment
+                ),
                 build_timestamp=build_timestamp,
                 is_resume=is_resume,
             )

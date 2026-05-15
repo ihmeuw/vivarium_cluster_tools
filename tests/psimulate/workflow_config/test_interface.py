@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 import pytest
+from pytest_mock import MockerFixture
 
 from vivarium_cluster_tools.psimulate.workflow_config.config import (
     CommandStepConfig,
@@ -21,6 +22,7 @@ from vivarium_cluster_tools.psimulate.workflow_config.interface import (
     get_pytest_step,
     get_python_step,
     get_simulation_step,
+    resolve_step_env_prefix,
 )
 
 
@@ -165,3 +167,55 @@ def test_validation_propagates_through_api(
     }
     with pytest.raises(expected_error):
         api_fn(**{**common, **extra_kwargs})
+
+
+class TestResolveStepEnvPrefix:
+    """Verify the precedence and validation in ``resolve_step_env_prefix``."""
+
+    @pytest.fixture(autouse=True)
+    def patch_resolve_env_prefix(self, mocker: MockerFixture) -> None:
+        """Stub out the conda lookup so tests exercise only the precedence chain."""
+        mocker.patch(
+            "vivarium_cluster_tools.psimulate.workflow_config.interface.resolve_env_prefix",
+            side_effect=lambda env: f"/envs/{env}",
+        )
+
+    @staticmethod
+    def _step(environment: str | None) -> CommandStepConfig:
+        return CommandStepConfig(
+            name="s",
+            resources=_resources(),
+            command="echo hi",
+            output_directory=Path("/tmp/results"),
+            environment=environment,
+        )
+
+    def test_step_environment_takes_priority(self) -> None:
+        step = self._step(environment="step_env")
+        assert (
+            resolve_step_env_prefix(step, default_environment="workflow_env")
+            == "/envs/step_env"
+        )
+
+    def test_default_environment_used_when_step_unset(self) -> None:
+        step = self._step(environment=None)
+        assert (
+            resolve_step_env_prefix(step, default_environment="workflow_env")
+            == "/envs/workflow_env"
+        )
+
+    def test_conda_default_env_fallback(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("CONDA_DEFAULT_ENV", "conda_env")
+        step = self._step(environment=None)
+        assert resolve_step_env_prefix(step) == "/envs/conda_env"
+
+    def test_rejects_base_environment(self) -> None:
+        step = self._step(environment="base")
+        with pytest.raises(ValueError, match="non-base conda environment is required"):
+            resolve_step_env_prefix(step)
+
+    def test_raises_when_nothing_resolves(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("CONDA_DEFAULT_ENV", raising=False)
+        step = self._step(environment=None)
+        with pytest.raises(ValueError, match="non-base conda environment is required"):
+            resolve_step_env_prefix(step)

@@ -11,11 +11,14 @@ returns an instance of the corresponding step config class.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any
 
+from vivarium_cluster_tools.psimulate.jobmon_config.workflow import resolve_env_prefix
 from vivarium_cluster_tools.psimulate.workflow_config.config import (
     DEFAULT_BACKUP_FREQ_SECONDS,
+    BaseStepConfig,
     CommandStepConfig,
     NotebookStepConfig,
     PytestStepConfig,
@@ -290,3 +293,43 @@ def get_notebook_step(
         parameters=parameters if parameters is not None else {},
         cwd=cwd,
     )
+
+
+def resolve_step_env_prefix(
+    step: BaseStepConfig,
+    *,
+    default_environment: str | None = None,
+) -> str:
+    """Resolve a step's conda environment to an absolute filesystem prefix.
+
+    Applies the standard precedence: ``step.environment`` →
+    ``default_environment`` → the runner's active ``CONDA_DEFAULT_ENV``.
+    The resolved env name must be a non-``"base"`` conda environment.
+
+    Parameters
+    ----------
+    step
+        The step config whose environment to resolve.
+    default_environment
+        Workflow-level fallback used when ``step.environment`` is unset.
+
+    Returns
+    -------
+        The absolute filesystem prefix of the resolved conda environment,
+        suitable for passing as ``env_prefix`` to Jobmon task builders.
+
+    Raises
+    ------
+    ValueError
+        If no non-base environment can be resolved.
+    RuntimeError
+        If the resolved env name has no matching filesystem prefix.
+    """
+    env = step.environment or default_environment or os.environ.get("CONDA_DEFAULT_ENV")
+    if not env or env == "base":
+        raise ValueError(
+            f"Step '{step.name}': a non-base conda environment is required. "
+            "Set 'environment' on the step, 'default_environment' on the workflow, "
+            "or activate a conda environment before running."
+        )
+    return resolve_env_prefix(env)
