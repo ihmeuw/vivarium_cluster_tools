@@ -43,19 +43,28 @@ def resolve_env_prefix(env: str) -> str:
     avoid any worker-side conda dependency.
     """
     if env == os.environ.get("CONDA_DEFAULT_ENV"):
-        return os.environ["CONDA_PREFIX"]
-    result = subprocess.run(
-        [os.environ["CONDA_EXE"], "env", "list", "--json"],
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    for env_path in json.loads(result.stdout)["envs"]:
-        if Path(env_path).name == env:
-            return str(env_path)
-    raise RuntimeError(
-        f"Could not resolve conda env {env!r} to a filesystem prefix via " "`conda env list`."
-    )
+        env_prefix: str | None = os.environ["CONDA_PREFIX"]
+    else:
+        result = subprocess.run(
+            [os.environ["CONDA_EXE"], "env", "list", "--json"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        env_prefix = next(
+            (
+                str(path)
+                for path in json.loads(result.stdout)["envs"]
+                if Path(path).name == env
+            ),
+            None,
+        )
+    if env_prefix is None:
+        raise RuntimeError(
+            f"Could not resolve conda env {env!r} to a filesystem prefix "
+            "via `conda env list`."
+        )
+    return env_prefix
 
 
 def get_task_list(
