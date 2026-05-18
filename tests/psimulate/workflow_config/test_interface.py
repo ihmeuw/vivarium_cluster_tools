@@ -27,7 +27,7 @@ from vivarium_cluster_tools.psimulate.workflow_config.interface import (
 )
 from vivarium_cluster_tools.psimulate.workflow_config.utilities import (
     BUILD_TIMESTAMP_FILENAME,
-    _get_or_create_build_timestamp,
+    get_or_create_build_timestamp,
     resolve_step_env_prefix,
 )
 
@@ -77,7 +77,7 @@ def patch_build_timestamp(mocker: MockerFixture) -> MagicMock:
     """Stub the build-timestamp helper so API tests don't touch the
     filesystem and can assert on the timestamp passed to ``get_tasks``."""
     return mocker.patch(
-        "vivarium_cluster_tools.psimulate.workflow_config.interface._get_or_create_build_timestamp",
+        "vivarium_cluster_tools.psimulate.workflow_config.interface.get_or_create_build_timestamp",
         return_value=_BUILD_TIMESTAMP,
     )
 
@@ -394,14 +394,14 @@ class TestGetOrCreateBuildTimestamp:
     """Verify the persisted-vs-fresh behavior of the timestamp helper."""
 
     def test_creates_and_persists_timestamp_on_first_call(self, tmp_path: Path) -> None:
-        ts = _get_or_create_build_timestamp(tmp_path)
+        ts = get_or_create_build_timestamp(tmp_path)
         assert (tmp_path / BUILD_TIMESTAMP_FILENAME).read_text().strip() == ts
 
     def test_reuses_persisted_timestamp_on_subsequent_calls(self, tmp_path: Path) -> None:
         (tmp_path / BUILD_TIMESTAMP_FILENAME).write_text("2020_01_01_00_00_00")
-        assert _get_or_create_build_timestamp(tmp_path) == "2020_01_01_00_00_00"
+        assert get_or_create_build_timestamp(tmp_path) == "2020_01_01_00_00_00"
 
     def test_creates_missing_output_directory(self, tmp_path: Path) -> None:
         target = tmp_path / "does" / "not" / "exist"
-        ts = _get_or_create_build_timestamp(target)
+        ts = get_or_create_build_timestamp(target)
         assert (target / BUILD_TIMESTAMP_FILENAME).read_text().strip() == ts

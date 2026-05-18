@@ -15,8 +15,8 @@ from jobmon.client.api import Tool
 
 from vivarium_cluster_tools.psimulate.workflow_config.config import WorkflowConfig
 from vivarium_cluster_tools.psimulate.workflow_config.utilities import (
-    _get_or_create_build_timestamp,
-    is_build_resume,
+    get_or_create_build_timestamp,
+    is_resume,
     resolve_step_env_prefix,
 )
 
@@ -58,8 +58,8 @@ class WorkflowBuilder:
         # Generate a stable build timestamp once per workflow build.
         # On resume, reuse the timestamp from the previous build so that
         # steps produce identical output paths.
-        build_timestamp = self._get_or_create_build_timestamp()
-        is_resume = is_build_resume(self.config.output_directory)
+        build_timestamp = get_or_create_build_timestamp(self.config.output_directory)
+        resuming = is_resume(self.config.output_directory)
 
         previous_step_tasks: list[Task] = []
         all_tasks: list[Task] = []
@@ -71,7 +71,7 @@ class WorkflowBuilder:
                     step, default_environment=self.config.default_environment
                 ),
                 build_timestamp=build_timestamp,
-                is_resume=is_resume,
+                is_resume=resuming,
             )
 
             # Wire sequential dependencies: every task in this step
@@ -86,11 +86,3 @@ class WorkflowBuilder:
         workflow.add_tasks(all_tasks)
 
         return workflow
-
-    def _get_or_create_build_timestamp(self) -> str:
-        """Return a stable build timestamp for the workflow's output directory.
-
-        Thin instance-method wrapper around the module-level helper so that
-        tests can patch this on the class.
-        """
-        return _get_or_create_build_timestamp(self.config.output_directory)

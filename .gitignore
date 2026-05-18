@@ -121,4 +121,3 @@ src/vivarium_cluster_tools/_version.py
 
 # Agent files
 .claude/
-docs/plans/

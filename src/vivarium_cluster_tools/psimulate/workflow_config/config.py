@@ -34,8 +34,8 @@ from vivarium_cluster_tools.psimulate.jobs import (
 )
 from vivarium_cluster_tools.psimulate.paths import OutputPaths
 from vivarium_cluster_tools.psimulate.workflow_config.utilities import (
-    _check_scalar,
-    _validate_scalar_dict,
+    check_scalar,
+    validate_scalar_dict,
 )
 
 if TYPE_CHECKING:
@@ -893,7 +893,7 @@ class PythonStepConfig(BaseStepConfig):
         if "positional_args" in self.args:
             self._validate_positional_args(self.args["positional_args"])
         if "keyword_args" in self.args:
-            _validate_scalar_dict(
+            validate_scalar_dict(
                 self.args["keyword_args"],
                 field_name="keyword_args",
                 step_name=self.name,
@@ -912,7 +912,7 @@ class PythonStepConfig(BaseStepConfig):
                 f"got {type(positional_args).__name__}."
             )
         for arg_index, item in enumerate(positional_args):
-            _check_scalar(
+            check_scalar(
                 item,
                 label=f"positional_args[{arg_index}]",
                 step_name=self.name,
@@ -1046,7 +1046,7 @@ class NotebookStepConfig(BaseStepConfig):
                 f"Step '{self.name}': 'output_path' must end with .ipynb, "
                 f"got {self.output_path!r}."
             )
-        _validate_scalar_dict(
+        validate_scalar_dict(
             self.parameters,
             field_name="parameters",
             step_name=self.name,

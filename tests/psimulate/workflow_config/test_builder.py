@@ -77,10 +77,13 @@ def mock_resolve_env_prefix(mocker: MockerFixture) -> MagicMock:
 def mock_build_timestamp(mocker: MockerFixture) -> str:
     """Patch the build timestamp so tests don't write to the filesystem."""
     ts = "2026_04_24_10_00_00"
-    mocker.patch.object(
-        WorkflowBuilder,
-        "_get_or_create_build_timestamp",
+    mocker.patch(
+        "vivarium_cluster_tools.psimulate.workflow_config.builder.get_or_create_build_timestamp",
         return_value=ts,
+    )
+    mocker.patch(
+        "vivarium_cluster_tools.psimulate.workflow_config.builder.is_resume",
+        return_value=False,
     )
     return ts
 
