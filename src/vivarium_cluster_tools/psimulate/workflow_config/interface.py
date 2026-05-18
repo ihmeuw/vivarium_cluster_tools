@@ -25,7 +25,7 @@ from vivarium_cluster_tools.psimulate.workflow_config.config import (
     SimulationStepConfig,
 )
 from vivarium_cluster_tools.psimulate.workflow_config.utilities import (
-    _get_or_create_build_timestamp,
+    get_or_create_build_timestamp,
     resolve_step_env_prefix,
 )
 
@@ -78,7 +78,7 @@ def get_command_step_tasks(
     return step.get_tasks(
         tool,
         env_prefix=resolve_step_env_prefix(step),
-        build_timestamp=_get_or_create_build_timestamp(step.output_directory),
+        build_timestamp=get_or_create_build_timestamp(step.output_directory),
         is_resume=is_resume,
     )
 
@@ -153,7 +153,7 @@ def get_simulation_step_tasks(
     return step.get_tasks(
         tool,
         env_prefix=resolve_step_env_prefix(step),
-        build_timestamp=_get_or_create_build_timestamp(step.output_directory),
+        build_timestamp=get_or_create_build_timestamp(step.output_directory),
         is_resume=is_resume,
     )
 
@@ -216,7 +216,7 @@ def get_pytest_step_tasks(
     return step.get_tasks(
         tool,
         env_prefix=resolve_step_env_prefix(step),
-        build_timestamp=_get_or_create_build_timestamp(step.output_directory),
+        build_timestamp=get_or_create_build_timestamp(step.output_directory),
         is_resume=is_resume,
     )
 
@@ -288,7 +288,7 @@ def get_python_step_tasks(
     return step.get_tasks(
         tool,
         env_prefix=resolve_step_env_prefix(step),
-        build_timestamp=_get_or_create_build_timestamp(step.output_directory),
+        build_timestamp=get_or_create_build_timestamp(step.output_directory),
         is_resume=is_resume,
     )
 
@@ -360,6 +360,6 @@ def get_notebook_step_tasks(
     return step.get_tasks(
         tool,
         env_prefix=resolve_step_env_prefix(step),
-        build_timestamp=_get_or_create_build_timestamp(step.output_directory),
+        build_timestamp=get_or_create_build_timestamp(step.output_directory),
         is_resume=is_resume,
     )

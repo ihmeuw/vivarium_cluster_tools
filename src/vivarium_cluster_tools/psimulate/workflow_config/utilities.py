@@ -41,7 +41,7 @@ _IDENTIFIER_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
 """Pattern for keys in scalar-dict step args (``keyword_args``, ``parameters``)."""
 
 
-def _get_or_create_build_timestamp(output_directory: Path) -> str:
+def get_or_create_build_timestamp(output_directory: Path) -> str:
     """Return a stable build timestamp for ``output_directory``.
 
     Reads the persisted timestamp from a marker file under ``output_directory``
@@ -60,7 +60,7 @@ def _get_or_create_build_timestamp(output_directory: Path) -> str:
     return build_timestamp
 
 
-def is_build_resume(output_directory: Path) -> bool:
+def is_resume(output_directory: Path) -> bool:
     """Return ``True`` when ``output_directory`` already holds a persisted
     build timestamp, indicating a previous build has run there."""
     return (output_directory / BUILD_TIMESTAMP_FILENAME).exists()
@@ -106,7 +106,7 @@ def resolve_step_env_prefix(
     return resolve_env_prefix(env)
 
 
-def _check_scalar(
+def check_scalar(
     value: object,
     *,
     label: str,
@@ -135,7 +135,7 @@ def _check_scalar(
         )
 
 
-def _validate_scalar_dict(
+def validate_scalar_dict(
     configuration: object,
     *,
     field_name: str,
@@ -169,7 +169,7 @@ def _validate_scalar_dict(
                 f"Step '{step_name}': {field_name} key {key!r} is not a valid "
                 "identifier. Keys must be alphanumeric, have dashes, or underscores."
             )
-        _check_scalar(
+        check_scalar(
             value,
             label=f"{field_name}['{key}']",
             step_name=step_name,

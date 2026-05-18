@@ -21,7 +21,7 @@ from vivarium_cluster_tools.psimulate.workflow_config.interface import (
     get_python_step_tasks,
     get_simulation_step_tasks,
 )
-from vivarium_cluster_tools.psimulate.workflow_config.utilities import is_build_resume
+from vivarium_cluster_tools.psimulate.workflow_config.utilities import is_resume
 
 if TYPE_CHECKING:
     from jobmon.client.task import Task
@@ -68,10 +68,10 @@ class WorkflowBuilder:
             default_max_attempts=self.config.max_attempts,
         )
 
-        # is_resume must be checked before any step runs: the build-timestamp
-        # marker is what is_build_resume looks for, and the first interface
-        # API call will write that marker as a side-effect of running.
-        is_resume = is_build_resume(self.config.output_directory)
+        # Resume must be checked before any step runs: the build-timestamp
+        # marker is what is_resume looks for, and the first interface API
+        # call will write that marker as a side-effect of running.
+        resuming = is_resume(self.config.output_directory)
 
         previous_step_tasks: list[Task] = []
         all_tasks: list[Task] = []
@@ -79,7 +79,7 @@ class WorkflowBuilder:
         for parsed_step in self.config.steps:
             api_fn = STEP_TYPE_TO_API_FN[parsed_step.step_type]
             kwargs = self._resolve_environment(parsed_step.api_kwargs)
-            step_tasks = api_fn(**kwargs, tool=self._tool, is_resume=is_resume)
+            step_tasks = api_fn(**kwargs, tool=self._tool, is_resume=resuming)
 
             # Wire sequential dependencies: every task in this step
             # depends on every task from the previous step.

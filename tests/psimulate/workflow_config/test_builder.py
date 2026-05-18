@@ -65,13 +65,17 @@ def mock_resolve_env_prefix(mocker: MockerFixture) -> MagicMock:
 def mock_build_timestamp(mocker: MockerFixture) -> str:
     """Patch the build timestamp so tests don't write to the filesystem.
 
-    The interface API functions import ``_get_or_create_build_timestamp``
+    The interface API functions import ``get_or_create_build_timestamp``
     from utilities; patching the imported name here intercepts every call.
     """
     ts = "2026_04_24_10_00_00"
     mocker.patch(
-        "vivarium_cluster_tools.psimulate.workflow_config.interface._get_or_create_build_timestamp",
+        "vivarium_cluster_tools.psimulate.workflow_config.interface.get_or_create_build_timestamp",
         return_value=ts,
+    )
+    mocker.patch(
+        "vivarium_cluster_tools.psimulate.workflow_config.builder.is_resume",
+        return_value=False,
     )
     return ts
 
