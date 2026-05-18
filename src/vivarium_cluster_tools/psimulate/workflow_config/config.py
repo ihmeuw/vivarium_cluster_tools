@@ -1220,6 +1220,25 @@ class NotebookStepConfig(BaseStepConfig):
         return cls(**kwargs)
 
 
+STEP_TYPES: dict[str, type[BaseStepConfig]] = {
+    "command": CommandStepConfig,
+    "simulation": SimulationStepConfig,
+    "pytest": PytestStepConfig,
+    "python": PythonStepConfig,
+    "notebook": NotebookStepConfig,
+}
+"""Maps each YAML ``step_type`` string to its step-config class. Adding a new
+step type requires a matching entry in
+:data:`vivarium_cluster_tools.psimulate.workflow_config.interface.STEP_TYPE_API_FNS`;
+the import-time keyset check in ``interface.py`` catches drift."""
+
+
+_STEP_CLASS_TO_TYPE: dict[type[BaseStepConfig], str] = {
+    cls: step_type for step_type, cls in STEP_TYPES.items()
+}
+"""Derived inverse of :data:`STEP_TYPES` for fast ``step class → step_type`` lookup."""
+
+
 @dataclass(frozen=True)
 class ParsedStep:
     """A parsed workflow step ready to be passed to an interface API function.
@@ -1230,17 +1249,6 @@ class ParsedStep:
     intermediate :class:`BaseStepConfig` instance used to validate the raw
     YAML is discarded after parsing.
     """
-
-    _STEP_CLASS_TO_TYPE: ClassVar[dict[type[BaseStepConfig], str]] = {
-        CommandStepConfig: "command",
-        SimulationStepConfig: "simulation",
-        PytestStepConfig: "pytest",
-        PythonStepConfig: "python",
-        NotebookStepConfig: "notebook",
-    }
-    """Maps each concrete step-config class to its ``step_type`` string. The
-    ``step_type`` is the key used by the builder to dispatch to the matching
-    :mod:`vivarium_cluster_tools.psimulate.workflow_config.interface` function."""
 
     step_type: str
     """One of "command", "simulation", "pytest", "python", "notebook"."""
@@ -1260,7 +1268,7 @@ class ParsedStep:
         into a :class:`WorkflowConfig`.
         """
         return cls(
-            step_type=cls._STEP_CLASS_TO_TYPE[type(step)],
+            step_type=_STEP_CLASS_TO_TYPE[type(step)],
             api_kwargs=step.to_api_kwargs(),
             yaml_dict=step.to_dict(),
         )
@@ -1269,15 +1277,6 @@ class ParsedStep:
 @dataclass
 class WorkflowConfig:
     """Parsed and validated workflow configuration."""
-
-    # Step type mappings - add new step types here as they are implemented
-    SUPPORTED_STEP_TYPES: ClassVar[dict[str, type[BaseStepConfig]]] = {
-        "command": CommandStepConfig,
-        "simulation": SimulationStepConfig,
-        "pytest": PytestStepConfig,
-        "python": PythonStepConfig,
-        "notebook": NotebookStepConfig,
-    }
 
     name: str
     """Name of the workflow. This is what will be displayed in Jobmon"""
@@ -1344,7 +1343,7 @@ class WorkflowConfig:
         is the default when ``type`` is omitted.
         """
         parsed_steps: list[ParsedStep] = []
-        valid_yaml_types = {t for t in WorkflowConfig.SUPPORTED_STEP_TYPES if t != "command"}
+        valid_yaml_types = {t for t in STEP_TYPES if t != "command"}
         for step_dict in raw_steps:
             if "command" in step_dict and "type" in step_dict:
                 step_name = step_dict.get("name", "<unnamed>")
@@ -1353,13 +1352,13 @@ class WorkflowConfig:
                     "Use 'command' for command-based steps or 'type' for typed steps."
                 )
             step_type = step_dict.get("type") or "command"
-            if step_type not in WorkflowConfig.SUPPORTED_STEP_TYPES:
+            if step_type not in STEP_TYPES:
                 step_name = step_dict.get("name", "<unnamed>")
                 raise ValueError(
                     f"Step '{step_name}': unsupported type '{step_type}'. "
                     f"Must be one of: {sorted(valid_yaml_types)}."
                 )
-            step_class = WorkflowConfig.SUPPORTED_STEP_TYPES[step_type]
+            step_class = STEP_TYPES[step_type]
             step = step_class.from_dict(
                 step_dict,
                 output_directory=output_directory,

@@ -13,10 +13,11 @@ its ``get_tasks`` method.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Callable
 
 from vivarium_cluster_tools.psimulate.workflow_config.config import (
     DEFAULT_BACKUP_FREQ_SECONDS,
+    STEP_TYPES,
     CommandStepConfig,
     NotebookStepConfig,
     PytestStepConfig,
@@ -363,3 +364,22 @@ def get_notebook_step_tasks(
         build_timestamp=get_or_create_build_timestamp(step.output_directory),
         is_resume=is_resume,
     )
+
+
+STEP_TYPE_API_FNS: dict[str, Callable[..., list[Task]]] = {
+    "command": get_command_step_tasks,
+    "simulation": get_simulation_step_tasks,
+    "pytest": get_pytest_step_tasks,
+    "python": get_python_step_tasks,
+    "notebook": get_notebook_step_tasks,
+}
+"""Maps each YAML ``step_type`` to the API function that builds its tasks.
+Paired with :data:`vivarium_cluster_tools.psimulate.workflow_config.config.STEP_TYPES`;
+the assertion below catches keyset drift between the two registries at import time."""
+
+
+assert STEP_TYPE_API_FNS.keys() == STEP_TYPES.keys(), (
+    "Step-type registries disagree: "
+    f"config.STEP_TYPES={sorted(STEP_TYPES)} vs "
+    f"interface.STEP_TYPE_API_FNS={sorted(STEP_TYPE_API_FNS)}"
+)

@@ -9,33 +9,17 @@ Build Jobmon workflows from workflow configuration.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any
 
 from jobmon.client.api import Tool
 
 from vivarium_cluster_tools.psimulate.workflow_config.config import WorkflowConfig
-from vivarium_cluster_tools.psimulate.workflow_config.interface import (
-    get_command_step_tasks,
-    get_notebook_step_tasks,
-    get_pytest_step_tasks,
-    get_python_step_tasks,
-    get_simulation_step_tasks,
-)
+from vivarium_cluster_tools.psimulate.workflow_config.interface import STEP_TYPE_API_FNS
 from vivarium_cluster_tools.psimulate.workflow_config.utilities import is_resume
 
 if TYPE_CHECKING:
     from jobmon.client.task import Task
     from jobmon.client.workflow import Workflow
-
-
-STEP_TYPE_TO_API_FN: dict[str, Callable[..., list[Task]]] = {
-    "command": get_command_step_tasks,
-    "simulation": get_simulation_step_tasks,
-    "pytest": get_pytest_step_tasks,
-    "python": get_python_step_tasks,
-    "notebook": get_notebook_step_tasks,
-}
-"""Maps each ``step_type`` to the interface API function that builds its tasks."""
 
 
 class WorkflowBuilder:
@@ -77,7 +61,7 @@ class WorkflowBuilder:
         all_tasks: list[Task] = []
 
         for parsed_step in self.config.steps:
-            api_fn = STEP_TYPE_TO_API_FN[parsed_step.step_type]
+            api_fn = STEP_TYPE_API_FNS[parsed_step.step_type]
             kwargs = self._resolve_environment(parsed_step.api_kwargs)
             step_tasks = api_fn(**kwargs, tool=self._tool, is_resume=resuming)
 
