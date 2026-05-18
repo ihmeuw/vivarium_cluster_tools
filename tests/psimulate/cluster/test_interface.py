@@ -86,12 +86,12 @@ class TestNativeSpecification:
     @pytest.mark.parametrize(
         "hardware, requires_archive_node, expected_constraints",
         [
-            (["r650"], False, "r650"),
-            (["r650", "r650v2"], False, "r650|r650v2"),
-            (["a100", "h100", "l40s"], False, "a100|h100|l40s"),
+            (["r650"], False, "(r650)"),
+            (["r650", "r650v2"], False, "(r650|r650v2)"),
+            (["a100", "h100", "l40s"], False, "(a100|h100|l40s)"),
             ([], False, None),
             ([], True, "archive"),
-            (["r650"], True, "r650&archive"),
+            (["r650"], True, "(r650)&archive"),
             (["r650", "r650v2"], True, "(r650|r650v2)&archive"),
             (["a100", "h100", "l40s"], True, "(a100|h100|l40s)&archive"),
         ],

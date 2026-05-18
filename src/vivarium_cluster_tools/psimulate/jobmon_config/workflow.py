@@ -35,12 +35,6 @@ def resolve_env_prefix(env: str) -> str:
     other env names, queries ``conda env list --json`` via ``CONDA_EXE``
     to find the matching prefix.
 
-    Worker shells on cluster compute nodes cannot always invoke ``conda``
-    (the conda binary itself may be installed on host-local storage), but
-    they can always invoke ``<env_prefix>/bin/<binary>`` because the env
-    lives on a shared filesystem.  Resolving the env to its prefix on the
-    runner lets us bake an env-local PATH into the worker command and
-    avoid any worker-side conda dependency.
     """
     if env == os.environ.get("CONDA_DEFAULT_ENV"):
         env_prefix: str | None = os.environ["CONDA_PREFIX"]
