@@ -68,7 +68,7 @@ def mock_resolve_env_prefix(mocker: MockerFixture) -> MagicMock:
     passed through, without invoking the real ``conda env list`` lookup.
     """
     return mocker.patch(
-        "vivarium_cluster_tools.psimulate.workflow_config.interface.resolve_env_prefix",
+        "vivarium_cluster_tools.psimulate.workflow_config.utilities.resolve_env_prefix",
         side_effect=lambda env: env,
     )
 

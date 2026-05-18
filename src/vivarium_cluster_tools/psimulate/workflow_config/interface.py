@@ -3,22 +3,20 @@
 Workflow Config Interface
 =========================
 
-Python API for building workflow step configurations programmatically,
-as an alternative to authoring a YAML workflow file. Each function
-returns an instance of the corresponding step config class.
+Python API for building workflow step tasks programmatically, as an
+alternative to authoring a YAML workflow file. Each function constructs
+the corresponding step config and returns the Jobmon tasks produced by
+its ``get_tasks`` method.
 
 """
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from vivarium_cluster_tools.psimulate.jobmon_config.workflow import resolve_env_prefix
 from vivarium_cluster_tools.psimulate.workflow_config.config import (
     DEFAULT_BACKUP_FREQ_SECONDS,
-    BaseStepConfig,
     CommandStepConfig,
     NotebookStepConfig,
     PytestStepConfig,
@@ -26,17 +24,27 @@ from vivarium_cluster_tools.psimulate.workflow_config.config import (
     ResourceConfig,
     SimulationStepConfig,
 )
+from vivarium_cluster_tools.psimulate.workflow_config.utilities import (
+    _get_or_create_build_timestamp,
+    resolve_step_env_prefix,
+)
+
+if TYPE_CHECKING:
+    from jobmon.client.api import Tool
+    from jobmon.client.task import Task
 
 
-def get_command_step(
+def get_command_step_tasks(
     *,
     name: str,
     resources: ResourceConfig,
     command: str,
     output_directory: Path,
+    tool: Tool,
     environment: str | None = None,
-) -> CommandStepConfig:
-    """Build a command-based workflow step that runs an arbitrary shell command.
+    is_resume: bool = False,
+) -> list[Task]:
+    """Build a command-based workflow step and return its Jobmon tasks.
 
     Parameters
     ----------
@@ -48,36 +56,48 @@ def get_command_step(
         Shell command string to execute.
     output_directory
         Directory for this step's worker logs and step-level outputs.
+    tool
+        Jobmon Tool used to register task templates and create tasks.
     environment
-        Optional conda environment name to use for this step. If omitted,
-        falls back to the workflow-level default at build time.
+        Optional conda environment name to use for this step. If unset,
+        falls back to the runner's active ``CONDA_DEFAULT_ENV``.
+    is_resume
+        Whether this is a resumed workflow build.
 
     Returns
     -------
-        A configured :class:`~vivarium_cluster_tools.psimulate.workflow_config.config.CommandStepConfig`.
+        The Jobmon tasks produced by the step.
     """
-    return CommandStepConfig(
+    step = CommandStepConfig(
         name=name,
         resources=resources,
         command=command,
         output_directory=output_directory,
         environment=environment,
     )
+    return step.get_tasks(
+        tool,
+        env_prefix=resolve_step_env_prefix(step),
+        build_timestamp=_get_or_create_build_timestamp(step.output_directory),
+        is_resume=is_resume,
+    )
 
 
-def get_simulation_step(
+def get_simulation_step_tasks(
     *,
     name: str,
     resources: ResourceConfig,
     output_directory: Path,
     model_specification: Path,
     branch_configuration: Path,
+    tool: Tool,
     environment: str | None = None,
     artifact_path: Path | None = None,
     backup_freq: float | None = DEFAULT_BACKUP_FREQ_SECONDS,
     sim_verbosity: int = 0,
-) -> SimulationStepConfig:
-    """Build a parallel-simulation workflow step.
+    is_resume: bool = False,
+) -> list[Task]:
+    """Build a parallel-simulation workflow step and return its Jobmon tasks.
 
     Produces one Jobmon task per ``(input_draw, random_seed, branch)``
     combination defined by the branch configuration. Uses the same task
@@ -99,8 +119,11 @@ def get_simulation_step(
     branch_configuration
         Path to the branch configuration YAML file. Both relative and
         absolute paths are accepted.
+    tool
+        Jobmon Tool used to register task templates and create tasks.
     environment
-        Optional conda environment name to use for this step.
+        Optional conda environment name to use for this step. If unset,
+        falls back to the runner's active ``CONDA_DEFAULT_ENV``.
     artifact_path
         Optional path to a data artifact file. Both relative and absolute
         paths are accepted.
@@ -109,12 +132,14 @@ def get_simulation_step(
         Defaults to 30 minutes.
     sim_verbosity
         Vivarium simulation logging verbosity level. Default is 0.
+    is_resume
+        Whether this is a resumed workflow build.
 
     Returns
     -------
-        A configured :class:`~vivarium_cluster_tools.psimulate.workflow_config.config.SimulationStepConfig`.
+        The Jobmon tasks produced by the step.
     """
-    return SimulationStepConfig(
+    step = SimulationStepConfig(
         name=name,
         resources=resources,
         output_directory=output_directory,
@@ -125,19 +150,27 @@ def get_simulation_step(
         backup_freq=backup_freq,
         sim_verbosity=sim_verbosity,
     )
+    return step.get_tasks(
+        tool,
+        env_prefix=resolve_step_env_prefix(step),
+        build_timestamp=_get_or_create_build_timestamp(step.output_directory),
+        is_resume=is_resume,
+    )
 
 
-def get_pytest_step(
+def get_pytest_step_tasks(
     *,
     name: str,
     resources: ResourceConfig,
     output_directory: Path,
+    tool: Tool,
     environment: str | None = None,
     path: str | list[str] | None = None,
     k: str | None = None,
     runslow: bool = False,
-) -> PytestStepConfig:
-    """Build a pytest-based workflow step.
+    is_resume: bool = False,
+) -> list[Task]:
+    """Build a pytest-based workflow step and return its Jobmon tasks.
 
     At least one of ``path`` or ``k`` must be provided. When the step's
     ``resources.cores`` is greater than 1, the command is run with
@@ -151,8 +184,11 @@ def get_pytest_step(
         Compute resources for this step.
     output_directory
         Directory for this step's worker logs and step-level outputs.
+    tool
+        Jobmon Tool used to register task templates and create tasks.
     environment
-        Optional conda environment name to use for this step.
+        Optional conda environment name to use for this step. If unset,
+        falls back to the runner's active ``CONDA_DEFAULT_ENV``.
     path
         Test path(s) — a single file/directory or a list of them — passed
         to pytest as positional arguments. Both relative and absolute
@@ -161,12 +197,14 @@ def get_pytest_step(
         Pytest ``-k`` expression used to filter tests by name.
     runslow
         If ``True``, pass ``--runslow`` to pytest. Default is ``False``.
+    is_resume
+        Whether this is a resumed workflow build.
 
     Returns
     -------
-        A configured :class:`~vivarium_cluster_tools.psimulate.workflow_config.config.PytestStepConfig`.
+        The Jobmon tasks produced by the step.
     """
-    return PytestStepConfig(
+    step = PytestStepConfig(
         name=name,
         resources=resources,
         output_directory=output_directory,
@@ -175,19 +213,27 @@ def get_pytest_step(
         k=k,
         runslow=runslow,
     )
+    return step.get_tasks(
+        tool,
+        env_prefix=resolve_step_env_prefix(step),
+        build_timestamp=_get_or_create_build_timestamp(step.output_directory),
+        is_resume=is_resume,
+    )
 
 
-def get_python_step(
+def get_python_step_tasks(
     *,
     name: str,
     resources: ResourceConfig,
     output_directory: Path,
     path: str,
+    tool: Tool,
     environment: str | None = None,
     positional_args: list[Any] | None = None,
     keyword_args: dict[str, Any] | None = None,
-) -> PythonStepConfig:
-    """Build a Python-script workflow step.
+    is_resume: bool = False,
+) -> list[Task]:
+    """Build a Python-script workflow step and return its Jobmon tasks.
 
     Constructs a ``python <path> [positional_args...] [--key value...]``
     command. Positional arguments are appended in list order; keyword
@@ -209,45 +255,58 @@ def get_python_step(
     path
         Path to the Python script (must end with ``.py``). Both relative
         and absolute paths are accepted.
+    tool
+        Jobmon Tool used to register task templates and create tasks.
     environment
-        Optional conda environment name to use for this step.
+        Optional conda environment name to use for this step. If unset,
+        falls back to the runner's active ``CONDA_DEFAULT_ENV``.
     positional_args
         Optional list of scalar values appended in order as positional
         CLI arguments.
     keyword_args
         Optional dict mapping identifier-style keys to scalar values,
         rendered as ``--key value`` flags (see flag rules above).
+    is_resume
+        Whether this is a resumed workflow build.
 
     Returns
     -------
-        A configured :class:`~vivarium_cluster_tools.psimulate.workflow_config.config.PythonStepConfig`.
+        The Jobmon tasks produced by the step.
     """
     args: dict[str, Any] = {"path": path}
     if positional_args is not None:
         args["positional_args"] = positional_args
     if keyword_args is not None:
         args["keyword_args"] = keyword_args
-    return PythonStepConfig(
+    step = PythonStepConfig(
         name=name,
         resources=resources,
         output_directory=output_directory,
         environment=environment,
         args=args,
     )
+    return step.get_tasks(
+        tool,
+        env_prefix=resolve_step_env_prefix(step),
+        build_timestamp=_get_or_create_build_timestamp(step.output_directory),
+        is_resume=is_resume,
+    )
 
 
-def get_notebook_step(
+def get_notebook_step_tasks(
     *,
     name: str,
     resources: ResourceConfig,
     output_directory: Path,
     path: Path,
     output_path: Path,
+    tool: Tool,
     environment: str | None = None,
     parameters: dict[str, Any] | None = None,
     cwd: Path | None = None,
-) -> NotebookStepConfig:
-    """Build a notebook-based workflow step (executed via papermill).
+    is_resume: bool = False,
+) -> list[Task]:
+    """Build a notebook-based workflow step and return its Jobmon tasks.
 
     Parameter values map to papermill flags as follows:
 
@@ -271,19 +330,24 @@ def get_notebook_step(
     output_path
         Path where the executed notebook will be written (must end with
         ``.ipynb``). Both relative and absolute paths are accepted.
+    tool
+        Jobmon Tool used to register task templates and create tasks.
     environment
-        Optional conda environment name to use for this step.
+        Optional conda environment name to use for this step. If unset,
+        falls back to the runner's active ``CONDA_DEFAULT_ENV``.
     parameters
         Optional dict of scalar values injected as notebook parameters.
     cwd
         Optional working directory for notebook execution. If not
         provided, defaults to the parent directory of ``path``.
+    is_resume
+        Whether this is a resumed workflow build.
 
     Returns
     -------
-        A configured :class:`~vivarium_cluster_tools.psimulate.workflow_config.config.NotebookStepConfig`.
+        The Jobmon tasks produced by the step.
     """
-    return NotebookStepConfig(
+    step = NotebookStepConfig(
         name=name,
         resources=resources,
         output_directory=output_directory,
@@ -293,43 +357,9 @@ def get_notebook_step(
         parameters=parameters if parameters is not None else {},
         cwd=cwd,
     )
-
-
-def resolve_step_env_prefix(
-    step: BaseStepConfig,
-    *,
-    default_environment: str | None = None,
-) -> str:
-    """Resolve a step's conda environment to an absolute filesystem prefix.
-
-    Applies the standard precedence: ``step.environment`` →
-    ``default_environment`` → the runner's active ``CONDA_DEFAULT_ENV``.
-    The resolved env name must be a non-``"base"`` conda environment.
-
-    Parameters
-    ----------
-    step
-        The step config whose environment to resolve.
-    default_environment
-        Workflow-level fallback used when ``step.environment`` is unset.
-
-    Returns
-    -------
-        The absolute filesystem prefix of the resolved conda environment,
-        suitable for passing as ``env_prefix`` to Jobmon task builders.
-
-    Raises
-    ------
-    ValueError
-        If no non-base environment can be resolved.
-    RuntimeError
-        If the resolved env name has no matching filesystem prefix.
-    """
-    env = step.environment or default_environment or os.environ.get("CONDA_DEFAULT_ENV")
-    if not env or env == "base":
-        raise ValueError(
-            f"Step '{step.name}': a non-base conda environment is required. "
-            "Set 'environment' on the step, 'default_environment' on the workflow, "
-            "or activate a conda environment before running."
-        )
-    return resolve_env_prefix(env)
+    return step.get_tasks(
+        tool,
+        env_prefix=resolve_step_env_prefix(step),
+        build_timestamp=_get_or_create_build_timestamp(step.output_directory),
+        is_resume=is_resume,
+    )

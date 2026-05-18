@@ -9,26 +9,20 @@ Build Jobmon workflows from workflow configuration.
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import TYPE_CHECKING
 
 from jobmon.client.api import Tool
 
 from vivarium_cluster_tools.psimulate.workflow_config.config import WorkflowConfig
-from vivarium_cluster_tools.psimulate.workflow_config.interface import resolve_step_env_prefix
+from vivarium_cluster_tools.psimulate.workflow_config.utilities import (
+    _get_or_create_build_timestamp,
+    is_build_resume,
+    resolve_step_env_prefix,
+)
 
 if TYPE_CHECKING:
     from jobmon.client.task import Task
     from jobmon.client.workflow import Workflow
-
-
-WORKFLOW_ARGS_FILENAME = ".workflow_args"
-"""File written to the output directory to persist the Jobmon workflow_args
-for resume support."""
-
-BUILD_TIMESTAMP_FILENAME = ".build_timestamp"
-"""File written to the output directory to persist the build timestamp
-so that resume builds produce identical output paths."""
 
 
 class WorkflowBuilder:
@@ -65,7 +59,7 @@ class WorkflowBuilder:
         # On resume, reuse the timestamp from the previous build so that
         # steps produce identical output paths.
         build_timestamp = self._get_or_create_build_timestamp()
-        is_resume = self._is_resume()
+        is_resume = is_build_resume(self.config.output_directory)
 
         previous_step_tasks: list[Task] = []
         all_tasks: list[Task] = []
@@ -93,40 +87,10 @@ class WorkflowBuilder:
 
         return workflow
 
-    def _is_resume(self) -> bool:
-        """Check whether this is a resumed workflow build.
-
-        Returns True if the build timestamp file already exists in the
-        output directory, indicating a previous build has run.
-        """
-        timestamp_path = self.config.output_directory / BUILD_TIMESTAMP_FILENAME
-        return timestamp_path.exists()
-
     def _get_or_create_build_timestamp(self) -> str:
-        """Return a stable build timestamp, persisting it for resume support.
+        """Return a stable build timestamp for the workflow's output directory.
 
-        On a fresh build, generates a new timestamp from ``datetime.now()``
-        and writes it to a marker file in the output directory. On resume,
-        reads and returns the previously persisted timestamp.
-
-        .. note::
-
-            If you want to re-run a workflow to the same output directory
-            after a previous successful run, you must first delete the
-            ``.build_timestamp`` file from the output directory. Otherwise
-            the new run will reuse the old timestamp and write results
-            into the same subdirectories, potentially clobbering data.
-            Using a fresh output directory for each new run avoids this.
-
-        Returns
-        -------
-            Timestamp string in ``YYYY_MM_DD_HH_MM_SS`` format.
+        Thin instance-method wrapper around the module-level helper so that
+        tests can patch this on the class.
         """
-        timestamp_path = self.config.output_directory / BUILD_TIMESTAMP_FILENAME
-        if timestamp_path.exists():
-            return timestamp_path.read_text().strip()
-
-        build_timestamp = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
-        self.config.output_directory.mkdir(parents=True, exist_ok=True)
-        timestamp_path.write_text(build_timestamp)
-        return build_timestamp
+        return _get_or_create_build_timestamp(self.config.output_directory)
