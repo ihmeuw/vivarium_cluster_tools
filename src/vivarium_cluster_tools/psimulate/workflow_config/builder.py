@@ -9,29 +9,42 @@ Build Jobmon workflows from workflow configuration.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Callable
 
 from jobmon.client.api import Tool
 
 from vivarium_cluster_tools.psimulate.workflow_config.config import WorkflowConfig
-from vivarium_cluster_tools.psimulate.workflow_config.utilities import (
-    _get_or_create_build_timestamp,
-    is_build_resume,
-    resolve_step_env_prefix,
+from vivarium_cluster_tools.psimulate.workflow_config.interface import (
+    get_command_step_tasks,
+    get_notebook_step_tasks,
+    get_pytest_step_tasks,
+    get_python_step_tasks,
+    get_simulation_step_tasks,
 )
+from vivarium_cluster_tools.psimulate.workflow_config.utilities import is_build_resume
 
 if TYPE_CHECKING:
     from jobmon.client.task import Task
     from jobmon.client.workflow import Workflow
 
 
+STEP_TYPE_TO_API_FN: dict[str, Callable[..., list[Task]]] = {
+    "command": get_command_step_tasks,
+    "simulation": get_simulation_step_tasks,
+    "pytest": get_pytest_step_tasks,
+    "python": get_python_step_tasks,
+    "notebook": get_notebook_step_tasks,
+}
+"""Maps each ``step_type`` to the interface API function that builds its tasks."""
+
+
 class WorkflowBuilder:
     """Build a complete Jobmon workflow from a workflow configuration.
 
-    For each step in the workflow, creates one or more Jobmon tasks and
-    wires dependencies so that steps execute in sequential order (all
-    tasks from step *N* must complete before any task in step *N+1*
-    starts).
+    For each step in the workflow, dispatches to the matching interface API
+    function (one of ``get_*_step_tasks``) and wires dependencies so that
+    steps execute in sequential order (all tasks from step *N* must complete
+    before any task in step *N+1* starts).
     """
 
     def __init__(self, config: WorkflowConfig) -> None:
@@ -55,24 +68,18 @@ class WorkflowBuilder:
             default_max_attempts=self.config.max_attempts,
         )
 
-        # Generate a stable build timestamp once per workflow build.
-        # On resume, reuse the timestamp from the previous build so that
-        # steps produce identical output paths.
-        build_timestamp = self._get_or_create_build_timestamp()
+        # is_resume must be checked before any step runs: the build-timestamp
+        # marker is what is_build_resume looks for, and the first interface
+        # API call will write that marker as a side-effect of running.
         is_resume = is_build_resume(self.config.output_directory)
 
         previous_step_tasks: list[Task] = []
         all_tasks: list[Task] = []
 
-        for step in self.config.steps:
-            step_tasks = step.get_tasks(
-                self._tool,
-                env_prefix=resolve_step_env_prefix(
-                    step, default_environment=self.config.default_environment
-                ),
-                build_timestamp=build_timestamp,
-                is_resume=is_resume,
-            )
+        for parsed_step in self.config.steps:
+            api_fn = STEP_TYPE_TO_API_FN[parsed_step.step_type]
+            kwargs = self._resolve_environment(parsed_step.api_kwargs)
+            step_tasks = api_fn(**kwargs, tool=self._tool, is_resume=is_resume)
 
             # Wire sequential dependencies: every task in this step
             # depends on every task from the previous step.
@@ -87,10 +94,13 @@ class WorkflowBuilder:
 
         return workflow
 
-    def _get_or_create_build_timestamp(self) -> str:
-        """Return a stable build timestamp for the workflow's output directory.
+    def _resolve_environment(self, api_kwargs: dict[str, Any]) -> dict[str, Any]:
+        """Apply workflow-level ``default_environment`` to a step's kwargs.
 
-        Thin instance-method wrapper around the module-level helper so that
-        tests can patch this on the class.
+        Step-level ``environment`` wins; otherwise the workflow default is
+        substituted. Returns a new dict so the cached ``ParsedStep.api_kwargs``
+        is not mutated.
         """
-        return _get_or_create_build_timestamp(self.config.output_directory)
+        if api_kwargs.get("environment") is not None:
+            return api_kwargs
+        return {**api_kwargs, "environment": self.config.default_environment}

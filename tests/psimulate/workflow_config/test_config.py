@@ -47,8 +47,8 @@ class TestWorkflowConfigFromYaml:
     def test_step_ordering_preserved(self, valid_workflow_yaml: Path) -> None:
         config = WorkflowConfig.from_yaml_with_cli_overrides(valid_workflow_yaml)
         assert len(config.steps) == 2
-        assert config.steps[0].name == "pre_tests"
-        assert config.steps[1].name == "post_analysis"
+        assert config.steps[0].api_kwargs["name"] == "pre_tests"
+        assert config.steps[1].api_kwargs["name"] == "post_analysis"
 
     @pytest.mark.parametrize(
         "index, expected_command",
@@ -63,19 +63,19 @@ class TestWorkflowConfigFromYaml:
     ) -> None:
         config = WorkflowConfig.from_yaml_with_cli_overrides(valid_workflow_yaml)
         step = config.steps[index]
-        assert isinstance(step, CommandStepConfig)
-        assert step.command == expected_command
+        assert step.step_type == "command"
+        assert step.api_kwargs["command"] == expected_command
 
     def test_parses_step_resources(self, valid_workflow_yaml: Path) -> None:
         config = WorkflowConfig.from_yaml_with_cli_overrides(valid_workflow_yaml)
-        assert config.steps[0].resources.memory_gb == 10
-        assert config.steps[0].resources.runtime == "01:00:00"
-        assert config.steps[1].resources.cores == 2
+        assert config.steps[0].api_kwargs["resources"].memory_gb == 10
+        assert config.steps[0].api_kwargs["resources"].runtime == "01:00:00"
+        assert config.steps[1].api_kwargs["resources"].cores == 2
 
     def test_parses_step_environment(self, valid_workflow_yaml: Path) -> None:
         config = WorkflowConfig.from_yaml_with_cli_overrides(valid_workflow_yaml)
-        assert config.steps[0].environment is None
-        assert config.steps[1].environment == "analysis_env"
+        assert config.steps[0].api_kwargs["environment"] is None
+        assert config.steps[1].api_kwargs["environment"] == "analysis_env"
 
     def test_routes_to_simulation_step(
         self, tmp_path: Path, valid_model_spec_file: Path, valid_branch_config_file: Path
@@ -96,8 +96,8 @@ class TestWorkflowConfigFromYaml:
 
         config = WorkflowConfig.from_yaml_with_cli_overrides(yaml_path)
         assert len(config.steps) == 1
-        assert isinstance(config.steps[0], SimulationStepConfig)
-        assert config.steps[0].name == "sim"
+        assert config.steps[0].step_type == "simulation"
+        assert config.steps[0].api_kwargs["name"] == "sim"
 
 
 class TestWorkflowConfigValidation:
@@ -968,8 +968,8 @@ class TestPytestStepConfig:
 
         config = WorkflowConfig.from_yaml_with_cli_overrides(yaml_path)
         assert len(config.steps) == 1
-        assert isinstance(config.steps[0], PytestStepConfig)
-        assert config.steps[0].name == "run_tests"
+        assert config.steps[0].step_type == "pytest"
+        assert config.steps[0].api_kwargs["name"] == "run_tests"
 
 
 class TestPythonStepConfig:
@@ -1211,8 +1211,8 @@ class TestPythonStepConfig:
 
         config = WorkflowConfig.from_yaml_with_cli_overrides(yaml_path)
         assert len(config.steps) == 1
-        assert isinstance(config.steps[0], PythonStepConfig)
-        assert config.steps[0].name == "run_script"
+        assert config.steps[0].step_type == "python"
+        assert config.steps[0].api_kwargs["name"] == "run_script"
 
 
 class TestNotebookStepConfig:
@@ -1450,5 +1450,5 @@ class TestNotebookStepConfig:
 
         config = WorkflowConfig.from_yaml_with_cli_overrides(yaml_path)
         assert len(config.steps) == 1
-        assert isinstance(config.steps[0], NotebookStepConfig)
-        assert config.steps[0].name == "run_notebook"
+        assert config.steps[0].step_type == "notebook"
+        assert config.steps[0].api_kwargs["name"] == "run_notebook"

@@ -425,6 +425,17 @@ class BaseStepConfig(ABC):
         """
         pass
 
+    @abstractmethod
+    def to_api_kwargs(self) -> dict[str, Any]:
+        """Return kwargs ready to splat into the matching interface API function.
+
+        The keys must match the keyword parameters of the corresponding
+        ``get_*_step_tasks`` function in
+        :mod:`vivarium_cluster_tools.psimulate.workflow_config.interface`,
+        excluding ``tool`` and ``is_resume`` (supplied by the builder).
+        """
+        pass
+
 
 @dataclass
 class CommandStepConfig(BaseStepConfig):
@@ -467,6 +478,16 @@ class CommandStepConfig(BaseStepConfig):
             result["environment"] = self.environment
 
         return result
+
+    def to_api_kwargs(self) -> dict[str, Any]:
+        """Return kwargs ready to splat into :func:`get_command_step_tasks`."""
+        return {
+            "name": self.name,
+            "resources": self.resources,
+            "command": self.command,
+            "output_directory": self.output_directory,
+            "environment": self.environment,
+        }
 
     @classmethod
     def _build_from_dict(
@@ -653,6 +674,20 @@ class SimulationStepConfig(BaseStepConfig):
         result["args"] = args
         return result
 
+    def to_api_kwargs(self) -> dict[str, Any]:
+        """Return kwargs ready to splat into :func:`get_simulation_step_tasks`."""
+        return {
+            "name": self.name,
+            "resources": self.resources,
+            "output_directory": self.output_directory,
+            "model_specification": self.model_specification,
+            "branch_configuration": self.branch_configuration,
+            "environment": self.environment,
+            "artifact_path": self.artifact_path,
+            "backup_freq": self.backup_freq,
+            "sim_verbosity": self.sim_verbosity,
+        }
+
     @classmethod
     def _build_from_dict(
         cls, data: dict[str, Any], output_directory: Path, *, project: str, queue: str
@@ -791,6 +826,18 @@ class PytestStepConfig(BaseStepConfig):
 
         result["args"] = args
         return result
+
+    def to_api_kwargs(self) -> dict[str, Any]:
+        """Return kwargs ready to splat into :func:`get_pytest_step_tasks`."""
+        return {
+            "name": self.name,
+            "resources": self.resources,
+            "output_directory": self.output_directory,
+            "environment": self.environment,
+            "path": self.path,
+            "k": self.k,
+            "runslow": self.runslow,
+        }
 
     @classmethod
     def _build_from_dict(
@@ -952,6 +999,23 @@ class PythonStepConfig(BaseStepConfig):
         result["args"] = copy.deepcopy(self.args)
         return result
 
+    def to_api_kwargs(self) -> dict[str, Any]:
+        """Return kwargs ready to splat into :func:`get_python_step_tasks`.
+
+        Unpacks the stored ``args`` dict so ``path``, ``positional_args``,
+        and ``keyword_args`` arrive as top-level kwargs matching the API
+        function's signature.
+        """
+        return {
+            "name": self.name,
+            "resources": self.resources,
+            "output_directory": self.output_directory,
+            "path": self.args["path"],
+            "environment": self.environment,
+            "positional_args": self.args.get("positional_args"),
+            "keyword_args": self.args.get("keyword_args"),
+        }
+
     @classmethod
     def _build_from_dict(
         cls, data: dict[str, Any], output_directory: Path, *, project: str, queue: str
@@ -1107,6 +1171,19 @@ class NotebookStepConfig(BaseStepConfig):
         result["args"] = args
         return result
 
+    def to_api_kwargs(self) -> dict[str, Any]:
+        """Return kwargs ready to splat into :func:`get_notebook_step_tasks`."""
+        return {
+            "name": self.name,
+            "resources": self.resources,
+            "output_directory": self.output_directory,
+            "path": self.path,
+            "output_path": self.output_path,
+            "environment": self.environment,
+            "parameters": self.parameters,
+            "cwd": self.cwd,
+        }
+
     @classmethod
     def _build_from_dict(
         cls,
@@ -1143,12 +1220,59 @@ class NotebookStepConfig(BaseStepConfig):
         return cls(**kwargs)
 
 
+@dataclass(frozen=True)
+class ParsedStep:
+    """A parsed workflow step ready to be passed to an interface API function.
+
+    Produced by :meth:`WorkflowConfig._parse_steps`. Holds the *inputs* to
+    the matching ``get_*_step_tasks`` function (in ``api_kwargs``), plus the
+    YAML-serializable form (``yaml_dict``) used for round-trip output. The
+    intermediate :class:`BaseStepConfig` instance used to validate the raw
+    YAML is discarded after parsing.
+    """
+
+    _STEP_CLASS_TO_TYPE: ClassVar[dict[type[BaseStepConfig], str]] = {
+        CommandStepConfig: "command",
+        SimulationStepConfig: "simulation",
+        PytestStepConfig: "pytest",
+        PythonStepConfig: "python",
+        NotebookStepConfig: "notebook",
+    }
+    """Maps each concrete step-config class to its ``step_type`` string. The
+    ``step_type`` is the key used by the builder to dispatch to the matching
+    :mod:`vivarium_cluster_tools.psimulate.workflow_config.interface` function."""
+
+    step_type: str
+    """One of "command", "simulation", "pytest", "python", "notebook"."""
+    api_kwargs: dict[str, Any]
+    """Kwargs ready to splat into the matching interface API function. Excludes
+    ``tool`` and ``is_resume``, which are supplied by the builder."""
+    yaml_dict: dict[str, Any]
+    """YAML-serializable representation of the step (the output of the source
+    step config's ``to_dict``)."""
+
+    @classmethod
+    def from_step_config(cls, step: BaseStepConfig) -> ParsedStep:
+        """Build a :class:`ParsedStep` from a constructed step-config instance.
+
+        Used by ``_parse_steps`` after validation, and by callers that build
+        step instances programmatically (e.g. tests) and want to drop them
+        into a :class:`WorkflowConfig`.
+        """
+        return cls(
+            step_type=cls._STEP_CLASS_TO_TYPE[type(step)],
+            api_kwargs=step.to_api_kwargs(),
+            yaml_dict=step.to_dict(),
+        )
+
+
 @dataclass
 class WorkflowConfig:
     """Parsed and validated workflow configuration."""
 
     # Step type mappings - add new step types here as they are implemented
     SUPPORTED_STEP_TYPES: ClassVar[dict[str, type[BaseStepConfig]]] = {
+        "command": CommandStepConfig,
         "simulation": SimulationStepConfig,
         "pytest": PytestStepConfig,
         "python": PythonStepConfig,
@@ -1166,8 +1290,9 @@ class WorkflowConfig:
     paths are accepted."""
     default_environment: str | None
     """Default environment to use for steps that do not specify one."""
-    steps: list[BaseStepConfig]
-    """List of sequential steps in the workflow."""
+    steps: list[ParsedStep]
+    """Parsed workflow steps, each carrying the kwargs needed by the matching
+    interface API function."""
     max_attempts: int = DEFAULT_MAX_ATTEMPTS
     """Maximum number of Jobmon task attempts. Default is 2."""
 
@@ -1210,14 +1335,16 @@ class WorkflowConfig:
         *,
         project: str,
         queue: str,
-    ) -> list[BaseStepConfig]:
-        """Parse a list of raw step dicts into step config objects.
+    ) -> list[ParsedStep]:
+        """Parse a list of raw step dicts into :class:`ParsedStep` objects.
 
-        Routes to the appropriate step type based on the 'type' field using
-        WorkflowConfig.SUPPORTED_STEP_TYPES. Falls back to CommandStepConfig
-        if no type is specified. Raises ValueError for unrecognized types.
+        Constructs the matching step config class transiently to run its
+        ``__post_init__`` validation, then extracts the kwargs needed by the
+        interface API function and discards the instance. The "command" type
+        is the default when ``type`` is omitted.
         """
-        steps: list[BaseStepConfig] = []
+        parsed_steps: list[ParsedStep] = []
+        valid_yaml_types = {t for t in WorkflowConfig.SUPPORTED_STEP_TYPES if t != "command"}
         for step_dict in raw_steps:
             if "command" in step_dict and "type" in step_dict:
                 step_name = step_dict.get("name", "<unnamed>")
@@ -1225,31 +1352,22 @@ class WorkflowConfig:
                     f"Step '{step_name}': Cannot specify both 'command' and 'type'. "
                     "Use 'command' for command-based steps or 'type' for typed steps."
                 )
-            step_type = step_dict.get("type")
-            if step_type is not None:
-                if step_type not in WorkflowConfig.SUPPORTED_STEP_TYPES:
-                    step_name = step_dict.get("name", "<unnamed>")
-                    raise ValueError(
-                        f"Step '{step_name}': unsupported type '{step_type}'. "
-                        f"Must be one of: {sorted(WorkflowConfig.SUPPORTED_STEP_TYPES)}."
-                    )
-                step_class = WorkflowConfig.SUPPORTED_STEP_TYPES[step_type]
-                step = step_class.from_dict(
-                    step_dict,
-                    output_directory=output_directory,
-                    project=project,
-                    queue=queue,
+            step_type = step_dict.get("type") or "command"
+            if step_type not in WorkflowConfig.SUPPORTED_STEP_TYPES:
+                step_name = step_dict.get("name", "<unnamed>")
+                raise ValueError(
+                    f"Step '{step_name}': unsupported type '{step_type}'. "
+                    f"Must be one of: {sorted(valid_yaml_types)}."
                 )
-            else:
-                # Default command-based step
-                step = CommandStepConfig.from_dict(
-                    step_dict,
-                    output_directory=output_directory,
-                    project=project,
-                    queue=queue,
-                )
-            steps.append(step)
-        return steps
+            step_class = WorkflowConfig.SUPPORTED_STEP_TYPES[step_type]
+            step = step_class.from_dict(
+                step_dict,
+                output_directory=output_directory,
+                project=project,
+                queue=queue,
+            )
+            parsed_steps.append(ParsedStep.from_step_config(step))
+        return parsed_steps
 
     @classmethod
     def from_yaml_with_cli_overrides(
@@ -1333,7 +1451,7 @@ class WorkflowConfig:
         # Uses a placeholder value for runtime
         validate_runtime_and_queue("01:00:00", self.queue)  # validate queue value
         # Unique step names
-        names = [step.name for step in self.steps]
+        names = [step.api_kwargs["name"] for step in self.steps]
         if len(names) != len(set(names)):
             raise ValueError(
                 f"Step names must be unique. Duplicate names found: {[name for name in names if names.count(name) > 1]}"
@@ -1350,6 +1468,6 @@ class WorkflowConfig:
         }
         if self.default_environment is not None:
             result["default_environment"] = self.default_environment
-        result["steps"] = [step.to_dict() for step in self.steps]
+        result["steps"] = [step.yaml_dict for step in self.steps]
 
         return result

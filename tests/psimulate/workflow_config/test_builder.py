@@ -11,6 +11,7 @@ from pytest_mock import MockerFixture
 from vivarium_cluster_tools.psimulate.workflow_config.builder import WorkflowBuilder
 from vivarium_cluster_tools.psimulate.workflow_config.config import (
     CommandStepConfig,
+    ParsedStep,
     ResourceConfig,
     WorkflowConfig,
 )
@@ -26,30 +27,17 @@ def three_step_config() -> WorkflowConfig:
         output_directory=Path("/tmp/results"),
         default_environment=None,
         steps=[
-            CommandStepConfig(
-                name="step1",
-                resources=ResourceConfig(
-                    memory_gb=1, project="proj_simscience", queue="all.q"
-                ),
-                command="echo step1",
-                output_directory=Path("/tmp/results"),
-            ),
-            CommandStepConfig(
-                name="step2",
-                resources=ResourceConfig(
-                    memory_gb=1, project="proj_simscience", queue="all.q"
-                ),
-                command="echo step2",
-                output_directory=Path("/tmp/results"),
-            ),
-            CommandStepConfig(
-                name="step3",
-                resources=ResourceConfig(
-                    memory_gb=1, project="proj_simscience", queue="all.q"
-                ),
-                command="echo step3",
-                output_directory=Path("/tmp/results"),
-            ),
+            ParsedStep.from_step_config(
+                CommandStepConfig(
+                    name=f"step{i}",
+                    resources=ResourceConfig(
+                        memory_gb=1, project="proj_simscience", queue="all.q"
+                    ),
+                    command=f"echo step{i}",
+                    output_directory=Path("/tmp/results"),
+                )
+            )
+            for i in (1, 2, 3)
         ],
     )
 
@@ -75,11 +63,14 @@ def mock_resolve_env_prefix(mocker: MockerFixture) -> MagicMock:
 
 @pytest.fixture(autouse=True)
 def mock_build_timestamp(mocker: MockerFixture) -> str:
-    """Patch the build timestamp so tests don't write to the filesystem."""
+    """Patch the build timestamp so tests don't write to the filesystem.
+
+    The interface API functions import ``_get_or_create_build_timestamp``
+    from utilities; patching the imported name here intercepts every call.
+    """
     ts = "2026_04_24_10_00_00"
-    mocker.patch.object(
-        WorkflowBuilder,
-        "_get_or_create_build_timestamp",
+    mocker.patch(
+        "vivarium_cluster_tools.psimulate.workflow_config.interface._get_or_create_build_timestamp",
         return_value=ts,
     )
     return ts
@@ -99,13 +90,15 @@ def _make_single_step_config(
         output_directory=Path("/tmp/results"),
         default_environment=default_environment,
         steps=[
-            CommandStepConfig(
-                name="s1",
-                resources=resources
-                or ResourceConfig(memory_gb=1, project="proj_simscience", queue="all.q"),
-                command="echo hi",
-                output_directory=Path("/tmp/results"),
-                environment=step_environment,
+            ParsedStep.from_step_config(
+                CommandStepConfig(
+                    name="s1",
+                    resources=resources
+                    or ResourceConfig(memory_gb=1, project="proj_simscience", queue="all.q"),
+                    command="echo hi",
+                    output_directory=Path("/tmp/results"),
+                    environment=step_environment,
+                )
             )
         ],
     )
