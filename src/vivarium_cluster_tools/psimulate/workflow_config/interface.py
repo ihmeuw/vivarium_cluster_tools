@@ -374,12 +374,4 @@ STEP_TYPE_API_FNS: dict[str, Callable[..., list[Task]]] = {
     "notebook": get_notebook_step_tasks,
 }
 """Maps each YAML ``step_type`` to the API function that builds its tasks.
-Paired with :data:`vivarium_cluster_tools.psimulate.workflow_config.config.STEP_TYPES`;
-the assertion below catches keyset drift between the two registries at import time."""
-
-
-assert STEP_TYPE_API_FNS.keys() == STEP_TYPES.keys(), (
-    "Step-type registries disagree: "
-    f"config.STEP_TYPES={sorted(STEP_TYPES)} vs "
-    f"interface.STEP_TYPE_API_FNS={sorted(STEP_TYPE_API_FNS)}"
-)
+Paired with :data:`vivarium_cluster_tools.psimulate.workflow_config.config.STEP_TYPES`."""

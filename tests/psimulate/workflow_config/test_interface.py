@@ -461,6 +461,20 @@ def _build_step_instance(
     raise ValueError(f"No factory for step_type {step_type!r}")
 
 
+def test_step_type_registries_match() -> None:
+    """``STEP_TYPES`` and ``STEP_TYPE_API_FNS`` must have identical keysets.
+
+    Catches keyset drift between the two registries: adding a step type to
+    one without the other would otherwise produce a runtime error at
+    workflow-build time.
+    """
+    assert STEP_TYPE_API_FNS.keys() == STEP_TYPES.keys(), (
+        "Step-type registries disagree: "
+        f"config.STEP_TYPES={sorted(STEP_TYPES)} vs "
+        f"interface.STEP_TYPE_API_FNS={sorted(STEP_TYPE_API_FNS)}"
+    )
+
+
 @pytest.mark.parametrize("step_type", sorted(STEP_TYPES))
 def test_to_api_kwargs_keys_match_api_fn_signature(
     step_type: str,
