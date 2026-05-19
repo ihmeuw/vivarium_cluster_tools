@@ -131,7 +131,9 @@ class TestWorkflowConfigValidation:
         steps = [{"name": "no_cmd", "resources": {"memory_gb": 4}}]
         data = make_workflow_dict(steps=steps)
         yaml_path = write_workflow_yaml(tmp_path, data)
-        with pytest.raises(KeyError, match="command"):
+        with pytest.raises(
+            ValueError, match="command-based steps require a top-level 'command' field"
+        ):
             WorkflowConfig.from_yaml_with_cli_overrides(yaml_path)
 
     def test_rejects_step_without_resources(self, tmp_path: Path) -> None:
@@ -192,7 +194,7 @@ class TestWorkflowConfigValidation:
         data = make_workflow_dict(steps=steps)
         yaml_path = write_workflow_yaml(tmp_path, data)
         with pytest.raises(
-            ValueError, match="'type: command' requires a top-level 'command' field"
+            ValueError, match="command-based steps require a top-level 'command' field"
         ):
             WorkflowConfig.from_yaml_with_cli_overrides(yaml_path)
 

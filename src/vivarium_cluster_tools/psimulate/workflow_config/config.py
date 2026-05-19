@@ -416,7 +416,25 @@ class CommandStepConfig(BaseStepConfig):
         project: str,
         queue: str,
     ) -> dict[str, Any]:
-        """Parse a raw command-step YAML dict into API kwargs."""
+        """Parse a raw command-step YAML dict into API kwargs.
+
+        The YAML form for a command step requires a top-level ``command``
+        field. The optional ``type`` field, when present, must be ``"command"``.
+        """
+        step_name = data.get("name", "<unnamed>")
+        cls._check_supported_args(data.get("args", {}), step_name)
+        if "command" not in data:
+            raise ValueError(
+                f"Step '{step_name}': command-based steps require a top-level "
+                "'command' field."
+            )
+        explicit_type = data.get("type")
+        if explicit_type is not None and explicit_type != "command":
+            raise ValueError(
+                f"Step '{step_name}': cannot specify both 'command' and "
+                f"'type: {explicit_type}'. When 'command' is set, 'type' "
+                "must be omitted or set to 'command'."
+            )
         return {
             "name": data["name"],
             "resources": ResourceConfig.from_dict(
@@ -635,6 +653,7 @@ class SimulationStepConfig(BaseStepConfig):
     ) -> dict[str, Any]:
         """Parse a raw simulation-step YAML dict into API kwargs."""
         args = data.get("args", {}) or {}
+        cls._check_supported_args(args, data.get("name", "<unnamed>"))
 
         kwargs: dict[str, Any] = {
             "name": data["name"],
@@ -796,6 +815,7 @@ class PytestStepConfig(BaseStepConfig):
     ) -> dict[str, Any]:
         """Parse a raw pytest-step YAML dict into API kwargs."""
         args = data.get("args", {}) or {}
+        cls._check_supported_args(args, data.get("name", "<unnamed>"))
 
         kwargs: dict[str, Any] = {
             "name": data["name"],
@@ -985,6 +1005,7 @@ class PythonStepConfig(BaseStepConfig):
         """Parse a raw python-step YAML dict into API kwargs."""
         args = copy.deepcopy(data["args"])
         step_name = data.get("name", "<unnamed>")
+        cls._check_supported_args(args, step_name)
         if "path" not in args:
             raise ValueError(f"Step '{step_name}': python type requires 'path' in args.")
         kwargs: dict[str, Any] = {
@@ -1169,6 +1190,7 @@ class NotebookStepConfig(BaseStepConfig):
         """Parse a raw notebook-step YAML dict into API kwargs."""
         args = copy.deepcopy(data["args"])
         step_name = data.get("name", "<unnamed>")
+        cls._check_supported_args(args, step_name)
 
         if "output_path" not in args:
             raise ValueError(
@@ -1203,6 +1225,30 @@ STEP_TYPES: dict[str, type[BaseStepConfig]] = {
 """Maps each YAML ``step_type`` string to its step-config class. Adding a new
 step type requires a matching entry in
 :data:`vivarium_cluster_tools.psimulate.workflow_config.builder.STEP_TYPE_API_FNS`"""
+
+
+def _resolve_step_type(step_dict: dict[str, Any]) -> str:
+    """Pick the step-type key for ``step_dict``.
+
+    Dispatch rules:
+
+    - A top-level ``command`` field always resolves to ``"command"``;
+      :meth:`CommandStepConfig.kwargs_from_yaml` enforces the rest of the
+      command-step schema (including any conflicting ``type``).
+    - Otherwise, an explicit ``type`` is used.
+    - Otherwise, ``"command"`` is the default, so the command-step parser
+      can raise a focused error about the missing ``command`` field.
+    """
+    if "command" in step_dict:
+        return "command"
+    step_type = step_dict.get("type", "command")
+    if step_type not in STEP_TYPES:
+        step_name = step_dict.get("name", "<unnamed>")
+        raise ValueError(
+            f"Step '{step_name}': unsupported type '{step_type}'. "
+            f"Must be one of: {sorted(STEP_TYPES)}."
+        )
+    return step_type
 
 
 @dataclass(frozen=True)
@@ -1302,33 +1348,8 @@ class WorkflowConfig:
 
         parsed_steps: list[ParsedStep] = []
         for step_dict in raw_steps:
-            step_name = step_dict.get("name", "<unnamed>")
-            has_command = "command" in step_dict
-            explicit_type = step_dict.get("type")
-
-            if has_command:
-                if explicit_type is not None and explicit_type != "command":
-                    raise ValueError(
-                        f"Step '{step_name}': cannot specify both 'command' and "
-                        f"'type: {explicit_type}'. When 'command' is set, 'type' "
-                        "must be omitted or set to 'command'."
-                    )
-                step_type = "command"
-            else:
-                if explicit_type == "command":
-                    raise ValueError(
-                        f"Step '{step_name}': 'type: command' requires a top-level "
-                        "'command' field."
-                    )
-                step_type = explicit_type or "command"
-
-            if step_type not in STEP_TYPES:
-                raise ValueError(
-                    f"Step '{step_name}': unsupported type '{step_type}'. "
-                    f"Must be one of: {sorted(STEP_TYPES)}."
-                )
+            step_type = _resolve_step_type(step_dict)
             step_class = STEP_TYPES[step_type]
-            step_class._check_supported_args(step_dict.get("args", {}), step_name)
             api_kwargs = step_class.kwargs_from_yaml(
                 step_dict,
                 output_directory=output_directory,
