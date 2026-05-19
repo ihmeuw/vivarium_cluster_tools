@@ -188,8 +188,15 @@ class BaseStepConfig(ABC):
     environment: str | None
 
     _SUPPORTED_ARGS: ClassVar[set[str] | None] = None
-    """Arguments supported in the 'args' section of the step configuration. Arguments not 
+    """Arguments supported in the 'args' section of the step configuration. Arguments not
     in this set will be rejected with a validation error."""
+
+    _WRAP_FOR_LOGGING: ClassVar[bool] = True
+    """Whether commands produced by ``_build_command`` should be wrapped by
+    ``task_runner subprocess --`` so failing-task output appears in the
+    SLURM stderr file (and thus the Jobmon GUI). Subclasses can override to
+    ``False`` to opt out (e.g. simulation steps that already have their own
+    dual-sink logging setup via the ``simulation`` mode)."""
 
     def __post_init__(self) -> None:
         """Common validation for all step types, then call subclass validation.
@@ -375,6 +382,20 @@ class BaseStepConfig(ABC):
         """
         pass
 
+    def _wrap_for_logging(self, command: str) -> str:
+        """[stub] Implement in Phase 2.
+
+        When :attr:`_WRAP_FOR_LOGGING` is ``True``, prepend the
+        ``task_runner subprocess --`` wrapper so the child's output is
+        duplicated to stderr on failure. Returns ``command`` unchanged
+        otherwise.
+
+        Currently a no-op so existing behavior is preserved during the
+        Phase 1 (xfail) checkpoint; the corresponding xfail tests verify
+        the prefix lands once Phase 2 fills in the body.
+        """
+        return command
+
     def _create_single_command_task(
         self, tool: Tool, *, env_prefix: str, command: str
     ) -> Task:
@@ -410,7 +431,7 @@ class BaseStepConfig(ABC):
             name=self.name,
             compute_resources=compute_resources,
             env_prefix=env_prefix,
-            command=command,
+            command=self._wrap_for_logging(command),
         )
 
     @abstractmethod

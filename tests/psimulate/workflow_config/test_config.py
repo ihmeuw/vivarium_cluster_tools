@@ -437,6 +437,72 @@ class TestBaseStepConfig:
                 args={"path": "/nonexistent/script.py"},
             )
 
+    @pytest.mark.xfail(reason="not implemented: BaseStepConfig._wrap_for_logging prefix")
+    def test_pytest_step_command_is_wrapped_with_runner(self, valid_pytest_path: str) -> None:
+        """PytestStepConfig's task command is prepended with the runner module
+        so failing-test output appears in the SLURM stderr file."""
+        config = PytestStepConfig(
+            name="run_tests",
+            resources=ResourceConfig(memory_gb=4, project="proj_simscience", queue="all.q"),
+            output_directory=Path("/tmp/results"),
+            path=valid_pytest_path,
+        )
+        mock_tool = MagicMock()
+        mock_template = MagicMock()
+        mock_tool.get_task_template.return_value = mock_template
+
+        config.get_tasks(
+            mock_tool,
+            env_prefix="/env",
+            build_timestamp="2026_04_24_10_00_00",
+        )
+
+        cmd = mock_template.create_task.call_args.kwargs["command"]
+        assert "vivarium_cluster_tools.psimulate.worker.task_runner subprocess --" in cmd
+        assert "pytest" in cmd  # inner command preserved
+
+    @pytest.mark.xfail(reason="not implemented: BaseStepConfig._wrap_for_logging prefix")
+    def test_command_step_command_is_wrapped_with_runner(self) -> None:
+        """CommandStepConfig's raw command is also wrapped — proves the
+        prefix lives on the base class, not per step type."""
+        config = CommandStepConfig(
+            name="raw",
+            resources=ResourceConfig(memory_gb=4, project="proj_simscience", queue="all.q"),
+            command="echo hello world",
+            output_directory=Path("/tmp/results"),
+        )
+        mock_tool = MagicMock()
+        mock_template = MagicMock()
+        mock_tool.get_task_template.return_value = mock_template
+
+        config.get_tasks(
+            mock_tool,
+            env_prefix="/env",
+            build_timestamp="2026_04_24_10_00_00",
+        )
+
+        cmd = mock_template.create_task.call_args.kwargs["command"]
+        assert "vivarium_cluster_tools.psimulate.worker.task_runner subprocess --" in cmd
+        assert "echo hello world" in cmd
+
+    @pytest.mark.xfail(reason="not implemented: _WRAP_FOR_LOGGING opt-out")
+    def test_wrap_for_logging_opt_out(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """The default class attribute wraps; setting it to False opts out."""
+        config = CommandStepConfig(
+            name="raw",
+            resources=ResourceConfig(memory_gb=4, project="proj_simscience", queue="all.q"),
+            command="echo hello world",
+            output_directory=Path("/tmp/results"),
+        )
+        # Default: wrapping applies.
+        assert (
+            "vivarium_cluster_tools.psimulate.worker.task_runner subprocess --"
+            in config._wrap_for_logging("echo hello world")
+        )
+        # Opt-out: wrapping is bypassed.
+        monkeypatch.setattr(CommandStepConfig, "_WRAP_FOR_LOGGING", False)
+        assert config._wrap_for_logging("echo hello world") == "echo hello world"
+
 
 class TestCommandStepConfig:
     """Tests for CommandStepConfig - the default command-based step type."""

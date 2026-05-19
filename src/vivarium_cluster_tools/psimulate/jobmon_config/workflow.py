@@ -112,7 +112,7 @@ def get_task_list(
         List of Jobmon Task objects, one per job.
     """
     worker_command = (
-        "python -m vivarium_cluster_tools.psimulate.worker.task_runner "
+        "python -m vivarium_cluster_tools.psimulate.worker.task_runner simulation "
         "--metadata-dir {metadata_dir} "
         "--task-id {task_id} "
         "--results-dir {results_dir} "
