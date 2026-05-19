@@ -10,6 +10,7 @@ from unittest.mock import MagicMock
 import pytest
 from pytest_mock import MockerFixture
 
+from vivarium_cluster_tools.psimulate.workflow_config.builder import STEP_TYPE_API_FNS
 from vivarium_cluster_tools.psimulate.workflow_config.config import (
     STEP_TYPES,
     BaseStepConfig,
@@ -21,7 +22,6 @@ from vivarium_cluster_tools.psimulate.workflow_config.config import (
     SimulationStepConfig,
 )
 from vivarium_cluster_tools.psimulate.workflow_config.interface import (
-    STEP_TYPE_API_FNS,
     get_command_step_tasks,
     get_notebook_step_tasks,
     get_pytest_step_tasks,
@@ -471,7 +471,7 @@ def test_step_type_registries_match() -> None:
     assert STEP_TYPE_API_FNS.keys() == STEP_TYPES.keys(), (
         "Step-type registries disagree: "
         f"config.STEP_TYPES={sorted(STEP_TYPES)} vs "
-        f"interface.STEP_TYPE_API_FNS={sorted(STEP_TYPE_API_FNS)}"
+        f"builder.STEP_TYPE_API_FNS={sorted(STEP_TYPE_API_FNS)}"
     )
 
 

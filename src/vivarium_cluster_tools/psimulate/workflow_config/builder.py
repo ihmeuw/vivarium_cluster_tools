@@ -9,17 +9,34 @@ Build Jobmon workflows from workflow configuration.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Callable
 
 from jobmon.client.api import Tool
 
 from vivarium_cluster_tools.psimulate.workflow_config.config import WorkflowConfig
-from vivarium_cluster_tools.psimulate.workflow_config.interface import STEP_TYPE_API_FNS
+from vivarium_cluster_tools.psimulate.workflow_config.interface import (
+    get_command_step_tasks,
+    get_notebook_step_tasks,
+    get_pytest_step_tasks,
+    get_python_step_tasks,
+    get_simulation_step_tasks,
+)
 from vivarium_cluster_tools.psimulate.workflow_config.utilities import is_resume
 
 if TYPE_CHECKING:
     from jobmon.client.task import Task
     from jobmon.client.workflow import Workflow
+
+
+STEP_TYPE_API_FNS: dict[str, Callable[..., list["Task"]]] = {
+    "command": get_command_step_tasks,
+    "simulation": get_simulation_step_tasks,
+    "pytest": get_pytest_step_tasks,
+    "python": get_python_step_tasks,
+    "notebook": get_notebook_step_tasks,
+}
+"""Maps each YAML ``step_type`` to the API function that builds its tasks.
+Paired with :data:`vivarium_cluster_tools.psimulate.workflow_config.config.STEP_TYPES`."""
 
 
 class WorkflowBuilder:
@@ -51,18 +68,17 @@ class WorkflowBuilder:
             default_cluster_name="slurm",
             default_max_attempts=self.config.max_attempts,
         )
-
-        # Resume must be checked before any step runs: the build-timestamp
-        # marker is what is_resume looks for, and the first interface API
-        # call will write that marker as a side-effect of running.
         resuming = is_resume(self.config.output_directory)
-
         previous_step_tasks: list[Task] = []
         all_tasks: list[Task] = []
 
         for parsed_step in self.config.steps:
             api_fn = STEP_TYPE_API_FNS[parsed_step.step_type]
-            kwargs = self._resolve_environment(parsed_step.api_kwargs)
+            # Step-level environment wins; otherwise the workflow default is
+            # substituted. Build a new dict so the cached api_kwargs is not mutated.
+            kwargs = parsed_step.api_kwargs
+            if kwargs.get("environment") is None:
+                kwargs = {**kwargs, "environment": self.config.default_environment}
             step_tasks = api_fn(**kwargs, tool=self._tool, is_resume=resuming)
 
             # Wire sequential dependencies: every task in this step
@@ -77,14 +93,3 @@ class WorkflowBuilder:
         workflow.add_tasks(all_tasks)
 
         return workflow
-
-    def _resolve_environment(self, api_kwargs: dict[str, Any]) -> dict[str, Any]:
-        """Apply workflow-level ``default_environment`` to a step's kwargs.
-
-        Step-level ``environment`` wins; otherwise the workflow default is
-        substituted. Returns a new dict so the cached ``ParsedStep.api_kwargs``
-        is not mutated.
-        """
-        if api_kwargs.get("environment") is not None:
-            return api_kwargs
-        return {**api_kwargs, "environment": self.config.default_environment}

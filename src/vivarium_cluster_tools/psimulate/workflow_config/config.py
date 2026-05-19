@@ -1229,7 +1229,7 @@ STEP_TYPES: dict[str, type[BaseStepConfig]] = {
 }
 """Maps each YAML ``step_type`` string to its step-config class. Adding a new
 step type requires a matching entry in
-:data:`vivarium_cluster_tools.psimulate.workflow_config.interface.STEP_TYPE_API_FNS`"""
+:data:`vivarium_cluster_tools.psimulate.workflow_config.builder.STEP_TYPE_API_FNS`"""
 
 
 _STEP_CLASS_TO_TYPE: dict[type[BaseStepConfig], str] = {
