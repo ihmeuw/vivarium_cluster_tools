@@ -17,7 +17,6 @@ from typing import TYPE_CHECKING, Any
 
 from vivarium_cluster_tools.psimulate.workflow_config.config import (
     DEFAULT_BACKUP_FREQ_SECONDS,
-    STEP_TYPES,
     CommandStepConfig,
     NotebookStepConfig,
     PytestStepConfig,
@@ -69,6 +68,13 @@ def get_command_step_tasks(
     -------
         The Jobmon tasks produced by the step.
     """
+    CommandStepConfig.validate(
+        name=name,
+        resources=resources,
+        command=command,
+        output_directory=output_directory,
+        environment=environment,
+    )
     step = CommandStepConfig(
         name=name,
         resources=resources,
@@ -140,6 +146,17 @@ def get_simulation_step_tasks(
     -------
         The Jobmon tasks produced by the step.
     """
+    SimulationStepConfig.validate(
+        name=name,
+        resources=resources,
+        output_directory=output_directory,
+        model_specification=model_specification,
+        branch_configuration=branch_configuration,
+        environment=environment,
+        artifact_path=artifact_path,
+        backup_freq=backup_freq,
+        sim_verbosity=sim_verbosity,
+    )
     step = SimulationStepConfig(
         name=name,
         resources=resources,
@@ -205,6 +222,15 @@ def get_pytest_step_tasks(
     -------
         The Jobmon tasks produced by the step.
     """
+    PytestStepConfig.validate(
+        name=name,
+        resources=resources,
+        output_directory=output_directory,
+        environment=environment,
+        path=path,
+        k=k,
+        runslow=runslow,
+    )
     step = PytestStepConfig(
         name=name,
         resources=resources,
@@ -274,6 +300,15 @@ def get_python_step_tasks(
     -------
         The Jobmon tasks produced by the step.
     """
+    PythonStepConfig.validate(
+        name=name,
+        resources=resources,
+        output_directory=output_directory,
+        path=path,
+        environment=environment,
+        positional_args=positional_args,
+        keyword_args=keyword_args,
+    )
     args: dict[str, Any] = {"path": path}
     if positional_args is not None:
         args["positional_args"] = positional_args
@@ -348,6 +383,16 @@ def get_notebook_step_tasks(
     -------
         The Jobmon tasks produced by the step.
     """
+    NotebookStepConfig.validate(
+        name=name,
+        resources=resources,
+        output_directory=output_directory,
+        path=path,
+        output_path=output_path,
+        environment=environment,
+        parameters=parameters,
+        cwd=cwd,
+    )
     step = NotebookStepConfig(
         name=name,
         resources=resources,

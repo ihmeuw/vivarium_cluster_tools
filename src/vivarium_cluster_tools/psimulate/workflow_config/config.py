@@ -18,7 +18,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar
 
 import yaml
-from typing_extensions import Self
 
 from vivarium_cluster_tools.psimulate import COMMANDS, branches
 from vivarium_cluster_tools.psimulate.cluster.interface import NativeSpecification
@@ -173,13 +172,11 @@ class ResourceConfig:
 class BaseStepConfig(ABC):
     """Abstract base class for all workflow step configurations.
 
-    Defines the interface that all step types must implement. Concrete
-    subclasses **must** be decorated with ``@dataclass`` so that
-    ``__post_init__`` is called automatically after ``__init__``.
-
-    The base class provides a concrete __post_init__ that performs common
-    validation and then calls the abstract _validate() method for
-    subclass-specific validation.
+    Concrete subclasses **must** be decorated with ``@dataclass``. The base
+    class defines the runtime interface (``get_tasks``, ``native_specification``)
+    used by API functions to produce Jobmon tasks. Validation and YAML
+    (de)serialization live in classmethods so that the YAML parser can run
+    them without constructing an instance.
     """
 
     name: str
@@ -188,80 +185,72 @@ class BaseStepConfig(ABC):
     environment: str | None
 
     _SUPPORTED_ARGS: ClassVar[set[str] | None] = None
-    """Arguments supported in the 'args' section of the step configuration. Arguments not 
+    """Arguments supported in the 'args' section of the step configuration. Arguments not
     in this set will be rejected with a validation error."""
 
-    def __post_init__(self) -> None:
-        """Common validation for all step types, then call subclass validation.
+    @property
+    def native_specification(self) -> NativeSpecification:
+        """The Jobmon-facing resource specification for this step."""
+        return self.resources.to_native_specification(self.name)
 
-        This method is called automatically by @dataclass after __init__.
-        It performs validation common to all steps, then dispatches to the
-        subclass-specific _validate() method.
-        """
-        if not hasattr(self, "__dataclass_fields__"):
-            raise TypeError(f"{type(self).__name__} must be decorated with @dataclass.")
-        if not self.name:
+    @classmethod
+    def _validate_common(cls, name: str, resources: ResourceConfig) -> None:
+        """Validation shared by every step type: name + resource resolution."""
+        if not name:
             raise ValueError("Step 'name' is required.")
-        if not self.resources:
-            raise ValueError(f"Step '{self.name}': 'resources' is required.")
-        if not isinstance(self.resources.queue, str) or not isinstance(
-            self.resources.project, str
-        ):
+        if not resources:
+            raise ValueError(f"Step '{name}': 'resources' is required.")
+        if not isinstance(resources.queue, str) or not isinstance(resources.project, str):
             raise ValueError(
-                f"Step '{self.name}': resources 'queue' and 'project' must be "
+                f"Step '{name}': resources 'queue' and 'project' must be "
                 "configured. Set them at the step level or provide workflow-level defaults."
             )
 
-        self._validate()
-        self._validate_required_paths()
+    @staticmethod
+    def _validate_required_paths(name: str, paths: list[Path]) -> None:
+        """Raise FileNotFoundError if any path does not exist."""
+        for path in paths:
+            if not path.exists():
+                raise FileNotFoundError(f"Step '{name}': path does not exist: {path}")
 
-        # Build the Jobmon-facing resource specification once at construction.
-        self.native_specification = self.resources.to_native_specification(self.name)
-
+    @classmethod
     @abstractmethod
-    def _validate(self) -> None:
-        """Subclass-specific validation logic.
+    def validate(cls, **kwargs: Any) -> None:
+        """Validate kwargs intended for the matching API function.
 
-        Called at the end of __post_init__ after common validation.
-        Subclasses should validate their type-specific fields here.
-        This includes checking that any provided arguments are in the
-        set returned by supported_arguments().
+        Each subclass declares a typed signature matching its
+        ``get_*_step_tasks`` function. Called once at the API boundary
+        (from the YAML parser or from the API function itself).
         """
         pass
 
-    @property
-    def required_paths(self) -> list[Path]:
-        """Return paths that must exist for this step to run.
+    @classmethod
+    @abstractmethod
+    def to_yaml_dict(cls, **kwargs: Any) -> dict[str, Any]:
+        """Serialize API kwargs to a YAML-ready dictionary.
 
-        Subclasses override this to return their step-specific paths.
-        The base implementation returns an empty list.
+        Mirrors the signature of ``validate``. Produces the canonical
+        round-trip form for ``WorkflowConfig.to_dict``.
         """
-        return []
+        pass
 
-    def _validate_required_paths(self) -> None:
-        """Check that all required paths exist."""
-        for path in self.required_paths:
-            if not path.exists():
-                raise FileNotFoundError(f"Step '{self.name}': path does not exist: {path}")
+    @classmethod
+    @abstractmethod
+    def kwargs_from_yaml(
+        cls,
+        data: dict[str, Any],
+        output_directory: Path,
+        *,
+        project: str,
+        queue: str,
+    ) -> dict[str, Any]:
+        """Parse a raw YAML step dict into kwargs for the matching API function.
 
-    @property
-    def supported_arguments(self) -> set[str] | None:
-        """Return the set of argument names valid in the 'args' section.
-
-        For command-based steps (no 'type' field), returns None since they
-        don't have an 'args' section - they just have a 'command' field.
-
-        For typed steps (with 'type' field), returns the set of valid keys
-        that can appear in the 'args' section. These correspond to CLI options
-        users can pass to that step type's command.
-
-        Returns
-        -------
-            None for command-based steps, or set of supported argument names
-            for typed steps (e.g., {"config", "model_specification",
-            "branch_configuration", "artifact_path", "hardware", ...}).
+        Does no validation beyond the type-level path/string coercions
+        needed to land in the API kwargs shape; semantic validation lives
+        in :meth:`validate`.
         """
-        return self._SUPPORTED_ARGS
+        pass
 
     @classmethod
     def _check_supported_args(cls, args: dict[str, Any], step_name: str) -> None:
@@ -274,56 +263,6 @@ class BaseStepConfig(ABC):
                 f"Step '{step_name}': unsupported args {sorted(unsupported)}. "
                 f"Supported args: {sorted(cls._SUPPORTED_ARGS)}."
             )
-
-    @classmethod
-    def from_dict(
-        cls,
-        data: dict[str, Any],
-        output_directory: Path,
-        *,
-        project: str,
-        queue: str,
-    ) -> Self:
-        """Create a step config from a raw YAML dictionary.
-
-        Performs common validation (unsupported args check), then delegates
-        to subclass-specific ``_build_from_dict`` for construction.
-
-        Parameters
-        ----------
-        data
-            Dictionary from workflow YAML.
-        output_directory
-            Workflow-level output directory.
-        project
-            Workflow-level project for resource resolution.
-        queue
-            Workflow-level queue for resource resolution.
-
-        Returns
-        -------
-            A new step config instance.
-        """
-        # CommandStepConfig does not have 'args'
-        args = data.get("args", {})
-        cls._check_supported_args(args, data.get("name", "<unnamed>"))
-        return cls._build_from_dict(data, output_directory, project=project, queue=queue)
-
-    @classmethod
-    @abstractmethod
-    def _build_from_dict(
-        cls,
-        data: dict[str, Any],
-        output_directory: Path,
-        *,
-        project: str,
-        queue: str,
-    ) -> Self:
-        """Subclass-specific construction from a raw YAML dictionary.
-
-        Called by ``from_dict`` after common validation has passed.
-        """
-        pass
 
     def get_tasks(
         self,
@@ -413,29 +352,6 @@ class BaseStepConfig(ABC):
             command=command,
         )
 
-    @abstractmethod
-    def to_dict(self) -> dict[str, Any]:
-        """Serialize the step configuration to a dictionary.
-
-        Returns a dict suitable for writing to a workflow YAML file.
-
-        Returns
-        -------
-            Dictionary representation of the step configuration.
-        """
-        pass
-
-    @abstractmethod
-    def to_api_kwargs(self) -> dict[str, Any]:
-        """Return kwargs ready to send into the matching interface API function.
-
-        The keys must match the keyword parameters of the corresponding
-        ``get_*_step_tasks`` function in
-        :mod:`vivarium_cluster_tools.psimulate.workflow_config.interface`,
-        excluding ``tool`` and ``is_resume`` (supplied by the builder).
-        """
-        pass
-
 
 @dataclass
 class CommandStepConfig(BaseStepConfig):
@@ -456,53 +372,64 @@ class CommandStepConfig(BaseStepConfig):
     environment: str | None = None
     """Optional environment name to use for this step."""
 
-    def _validate(self) -> None:
-        """Validate that command is not empty."""
-        if not self.command:
-            raise ValueError(f"Step '{self.name}': 'command' is required.")
+    @classmethod
+    def validate(
+        cls,
+        *,
+        name: str,
+        resources: ResourceConfig,
+        command: str,
+        output_directory: Path,
+        environment: str | None = None,
+    ) -> None:
+        """Validate kwargs for :func:`~vivarium_cluster_tools.psimulate.workflow_config.interface.get_command_step_tasks`."""
+        cls._validate_common(name, resources)
+        if not command:
+            raise ValueError(f"Step '{name}': 'command' is required.")
+
+    @classmethod
+    def to_yaml_dict(
+        cls,
+        *,
+        name: str,
+        resources: ResourceConfig,
+        command: str,
+        output_directory: Path,
+        environment: str | None = None,
+    ) -> dict[str, Any]:
+        """Serialize command-step kwargs to a YAML-ready dict."""
+        result: dict[str, Any] = {
+            "name": name,
+            "command": command,
+            "resources": resources.to_dict(),
+        }
+        if environment is not None:
+            result["environment"] = environment
+        return result
+
+    @classmethod
+    def kwargs_from_yaml(
+        cls,
+        data: dict[str, Any],
+        output_directory: Path,
+        *,
+        project: str,
+        queue: str,
+    ) -> dict[str, Any]:
+        """Parse a raw command-step YAML dict into API kwargs."""
+        return {
+            "name": data["name"],
+            "resources": ResourceConfig.from_dict(
+                data["resources"], workflow_project=project, workflow_queue=queue
+            ),
+            "command": data["command"],
+            "output_directory": output_directory,
+            "environment": data.get("environment"),
+        }
 
     def _build_command(self) -> str:
         """Return the raw command string."""
         return self.command
-
-    def to_dict(self) -> dict[str, Any]:
-        """Serialize to a dictionary, omitting None values."""
-        result: dict[str, Any] = {
-            "name": self.name,
-            "command": self.command,
-            "resources": self.resources.to_dict(),
-        }
-
-        # Add environment if specified
-        if self.environment is not None:
-            result["environment"] = self.environment
-
-        return result
-
-    def to_api_kwargs(self) -> dict[str, Any]:
-        """Return kwargs ready to send into :func:`~vivarium_cluster_tools.psimulate.workflow_config.interface.get_command_step_tasks`."""
-        return {
-            "name": self.name,
-            "resources": self.resources,
-            "command": self.command,
-            "output_directory": self.output_directory,
-            "environment": self.environment,
-        }
-
-    @classmethod
-    def _build_from_dict(
-        cls, data: dict[str, Any], output_directory: Path, *, project: str, queue: str
-    ) -> CommandStepConfig:
-        """Create a CommandStepConfig from a dictionary."""
-        return cls(
-            name=data["name"],
-            resources=ResourceConfig.from_dict(
-                data["resources"], workflow_project=project, workflow_queue=queue
-            ),
-            command=data["command"],
-            output_directory=output_directory,
-            environment=data.get("environment"),
-        )
 
 
 @dataclass
@@ -565,24 +492,34 @@ class SimulationStepConfig(BaseStepConfig):
     sim_verbosity: int = 0
     """Vivarium simulation logging verbosity level. Default is 0."""
 
-    def _validate(self) -> None:
-        """Validate simulation step configuration."""
-        if not self.model_specification:
+    @classmethod
+    def validate(
+        cls,
+        *,
+        name: str,
+        resources: ResourceConfig,
+        output_directory: Path,
+        model_specification: Path,
+        branch_configuration: Path,
+        environment: str | None = None,
+        artifact_path: Path | None = None,
+        backup_freq: float | None = DEFAULT_BACKUP_FREQ_SECONDS,
+        sim_verbosity: int = 0,
+    ) -> None:
+        """Validate kwargs for :func:`~vivarium_cluster_tools.psimulate.workflow_config.interface.get_simulation_step_tasks`."""
+        cls._validate_common(name, resources)
+        if not model_specification:
             raise ValueError(
-                f"Step '{self.name}': simulation type requires 'model_specification'."
+                f"Step '{name}': simulation type requires 'model_specification'."
             )
-        if not self.branch_configuration:
+        if not branch_configuration:
             raise ValueError(
-                f"Step '{self.name}': simulation type requires 'branch_configuration'."
+                f"Step '{name}': simulation type requires 'branch_configuration'."
             )
-
-    @property
-    def required_paths(self) -> list[Path]:
-        """Return paths that must exist for simulation steps."""
-        paths = [self.model_specification, self.branch_configuration]
-        if self.artifact_path is not None:
-            paths.append(self.artifact_path)
-        return paths
+        paths = [model_specification, branch_configuration]
+        if artifact_path is not None:
+            paths.append(artifact_path)
+        cls._validate_required_paths(name, paths)
 
     def _build_command(self) -> str:
         """Not used -- simulation steps override get_tasks directly."""
@@ -650,49 +587,53 @@ class SimulationStepConfig(BaseStepConfig):
             template_name=f"psimulate_{self.name}",
         )
 
-    def to_dict(self) -> dict[str, Any]:
-        """Serialize to a dictionary with type: simulation."""
+    @classmethod
+    def to_yaml_dict(
+        cls,
+        *,
+        name: str,
+        resources: ResourceConfig,
+        output_directory: Path,
+        model_specification: Path,
+        branch_configuration: Path,
+        environment: str | None = None,
+        artifact_path: Path | None = None,
+        backup_freq: float | None = DEFAULT_BACKUP_FREQ_SECONDS,
+        sim_verbosity: int = 0,
+    ) -> dict[str, Any]:
+        """Serialize simulation-step kwargs to a YAML-ready dict."""
         result: dict[str, Any] = {
-            "name": self.name,
+            "name": name,
             "type": "simulation",
-            "resources": self.resources.to_dict(),
+            "resources": resources.to_dict(),
         }
-        if self.environment is not None:
-            result["environment"] = self.environment
+        if environment is not None:
+            result["environment"] = environment
 
         args: dict[str, Any] = {
-            "model_specification": str(self.model_specification),
-            "branch_configuration": str(self.branch_configuration),
+            "model_specification": str(model_specification),
+            "branch_configuration": str(branch_configuration),
         }
-        if self.artifact_path is not None:
-            args["artifact_path"] = str(self.artifact_path)
-        if self.backup_freq != DEFAULT_BACKUP_FREQ_SECONDS:
-            args["backup_freq"] = self.backup_freq
-        if self.sim_verbosity != 0:
-            args["sim_verbosity"] = self.sim_verbosity
+        if artifact_path is not None:
+            args["artifact_path"] = str(artifact_path)
+        if backup_freq != DEFAULT_BACKUP_FREQ_SECONDS:
+            args["backup_freq"] = backup_freq
+        if sim_verbosity != 0:
+            args["sim_verbosity"] = sim_verbosity
 
         result["args"] = args
         return result
 
-    def to_api_kwargs(self) -> dict[str, Any]:
-        """Return kwargs ready to send into :func:`~vivarium_cluster_tools.psimulate.workflow_config.interface.get_simulation_step_tasks`."""
-        return {
-            "name": self.name,
-            "resources": self.resources,
-            "output_directory": self.output_directory,
-            "model_specification": self.model_specification,
-            "branch_configuration": self.branch_configuration,
-            "environment": self.environment,
-            "artifact_path": self.artifact_path,
-            "backup_freq": self.backup_freq,
-            "sim_verbosity": self.sim_verbosity,
-        }
-
     @classmethod
-    def _build_from_dict(
-        cls, data: dict[str, Any], output_directory: Path, *, project: str, queue: str
-    ) -> SimulationStepConfig:
-        """Create a SimulationStepConfig from a dictionary."""
+    def kwargs_from_yaml(
+        cls,
+        data: dict[str, Any],
+        output_directory: Path,
+        *,
+        project: str,
+        queue: str,
+    ) -> dict[str, Any]:
+        """Parse a raw simulation-step YAML dict into API kwargs."""
         args = data.get("args", {}) or {}
 
         kwargs: dict[str, Any] = {
@@ -711,8 +652,7 @@ class SimulationStepConfig(BaseStepConfig):
             kwargs["backup_freq"] = args["backup_freq"]
         if "sim_verbosity" in args:
             kwargs["sim_verbosity"] = args["sim_verbosity"]
-
-        return cls(**kwargs)
+        return kwargs
 
 
 @dataclass
@@ -775,20 +715,27 @@ class PytestStepConfig(BaseStepConfig):
     runslow: bool = False
     """Whether to pass --runslow flag."""
 
-    def _validate(self) -> None:
-        """Validate pytest step configuration."""
-        if not self.path and not self.k:
+    @classmethod
+    def validate(
+        cls,
+        *,
+        name: str,
+        resources: ResourceConfig,
+        output_directory: Path,
+        environment: str | None = None,
+        path: str | list[str] | None = None,
+        k: str | None = None,
+        runslow: bool = False,
+    ) -> None:
+        """Validate kwargs for :func:`~vivarium_cluster_tools.psimulate.workflow_config.interface.get_pytest_step_tasks`."""
+        cls._validate_common(name, resources)
+        if not path and not k:
             raise ValueError(
-                f"Step '{self.name}': pytest type requires at least one of 'path' or 'k'."
+                f"Step '{name}': pytest type requires at least one of 'path' or 'k'."
             )
-
-    @property
-    def required_paths(self) -> list[Path]:
-        """Return paths that must exist for pytest steps."""
-        if self.path is None:
-            return []
-        paths = self.path if isinstance(self.path, list) else [self.path]
-        return [Path(p) for p in paths]
+        if path is not None:
+            raw_paths = path if isinstance(path, list) else [path]
+            cls._validate_required_paths(name, [Path(p) for p in raw_paths])
 
     def _build_command(self) -> str:
         """Build the pytest command string from structured arguments."""
@@ -806,44 +753,48 @@ class PytestStepConfig(BaseStepConfig):
             parts.append(f"--numprocesses {self.resources.cores}")
         return " ".join(parts)
 
-    def to_dict(self) -> dict[str, Any]:
-        """Serialize to a dictionary with type: pytest."""
+    @classmethod
+    def to_yaml_dict(
+        cls,
+        *,
+        name: str,
+        resources: ResourceConfig,
+        output_directory: Path,
+        environment: str | None = None,
+        path: str | list[str] | None = None,
+        k: str | None = None,
+        runslow: bool = False,
+    ) -> dict[str, Any]:
+        """Serialize pytest-step kwargs to a YAML-ready dict."""
         result: dict[str, Any] = {
-            "name": self.name,
+            "name": name,
             "type": "pytest",
-            "resources": self.resources.to_dict(),
+            "resources": resources.to_dict(),
         }
-        if self.environment is not None:
-            result["environment"] = self.environment
+        if environment is not None:
+            result["environment"] = environment
 
         args: dict[str, Any] = {}
-        if self.path is not None:
-            args["path"] = self.path  # str or list[str]
-        if self.k is not None:
-            args["k"] = self.k
-        if self.runslow:
+        if path is not None:
+            args["path"] = path
+        if k is not None:
+            args["k"] = k
+        if runslow:
             args["runslow"] = True
 
         result["args"] = args
         return result
 
-    def to_api_kwargs(self) -> dict[str, Any]:
-        """Return kwargs ready to send into :func:`~vivarium_cluster_tools.psimulate.workflow_config.interface.get_pytest_step_tasks`."""
-        return {
-            "name": self.name,
-            "resources": self.resources,
-            "output_directory": self.output_directory,
-            "environment": self.environment,
-            "path": self.path,
-            "k": self.k,
-            "runslow": self.runslow,
-        }
-
     @classmethod
-    def _build_from_dict(
-        cls, data: dict[str, Any], output_directory: Path, *, project: str, queue: str
-    ) -> PytestStepConfig:
-        """Create a PytestStepConfig from a dictionary."""
+    def kwargs_from_yaml(
+        cls,
+        data: dict[str, Any],
+        output_directory: Path,
+        *,
+        project: str,
+        queue: str,
+    ) -> dict[str, Any]:
+        """Parse a raw pytest-step YAML dict into API kwargs."""
         args = data.get("args", {}) or {}
 
         kwargs: dict[str, Any] = {
@@ -865,8 +816,7 @@ class PytestStepConfig(BaseStepConfig):
             kwargs["k"] = args["k"]
         if "runslow" in args:
             kwargs["runslow"] = args["runslow"]
-
-        return cls(**kwargs)
+        return kwargs
 
 
 @dataclass
@@ -927,42 +877,49 @@ class PythonStepConfig(BaseStepConfig):
     (dict of named arguments; see class-level Notes for how values map to
     CLI flags)."""
 
-    def _validate(self) -> None:
-        """Validate python step configuration."""
-        if "path" not in self.args:
-            raise ValueError(f"Step '{self.name}': python type requires 'path' in args.")
-        path = self.args["path"]
+    @classmethod
+    def validate(
+        cls,
+        *,
+        name: str,
+        resources: ResourceConfig,
+        output_directory: Path,
+        path: str,
+        environment: str | None = None,
+        positional_args: list[Any] | None = None,
+        keyword_args: dict[str, Any] | None = None,
+    ) -> None:
+        """Validate kwargs for :func:`~vivarium_cluster_tools.psimulate.workflow_config.interface.get_python_step_tasks`."""
+        cls._validate_common(name, resources)
+        if not path:
+            raise ValueError(f"Step '{name}': python type requires 'path' in args.")
         if not isinstance(path, str) or not path.endswith(".py"):
             raise ValueError(
-                f"Step '{self.name}': 'path' must be a string ending with .py, "
-                f"got {path!r}."
+                f"Step '{name}': 'path' must be a string ending with .py, got {path!r}."
             )
-        if "positional_args" in self.args:
-            self._validate_positional_args(self.args["positional_args"])
-        if "keyword_args" in self.args:
+        if positional_args is not None:
+            cls._validate_positional_args(name, positional_args)
+        if keyword_args is not None:
             validate_scalar_dict(
-                self.args["keyword_args"],
+                keyword_args,
                 field_name="keyword_args",
-                step_name=self.name,
+                step_name=name,
             )
+        cls._validate_required_paths(name, [Path(path)])
 
-    @property
-    def required_paths(self) -> list[Path]:
-        """Return paths that must exist for python steps."""
-        return [Path(self.args["path"])]
-
-    def _validate_positional_args(self, positional_args: Any) -> None:
+    @staticmethod
+    def _validate_positional_args(step_name: str, positional_args: Any) -> None:
         """Validate that positional_args is a list of scalar values."""
         if not isinstance(positional_args, list):
             raise ValueError(
-                f"Step '{self.name}': 'positional_args' must be a list, "
+                f"Step '{step_name}': 'positional_args' must be a list, "
                 f"got {type(positional_args).__name__}."
             )
         for arg_index, item in enumerate(positional_args):
             check_scalar(
                 item,
                 label=f"positional_args[{arg_index}]",
-                step_name=self.name,
+                step_name=step_name,
                 allow_none=False,
             )
 
@@ -987,52 +944,63 @@ class PythonStepConfig(BaseStepConfig):
                 parts.append(f"--{key} {shlex.quote(str(value))}")
         return " ".join(parts)
 
-    def to_dict(self) -> dict[str, Any]:
-        """Serialize to a dictionary with type: python."""
+    @classmethod
+    def to_yaml_dict(
+        cls,
+        *,
+        name: str,
+        resources: ResourceConfig,
+        output_directory: Path,
+        path: str,
+        environment: str | None = None,
+        positional_args: list[Any] | None = None,
+        keyword_args: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Serialize python-step kwargs to a YAML-ready dict."""
         result: dict[str, Any] = {
-            "name": self.name,
+            "name": name,
             "type": "python",
-            "resources": self.resources.to_dict(),
+            "resources": resources.to_dict(),
         }
-        if self.environment is not None:
-            result["environment"] = self.environment
-        result["args"] = copy.deepcopy(self.args)
+        if environment is not None:
+            result["environment"] = environment
+
+        args: dict[str, Any] = {"path": path}
+        if positional_args is not None:
+            args["positional_args"] = copy.deepcopy(positional_args)
+        if keyword_args is not None:
+            args["keyword_args"] = copy.deepcopy(keyword_args)
+        result["args"] = args
         return result
 
-    def to_api_kwargs(self) -> dict[str, Any]:
-        """Return kwargs ready to send into :func:`~vivarium_cluster_tools.psimulate.workflow_config.interface.get_python_step_tasks`.
-
-        Unpacks the stored ``args`` dict so ``path``, ``positional_args``,
-        and ``keyword_args`` arrive as top-level kwargs matching the API
-        function's signature.
-        """
-        return {
-            "name": self.name,
-            "resources": self.resources,
-            "output_directory": self.output_directory,
-            "path": self.args["path"],
-            "environment": self.environment,
-            "positional_args": self.args.get("positional_args"),
-            "keyword_args": self.args.get("keyword_args"),
-        }
-
     @classmethod
-    def _build_from_dict(
-        cls, data: dict[str, Any], output_directory: Path, *, project: str, queue: str
-    ) -> PythonStepConfig:
-        """Create a PythonStepConfig from a dictionary."""
+    def kwargs_from_yaml(
+        cls,
+        data: dict[str, Any],
+        output_directory: Path,
+        *,
+        project: str,
+        queue: str,
+    ) -> dict[str, Any]:
+        """Parse a raw python-step YAML dict into API kwargs."""
         args = copy.deepcopy(data["args"])
-        if "path" in args:
-            args["path"] = str(Path(args["path"]).resolve())
-        return cls(
-            name=data["name"],
-            resources=ResourceConfig.from_dict(
+        step_name = data.get("name", "<unnamed>")
+        if "path" not in args:
+            raise ValueError(f"Step '{step_name}': python type requires 'path' in args.")
+        kwargs: dict[str, Any] = {
+            "name": data["name"],
+            "resources": ResourceConfig.from_dict(
                 data["resources"], workflow_project=project, workflow_queue=queue
             ),
-            output_directory=output_directory,
-            environment=data.get("environment"),
-            args=args,
-        )
+            "output_directory": output_directory,
+            "environment": data.get("environment"),
+            "path": str(Path(args["path"]).resolve()),
+        }
+        if "positional_args" in args:
+            kwargs["positional_args"] = args["positional_args"]
+        if "keyword_args" in args:
+            kwargs["keyword_args"] = args["keyword_args"]
+        return kwargs
 
 
 @dataclass
@@ -1100,33 +1068,38 @@ class NotebookStepConfig(BaseStepConfig):
     """Parameter keys must be valid Python identifiers because papermill
     injects them as variable assignments in a notebook cell."""
 
-    def _validate(self) -> None:
-        if not str(self.path).endswith(".ipynb"):
+    @classmethod
+    def validate(
+        cls,
+        *,
+        name: str,
+        resources: ResourceConfig,
+        output_directory: Path,
+        path: Path,
+        output_path: Path,
+        environment: str | None = None,
+        parameters: dict[str, Any] | None = None,
+        cwd: Path | None = None,
+    ) -> None:
+        """Validate kwargs for :func:`~vivarium_cluster_tools.psimulate.workflow_config.interface.get_notebook_step_tasks`."""
+        cls._validate_common(name, resources)
+        if not str(path).endswith(".ipynb"):
+            raise ValueError(f"Step '{name}': 'path' must end with .ipynb, got {path!r}.")
+        if not str(output_path).endswith(".ipynb"):
             raise ValueError(
-                f"Step '{self.name}': 'path' must end with .ipynb, " f"got {self.path!r}."
+                f"Step '{name}': 'output_path' must end with .ipynb, got {output_path!r}."
             )
-        if not str(self.output_path).endswith(".ipynb"):
-            raise ValueError(
-                f"Step '{self.name}': 'output_path' must end with .ipynb, "
-                f"got {self.output_path!r}."
-            )
-        validate_scalar_dict(
-            self.parameters,
-            field_name="parameters",
-            step_name=self.name,
-        )
-        for key in self.parameters:
-            if not self._PYTHON_IDENTIFIER_RE.match(key):
+        params = parameters if parameters is not None else {}
+        validate_scalar_dict(params, field_name="parameters", step_name=name)
+        for key in params:
+            if not cls._PYTHON_IDENTIFIER_RE.match(key):
                 raise ValueError(
-                    f"Step '{self.name}': parameter key {key!r} is not a valid "
+                    f"Step '{name}': parameter key {key!r} is not a valid "
                     "Python identifier. Notebooks require parameter names that "
                     "are valid Python identifiers (letters, digits, underscores; "
                     "cannot start with a digit)."
                 )
-
-    @property
-    def required_paths(self) -> list[Path]:
-        return [self.path]
+        cls._validate_required_paths(name, [path])
 
     def _build_command(self) -> str:
         cwd = self.cwd if self.cwd is not None else self.path.parent
@@ -1150,49 +1123,50 @@ class NotebookStepConfig(BaseStepConfig):
         parts.append(f"--cwd {shlex.quote(str(cwd))}")
         return " ".join(parts)
 
-    def to_dict(self) -> dict[str, Any]:
+    @classmethod
+    def to_yaml_dict(
+        cls,
+        *,
+        name: str,
+        resources: ResourceConfig,
+        output_directory: Path,
+        path: Path,
+        output_path: Path,
+        environment: str | None = None,
+        parameters: dict[str, Any] | None = None,
+        cwd: Path | None = None,
+    ) -> dict[str, Any]:
+        """Serialize notebook-step kwargs to a YAML-ready dict."""
         result: dict[str, Any] = {
-            "name": self.name,
+            "name": name,
             "type": "notebook",
-            "resources": self.resources.to_dict(),
+            "resources": resources.to_dict(),
         }
-        if self.environment is not None:
-            result["environment"] = self.environment
+        if environment is not None:
+            result["environment"] = environment
 
         args: dict[str, Any] = {
-            "path": str(self.path),
-            "output_path": str(self.output_path),
+            "path": str(path),
+            "output_path": str(output_path),
         }
-        if self.parameters:
-            args["parameters"] = copy.deepcopy(self.parameters)
-        if self.cwd is not None:
-            args["cwd"] = str(self.cwd)
+        if parameters:
+            args["parameters"] = copy.deepcopy(parameters)
+        if cwd is not None:
+            args["cwd"] = str(cwd)
 
         result["args"] = args
         return result
 
-    def to_api_kwargs(self) -> dict[str, Any]:
-        """Return kwargs ready to send into :func:`~vivarium_cluster_tools.psimulate.workflow_config.interface.get_notebook_step_tasks`."""
-        return {
-            "name": self.name,
-            "resources": self.resources,
-            "output_directory": self.output_directory,
-            "path": self.path,
-            "output_path": self.output_path,
-            "environment": self.environment,
-            "parameters": self.parameters,
-            "cwd": self.cwd,
-        }
-
     @classmethod
-    def _build_from_dict(
+    def kwargs_from_yaml(
         cls,
         data: dict[str, Any],
         output_directory: Path,
         *,
         project: str,
         queue: str,
-    ) -> NotebookStepConfig:
+    ) -> dict[str, Any]:
+        """Parse a raw notebook-step YAML dict into API kwargs."""
         args = copy.deepcopy(data["args"])
         step_name = data.get("name", "<unnamed>")
 
@@ -1216,8 +1190,7 @@ class NotebookStepConfig(BaseStepConfig):
             kwargs["parameters"] = args["parameters"]
         if "cwd" in args:
             kwargs["cwd"] = Path(args["cwd"]).resolve()
-
-        return cls(**kwargs)
+        return kwargs
 
 
 STEP_TYPES: dict[str, type[BaseStepConfig]] = {
@@ -1232,21 +1205,13 @@ step type requires a matching entry in
 :data:`vivarium_cluster_tools.psimulate.workflow_config.builder.STEP_TYPE_API_FNS`"""
 
 
-_STEP_CLASS_TO_TYPE: dict[type[BaseStepConfig], str] = {
-    cls: step_type for step_type, cls in STEP_TYPES.items()
-}
-"""Derived inverse of :data:`STEP_TYPES` for fast ``step class → step_type`` lookup."""
-
-
 @dataclass(frozen=True)
 class ParsedStep:
     """A parsed workflow step ready to be passed to an interface API function.
 
     Produced by ``WorkflowConfig._parse_steps``. Holds the *inputs* to
     the matching ``get_*_step_tasks`` function (in ``api_kwargs``), plus the
-    YAML-serializable form (``yaml_dict``) used for round-trip output. The
-    intermediate :class:`BaseStepConfig` instance used to validate the raw
-    YAML is discarded after parsing.
+    YAML-serializable form (``yaml_dict``) used for round-trip output.
     """
 
     step_type: str
@@ -1258,17 +1223,7 @@ class ParsedStep:
     ``tool`` and ``is_resume``, which are supplied by the builder."""
     yaml_dict: dict[str, Any]
     """YAML-serializable representation of the step (the output of the source
-    step config's ``to_dict``)."""
-
-    @classmethod
-    def from_step_config(cls, step: BaseStepConfig) -> ParsedStep:
-        """Build a :class:`ParsedStep` from a constructed step-config instance."""
-        return cls(
-            step_type=_STEP_CLASS_TO_TYPE[type(step)],
-            name=step.name,
-            api_kwargs=step.to_api_kwargs(),
-            yaml_dict=step.to_dict(),
-        )
+    step class's ``to_yaml_dict``)."""
 
 
 @dataclass
@@ -1346,10 +1301,11 @@ class WorkflowConfig:
         """Parse a list of raw step dicts into :class:`ParsedStep` objects.
 
         Command-based steps use the bare ``command`` field (no ``type``);
-        ``type: command`` is rejected so the YAML form is unambiguous. For all
-        other step types, constructs the matching step config class transiently
-        to run its ``__post_init__`` validation, then extracts the kwargs
-        needed by the interface API function and discards the instance.
+        ``type: command`` is rejected so the YAML form is unambiguous. For each
+        step, the matching step class's ``kwargs_from_yaml`` converts the raw
+        YAML to API kwargs and ``to_yaml_dict`` produces the round-trip form.
+        Semantic validation is deferred to the API function (see
+        :func:`~vivarium_cluster_tools.psimulate.workflow_config.interface`).
         """
         parsed_steps: list[ParsedStep] = []
         valid_yaml_types = {t for t in STEP_TYPES if t != "command"}
@@ -1373,13 +1329,22 @@ class WorkflowConfig:
                     f"Must be one of: {sorted(valid_yaml_types)}."
                 )
             step_class = STEP_TYPES[step_type]
-            step = step_class.from_dict(
+            step_class._check_supported_args(step_dict.get("args", {}), step_name)
+            api_kwargs = step_class.kwargs_from_yaml(
                 step_dict,
                 output_directory=output_directory,
                 project=project,
                 queue=queue,
             )
-            parsed_steps.append(ParsedStep.from_step_config(step))
+            yaml_dict = step_class.to_yaml_dict(**api_kwargs)
+            parsed_steps.append(
+                ParsedStep(
+                    step_type=step_type,
+                    name=api_kwargs["name"],
+                    api_kwargs=api_kwargs,
+                    yaml_dict=yaml_dict,
+                )
+            )
         return parsed_steps
 
     @classmethod

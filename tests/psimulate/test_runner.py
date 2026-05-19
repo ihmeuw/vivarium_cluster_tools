@@ -378,6 +378,18 @@ def test_write_configuration_workflow_command(tmp_path: Path) -> None:
         WorkflowConfig,
     )
 
+    step_kwargs: dict[str, Any] = {
+        "name": "test_step",
+        "command": "pytest tests/",
+        "resources": ResourceConfig(
+            memory_gb=4,
+            runtime="01:00:00",
+            project="proj_simscience",
+            queue="all.q",
+        ),
+        "output_directory": output_dir,
+        "environment": None,
+    }
     workflow_config = WorkflowConfig(
         name="test_workflow",
         project="proj_simscience",
@@ -385,18 +397,11 @@ def test_write_configuration_workflow_command(tmp_path: Path) -> None:
         output_directory=output_dir,
         default_environment=None,
         steps=[
-            ParsedStep.from_step_config(
-                CommandStepConfig(
-                    name="test_step",
-                    command="pytest tests/",
-                    resources=ResourceConfig(
-                        memory_gb=4,
-                        runtime="01:00:00",
-                        project="proj_simscience",
-                        queue="all.q",
-                    ),
-                    output_directory=output_dir,
-                )
+            ParsedStep(
+                step_type="command",
+                name=step_kwargs["name"],
+                api_kwargs=step_kwargs,
+                yaml_dict=CommandStepConfig.to_yaml_dict(**step_kwargs),
             )
         ],
     )
