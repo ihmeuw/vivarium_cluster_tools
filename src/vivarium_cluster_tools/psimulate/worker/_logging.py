@@ -24,6 +24,9 @@ def configure_dual_sink() -> None:
 
     Called once at the top of each worker entry point so warnings and
     errors land in the SLURM stderr file and the Jobmon GUI surfaces them.
+    Removes loguru's default stderr handler first so INFO-level messages
+    don't end up duplicated on stderr.
     """
+    logger.remove()
     logger.add(sys.stdout, level="INFO")
     logger.add(sys.stderr, level="WARNING")

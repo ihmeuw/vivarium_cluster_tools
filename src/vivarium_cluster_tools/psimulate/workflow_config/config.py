@@ -383,18 +383,24 @@ class BaseStepConfig(ABC):
         pass
 
     def _wrap_for_logging(self, command: str) -> str:
-        """[stub] Implement in Phase 2.
+        """Prepend the ``task_runner subprocess`` wrapper when enabled.
 
-        When :attr:`_WRAP_FOR_LOGGING` is ``True``, prepend the
-        ``task_runner subprocess --`` wrapper so the child's output is
-        duplicated to stderr on failure. Returns ``command`` unchanged
-        otherwise.
+        When :attr:`_WRAP_FOR_LOGGING` is ``True``, the returned command
+        runs through
+        :mod:`vivarium_cluster_tools.psimulate.worker.task_runner` so the
+        child's output is duplicated to the SLURM stderr file on failure.
+        Returns ``command`` unchanged otherwise.
 
-        Currently a no-op so existing behavior is preserved during the
-        Phase 1 (xfail) checkpoint; the corresponding xfail tests verify
-        the prefix lands once Phase 2 fills in the body.
+        The module path is duplicated as a string literal rather than
+        imported from ``task_runner`` to keep workflow-config parsing free
+        of the heavy work-horse imports that ``task_runner`` pulls in.
         """
-        return command
+        if not self._WRAP_FOR_LOGGING:
+            return command
+        return (
+            "python -m vivarium_cluster_tools.psimulate.worker.task_runner "
+            f"subprocess -- {command}"
+        )
 
     def _create_single_command_task(
         self, tool: Tool, *, env_prefix: str, command: str

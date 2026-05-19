@@ -14,9 +14,9 @@ dispatched by the first positional argument:
   its stdout in real time, and replay the captured output to stderr on
   non-zero exit so the SLURM stderr file (and the Jobmon GUI) surface the
   failing command's output. Used by typed steps (pytest, python, notebook,
-  command) via :meth:`BaseStepConfig._wrap_for_logging`.
+  command) via ``BaseStepConfig._wrap_for_logging``.
 
-Both modes share :func:`configure_dual_sink` so INFO+ logs land in stdout
+Both modes share ``configure_dual_sink`` so INFO+ logs land in stdout
 (workflow log file) and WARNING+ logs land in stderr (Jobmon GUI).
 
 Usage::
@@ -34,7 +34,9 @@ Usage::
 
 import argparse
 import json
+import subprocess
 import sys
+from collections import deque
 from pathlib import Path
 
 from loguru import logger
@@ -47,10 +49,6 @@ from vivarium_cluster_tools.psimulate.worker.load_test_work_horse import (
     work_horse as load_test_work_horse,
 )
 from vivarium_cluster_tools.psimulate.worker.vivarium_work_horse import work_horse
-
-RUNNER_MODULE: str = "vivarium_cluster_tools.psimulate.worker.task_runner"
-"""Single source of truth for the runner's dotted module path. Imported by
-:meth:`BaseStepConfig._wrap_for_logging` to build the wrapper prefix."""
 
 BUFFER_MAXLEN: int = 10_000
 """Maximum number of subprocess output lines retained for the failure replay.
@@ -142,12 +140,45 @@ def _run_simulation(args: argparse.Namespace) -> int:
 
 
 def _run_subprocess(args: argparse.Namespace) -> int:
-    """[stub] Implement in Phase 2.
+    """Spawn ``args.inner_argv`` as a child process with dual-stream logging.
 
-    Spawn ``args.inner_argv`` as a child process, mirror its stdout to ours
-    in real time, and replay the captured output to stderr on non-zero exit.
+    The child's stdout (with stderr merged in) is mirrored to ``sys.stdout``
+    in real time and buffered in a capped deque. On non-zero exit, the
+    buffered output is replayed to ``sys.stderr`` so the SLURM stderr file
+    (and the Jobmon GUI's "Task Instance stderr" pane) surfaces the failing
+    command's output.
     """
-    raise NotImplementedError
+    inner_argv = list(args.inner_argv)
+    if not inner_argv or inner_argv[0] != "--":
+        raise ValueError(
+            "subprocess mode requires a literal '--' separator before the "
+            "argv to run (got: " + repr(inner_argv) + ")."
+        )
+    inner_argv = inner_argv[1:]
+    if not inner_argv:
+        raise ValueError("subprocess mode requires argv after the '--' separator.")
+
+    logger.info(f"Running subprocess: {' '.join(inner_argv)}")
+    buffered: deque[str] = deque(maxlen=BUFFER_MAXLEN)
+    proc = subprocess.Popen(
+        inner_argv,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        bufsize=1,
+        text=True,
+    )
+    assert proc.stdout is not None
+    for line in proc.stdout:
+        sys.stdout.write(line)
+        sys.stdout.flush()
+        buffered.append(line)
+    exit_code = proc.wait()
+
+    if exit_code != 0:
+        logger.error(f"Subprocess exited with code {exit_code}; replaying output to stderr.")
+        sys.stderr.writelines(buffered)
+        sys.stderr.flush()
+    return exit_code
 
 
 def main(argv: list[str] | None = None) -> int:

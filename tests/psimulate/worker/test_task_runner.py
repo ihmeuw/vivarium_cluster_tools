@@ -208,7 +208,6 @@ class TestSubprocessMode:
     wrapper used by typed workflow steps (pytest, python, notebook, raw
     command). All tests use real Python subprocesses (no Popen mocking)."""
 
-    @pytest.mark.xfail(reason="not implemented: subprocess tee to stdout")
     def test_success_writes_subprocess_output_to_stdout(
         self, capfd: pytest.CaptureFixture[str]
     ) -> None:
@@ -217,7 +216,6 @@ class TestSubprocessMode:
         out, _ = capfd.readouterr()
         assert "hello" in out
 
-    @pytest.mark.xfail(reason="not implemented: clean stderr on success")
     def test_success_does_not_replay_to_stderr(
         self, capfd: pytest.CaptureFixture[str]
     ) -> None:
@@ -227,7 +225,6 @@ class TestSubprocessMode:
         assert "alpha" not in err
         assert "beta" not in err
 
-    @pytest.mark.xfail(reason="not implemented: replay buffered output to stderr on failure")
     def test_failure_replays_buffered_output_to_stderr(
         self, capfd: pytest.CaptureFixture[str]
     ) -> None:
@@ -239,15 +236,12 @@ class TestSubprocessMode:
         assert "boom" in out
         assert "boom" in err
 
-    @pytest.mark.xfail(reason="not implemented: exit code propagation")
     def test_exit_code_propagates_on_success(self) -> None:
         assert main(["subprocess", "--", PY, "-c", "pass"]) == 0
 
-    @pytest.mark.xfail(reason="not implemented: exit code propagation")
     def test_exit_code_propagates_on_failure(self) -> None:
         assert main(["subprocess", "--", PY, "-c", "import sys; sys.exit(7)"]) == 7
 
-    @pytest.mark.xfail(reason="not implemented: argv passthrough")
     def test_argv_after_double_dash_is_executed(self, tmp_path: Path) -> None:
         """Whatever follows ``--`` is what gets executed — prove it by
         having the child write to a tmp file we can read back."""
@@ -263,7 +257,6 @@ class TestSubprocessMode:
         )
         assert marker.read_text() == "here"
 
-    @pytest.mark.xfail(reason="not implemented: capped buffer")
     def test_buffer_cap_does_not_crash_on_large_output(
         self,
         capfd: pytest.CaptureFixture[str],
@@ -286,7 +279,6 @@ class TestSubprocessMode:
         assert "line-99" in err  # tail preserved
         assert "line-0" not in err  # head dropped (capped at 5)
 
-    @pytest.mark.xfail(reason="not implemented: missing '--' separator")
     def test_missing_double_dash_raises(self) -> None:
         """``subprocess`` mode without a ``--`` separator must raise —
         refusing to guess is safer than silently running argv[0]."""

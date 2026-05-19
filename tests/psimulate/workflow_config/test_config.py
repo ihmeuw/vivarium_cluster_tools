@@ -403,7 +403,10 @@ class TestBaseStepConfig:
                 "stderr": "/tmp/results",
             },
             env_prefix="/path/to/envs/my_env",
-            command="echo hello world",
+            command=(
+                "python -m vivarium_cluster_tools.psimulate.worker.task_runner "
+                "subprocess -- echo hello world"
+            ),
         )
 
     def test_get_tasks_includes_env_prefix_in_node_args(self) -> None:
@@ -437,7 +440,6 @@ class TestBaseStepConfig:
                 args={"path": "/nonexistent/script.py"},
             )
 
-    @pytest.mark.xfail(reason="not implemented: BaseStepConfig._wrap_for_logging prefix")
     def test_pytest_step_command_is_wrapped_with_runner(self, valid_pytest_path: str) -> None:
         """PytestStepConfig's task command is prepended with the runner module
         so failing-test output appears in the SLURM stderr file."""
@@ -461,7 +463,6 @@ class TestBaseStepConfig:
         assert "vivarium_cluster_tools.psimulate.worker.task_runner subprocess --" in cmd
         assert "pytest" in cmd  # inner command preserved
 
-    @pytest.mark.xfail(reason="not implemented: BaseStepConfig._wrap_for_logging prefix")
     def test_command_step_command_is_wrapped_with_runner(self) -> None:
         """CommandStepConfig's raw command is also wrapped — proves the
         prefix lives on the base class, not per step type."""
@@ -485,7 +486,6 @@ class TestBaseStepConfig:
         assert "vivarium_cluster_tools.psimulate.worker.task_runner subprocess --" in cmd
         assert "echo hello world" in cmd
 
-    @pytest.mark.xfail(reason="not implemented: _WRAP_FOR_LOGGING opt-out")
     def test_wrap_for_logging_opt_out(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """The default class attribute wraps; setting it to False opts out."""
         config = CommandStepConfig(
@@ -995,7 +995,9 @@ class TestPytestStepConfig:
         assert tasks == [mock_task]
         call_kwargs = mock_template.create_task.call_args[1]
         assert call_kwargs["command"] == (
-            f"pytest {valid_pytest_path} -k 'test_foo or test_bar' --runslow --numprocesses 4"
+            "python -m vivarium_cluster_tools.psimulate.worker.task_runner "
+            f"subprocess -- pytest {valid_pytest_path} "
+            "-k 'test_foo or test_bar' --runslow --numprocesses 4"
         )
 
     def test_build_command_path_only(self, valid_pytest_path: str) -> None:
