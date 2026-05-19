@@ -427,7 +427,7 @@ class BaseStepConfig(ABC):
 
     @abstractmethod
     def to_api_kwargs(self) -> dict[str, Any]:
-        """Return kwargs ready to splat into the matching interface API function.
+        """Return kwargs ready to send into the matching interface API function.
 
         The keys must match the keyword parameters of the corresponding
         ``get_*_step_tasks`` function in
@@ -480,7 +480,7 @@ class CommandStepConfig(BaseStepConfig):
         return result
 
     def to_api_kwargs(self) -> dict[str, Any]:
-        """Return kwargs ready to splat into :func:`get_command_step_tasks`."""
+        """Return kwargs ready to send into :func:`~vivarium_cluster_tools.psimulate.workflow_config.interface.get_command_step_tasks`."""
         return {
             "name": self.name,
             "resources": self.resources,
@@ -675,7 +675,7 @@ class SimulationStepConfig(BaseStepConfig):
         return result
 
     def to_api_kwargs(self) -> dict[str, Any]:
-        """Return kwargs ready to splat into :func:`get_simulation_step_tasks`."""
+        """Return kwargs ready to send into :func:`~vivarium_cluster_tools.psimulate.workflow_config.interface.get_simulation_step_tasks`."""
         return {
             "name": self.name,
             "resources": self.resources,
@@ -828,7 +828,7 @@ class PytestStepConfig(BaseStepConfig):
         return result
 
     def to_api_kwargs(self) -> dict[str, Any]:
-        """Return kwargs ready to splat into :func:`get_pytest_step_tasks`."""
+        """Return kwargs ready to send into :func:`~vivarium_cluster_tools.psimulate.workflow_config.interface.get_pytest_step_tasks`."""
         return {
             "name": self.name,
             "resources": self.resources,
@@ -1000,7 +1000,7 @@ class PythonStepConfig(BaseStepConfig):
         return result
 
     def to_api_kwargs(self) -> dict[str, Any]:
-        """Return kwargs ready to splat into :func:`get_python_step_tasks`.
+        """Return kwargs ready to send into :func:`~vivarium_cluster_tools.psimulate.workflow_config.interface.get_python_step_tasks`.
 
         Unpacks the stored ``args`` dict so ``path``, ``positional_args``,
         and ``keyword_args`` arrive as top-level kwargs matching the API
@@ -1172,7 +1172,7 @@ class NotebookStepConfig(BaseStepConfig):
         return result
 
     def to_api_kwargs(self) -> dict[str, Any]:
-        """Return kwargs ready to splat into :func:`get_notebook_step_tasks`."""
+        """Return kwargs ready to send into :func:`~vivarium_cluster_tools.psimulate.workflow_config.interface.get_notebook_step_tasks`."""
         return {
             "name": self.name,
             "resources": self.resources,
@@ -1243,7 +1243,7 @@ _STEP_CLASS_TO_TYPE: dict[type[BaseStepConfig], str] = {
 class ParsedStep:
     """A parsed workflow step ready to be passed to an interface API function.
 
-    Produced by :meth:`WorkflowConfig._parse_steps`. Holds the *inputs* to
+    Produced by ``WorkflowConfig._parse_steps``. Holds the *inputs* to
     the matching ``get_*_step_tasks`` function (in ``api_kwargs``), plus the
     YAML-serializable form (``yaml_dict``) used for round-trip output. The
     intermediate :class:`BaseStepConfig` instance used to validate the raw
@@ -1252,8 +1252,10 @@ class ParsedStep:
 
     step_type: str
     """One of "command", "simulation", "pytest", "python", "notebook"."""
+    name: str
+    """The step's unique name within the workflow."""
     api_kwargs: dict[str, Any]
-    """Kwargs ready to splat into the matching interface API function. Excludes
+    """Kwargs ready to send into the matching interface API function. Excludes
     ``tool`` and ``is_resume``, which are supplied by the builder."""
     yaml_dict: dict[str, Any]
     """YAML-serializable representation of the step (the output of the source
@@ -1261,14 +1263,10 @@ class ParsedStep:
 
     @classmethod
     def from_step_config(cls, step: BaseStepConfig) -> ParsedStep:
-        """Build a :class:`ParsedStep` from a constructed step-config instance.
-
-        Used by ``_parse_steps`` after validation, and by callers that build
-        step instances programmatically (e.g. tests) and want to drop them
-        into a :class:`WorkflowConfig`.
-        """
+        """Build a :class:`ParsedStep` from a constructed step-config instance."""
         return cls(
             step_type=_STEP_CLASS_TO_TYPE[type(step)],
+            name=step.name,
             api_kwargs=step.to_api_kwargs(),
             yaml_dict=step.to_dict(),
         )
@@ -1305,6 +1303,17 @@ class WorkflowConfig:
         ----------
         path
             Path to the YAML file.
+
+        Raises
+        ------
+        KeyError
+            If the file does not contain a top-level workflow key, if required workflow-level
+            fields are missing, or if the workflow 'steps' list is empty.
+
+        Returns
+        -------
+        The raw workflow dictionary from the YAML file, without any further parsing or
+        validation.
         """
         with path.open() as f:
             raw = yaml.safe_load(f)
@@ -1456,7 +1465,7 @@ class WorkflowConfig:
         # Uses a placeholder value for runtime
         validate_runtime_and_queue("01:00:00", self.queue)  # validate queue value
         # Unique step names
-        names = [step.api_kwargs["name"] for step in self.steps]
+        names = [step.name for step in self.steps]
         if len(names) != len(set(names)):
             raise ValueError(
                 f"Step names must be unique. Duplicate names found: {[name for name in names if names.count(name) > 1]}"
