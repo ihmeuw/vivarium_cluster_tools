@@ -161,6 +161,42 @@ class TestWorkflowConfigValidation:
         with pytest.raises(ValueError, match="Cannot specify both 'command' and 'type'"):
             WorkflowConfig.from_yaml_with_cli_overrides(yaml_path)
 
+    def test_rejects_explicit_type_command(self, tmp_path: Path) -> None:
+        """`type: command` is not a supported YAML form; the bare ``command``
+        field is the canonical shorthand for command steps."""
+        steps = [
+            {
+                "name": "bad_step",
+                "type": "command",
+                "command": "echo hello",
+                "resources": {"memory_gb": 4},
+            }
+        ]
+        # The 'both command and type' check fires before the type: command check.
+        # Drop 'command' so we hit the targeted branch.
+        steps[0].pop("command")
+        data = make_workflow_dict(steps=steps)
+        yaml_path = write_workflow_yaml(tmp_path, data)
+        with pytest.raises(ValueError, match="'type: command' is not supported"):
+            WorkflowConfig.from_yaml_with_cli_overrides(yaml_path)
+
+    def test_rejects_unsupported_step_type(self, tmp_path: Path) -> None:
+        """An unknown ``type`` value raises and the error message does not
+        advertise ``command`` (which is reached via the bare-``command`` form,
+        not via ``type``)."""
+        steps = [
+            {
+                "name": "bad_step",
+                "type": "not_a_type",
+                "resources": {"memory_gb": 4},
+            }
+        ]
+        data = make_workflow_dict(steps=steps)
+        yaml_path = write_workflow_yaml(tmp_path, data)
+        with pytest.raises(ValueError, match="unsupported type 'not_a_type'") as excinfo:
+            WorkflowConfig.from_yaml_with_cli_overrides(yaml_path)
+        assert "command" not in str(excinfo.value)
+
 
 class TestWorkflowConfigFromYamlWithCliOverrides:
     """Verify that ``from_yaml_with_cli_overrides`` merges CLI args and validates."""

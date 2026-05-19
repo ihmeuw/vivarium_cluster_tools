@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 from pathlib import Path
 from typing import Any, Callable
 from unittest.mock import MagicMock
@@ -10,6 +11,7 @@ import pytest
 from pytest_mock import MockerFixture
 
 from vivarium_cluster_tools.psimulate.workflow_config.config import (
+    STEP_TYPES,
     BaseStepConfig,
     CommandStepConfig,
     NotebookStepConfig,
@@ -19,6 +21,7 @@ from vivarium_cluster_tools.psimulate.workflow_config.config import (
     SimulationStepConfig,
 )
 from vivarium_cluster_tools.psimulate.workflow_config.interface import (
+    STEP_TYPE_API_FNS,
     get_command_step_tasks,
     get_notebook_step_tasks,
     get_pytest_step_tasks,
@@ -405,3 +408,84 @@ class TestGetOrCreateBuildTimestamp:
         target = tmp_path / "does" / "not" / "exist"
         ts = get_or_create_build_timestamp(target)
         assert (target / BUILD_TIMESTAMP_FILENAME).read_text().strip() == ts
+
+
+def _build_step_instance(
+    step_type: str,
+    *,
+    valid_model_spec_file: Path,
+    valid_branch_config_file: Path,
+    valid_pytest_path: str,
+    valid_python_script: str,
+    valid_notebook_path: Path,
+) -> BaseStepConfig:
+    """Build a minimal-valid instance of the step config for ``step_type``."""
+    output_directory = Path("/tmp/results")
+    if step_type == "command":
+        return CommandStepConfig(
+            name="c",
+            resources=_resources(),
+            command="echo hi",
+            output_directory=output_directory,
+        )
+    if step_type == "simulation":
+        return SimulationStepConfig(
+            name="s",
+            resources=_resources(),
+            output_directory=output_directory,
+            model_specification=valid_model_spec_file,
+            branch_configuration=valid_branch_config_file,
+        )
+    if step_type == "pytest":
+        return PytestStepConfig(
+            name="t",
+            resources=_resources(),
+            output_directory=output_directory,
+            path=valid_pytest_path,
+        )
+    if step_type == "python":
+        return PythonStepConfig(
+            name="p",
+            resources=_resources(),
+            output_directory=output_directory,
+            args={"path": valid_python_script},
+        )
+    if step_type == "notebook":
+        return NotebookStepConfig(
+            name="n",
+            resources=_resources(),
+            output_directory=output_directory,
+            path=valid_notebook_path,
+            output_path=valid_notebook_path.parent / "out.ipynb",
+        )
+    raise ValueError(f"No factory for step_type {step_type!r}")
+
+
+@pytest.mark.parametrize("step_type", sorted(STEP_TYPES))
+def test_to_api_kwargs_keys_match_api_fn_signature(
+    step_type: str,
+    valid_model_spec_file: Path,
+    valid_branch_config_file: Path,
+    valid_pytest_path: str,
+    valid_python_script: str,
+    valid_notebook_path: Path,
+) -> None:
+    """``to_api_kwargs()`` must return exactly the kwargs the matching API
+    function accepts, minus ``tool`` and ``is_resume`` (supplied by the builder).
+
+    Locks in the contract between each ``BaseStepConfig`` subclass and its
+    ``get_*_step_tasks`` partner so a kwarg rename / addition / removal on
+    either side fails at test time instead of at workflow-build time.
+    """
+    step = _build_step_instance(
+        step_type,
+        valid_model_spec_file=valid_model_spec_file,
+        valid_branch_config_file=valid_branch_config_file,
+        valid_pytest_path=valid_pytest_path,
+        valid_python_script=valid_python_script,
+        valid_notebook_path=valid_notebook_path,
+    )
+    api_kwargs = step.to_api_kwargs()
+    sig_params = set(inspect.signature(STEP_TYPE_API_FNS[step_type]).parameters)
+    expected = sig_params - {"tool", "is_resume"}
+    assert set(api_kwargs) == expected

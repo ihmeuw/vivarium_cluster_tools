@@ -1337,23 +1337,29 @@ class WorkflowConfig:
     ) -> list[ParsedStep]:
         """Parse a list of raw step dicts into :class:`ParsedStep` objects.
 
-        Constructs the matching step config class transiently to run its
-        ``__post_init__`` validation, then extracts the kwargs needed by the
-        interface API function and discards the instance. The "command" type
-        is the default when ``type`` is omitted.
+        Command-based steps use the bare ``command`` field (no ``type``);
+        ``type: command`` is rejected so the YAML form is unambiguous. For all
+        other step types, constructs the matching step config class transiently
+        to run its ``__post_init__`` validation, then extracts the kwargs
+        needed by the interface API function and discards the instance.
         """
         parsed_steps: list[ParsedStep] = []
         valid_yaml_types = {t for t in STEP_TYPES if t != "command"}
         for step_dict in raw_steps:
+            step_name = step_dict.get("name", "<unnamed>")
             if "command" in step_dict and "type" in step_dict:
-                step_name = step_dict.get("name", "<unnamed>")
                 raise ValueError(
                     f"Step '{step_name}': Cannot specify both 'command' and 'type'. "
                     "Use 'command' for command-based steps or 'type' for typed steps."
                 )
-            step_type = step_dict.get("type") or "command"
+            explicit_type = step_dict.get("type")
+            if explicit_type == "command":
+                raise ValueError(
+                    f"Step '{step_name}': 'type: command' is not supported. "
+                    "Use the bare 'command' field instead (omit 'type')."
+                )
+            step_type = explicit_type or "command"
             if step_type not in STEP_TYPES:
-                step_name = step_dict.get("name", "<unnamed>")
                 raise ValueError(
                     f"Step '{step_name}': unsupported type '{step_type}'. "
                     f"Must be one of: {sorted(valid_yaml_types)}."
