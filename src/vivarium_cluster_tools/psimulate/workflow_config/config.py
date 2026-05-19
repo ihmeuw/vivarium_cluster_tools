@@ -1298,35 +1298,34 @@ class WorkflowConfig:
         project: str,
         queue: str,
     ) -> list[ParsedStep]:
-        """Parse a list of raw step dicts into :class:`ParsedStep` objects.
+        """Parse a list of raw step dicts into :class:`ParsedStep` objects."""
 
-        Command-based steps use the bare ``command`` field (no ``type``);
-        ``type: command`` is rejected so the YAML form is unambiguous. For each
-        step, the matching step class's ``kwargs_from_yaml`` converts the raw
-        YAML to API kwargs and ``to_yaml_dict`` produces the round-trip form.
-        Semantic validation is deferred to the API function (see
-        :func:`~vivarium_cluster_tools.psimulate.workflow_config.interface`).
-        """
         parsed_steps: list[ParsedStep] = []
-        valid_yaml_types = {t for t in STEP_TYPES if t != "command"}
         for step_dict in raw_steps:
             step_name = step_dict.get("name", "<unnamed>")
-            if "command" in step_dict and "type" in step_dict:
-                raise ValueError(
-                    f"Step '{step_name}': Cannot specify both 'command' and 'type'. "
-                    "Use 'command' for command-based steps or 'type' for typed steps."
-                )
+            has_command = "command" in step_dict
             explicit_type = step_dict.get("type")
-            if explicit_type == "command":
-                raise ValueError(
-                    f"Step '{step_name}': 'type: command' is not supported. "
-                    "Use the bare 'command' field instead (omit 'type')."
-                )
-            step_type = explicit_type or "command"
+
+            if has_command:
+                if explicit_type is not None and explicit_type != "command":
+                    raise ValueError(
+                        f"Step '{step_name}': cannot specify both 'command' and "
+                        f"'type: {explicit_type}'. When 'command' is set, 'type' "
+                        "must be omitted or set to 'command'."
+                    )
+                step_type = "command"
+            else:
+                if explicit_type == "command":
+                    raise ValueError(
+                        f"Step '{step_name}': 'type: command' requires a top-level "
+                        "'command' field."
+                    )
+                step_type = explicit_type or "command"
+
             if step_type not in STEP_TYPES:
                 raise ValueError(
                     f"Step '{step_name}': unsupported type '{step_type}'. "
-                    f"Must be one of: {sorted(valid_yaml_types)}."
+                    f"Must be one of: {sorted(STEP_TYPES)}."
                 )
             step_class = STEP_TYPES[step_type]
             step_class._check_supported_args(step_dict.get("args", {}), step_name)
