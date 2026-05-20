@@ -90,21 +90,27 @@ class TestJobParametersTaskId:
 
 
 class TestBuildJobList:
+    # Two draws x two seeds x one (empty) branch.
+    _INPUT_DRAWS = [0, 1]
+    _RANDOM_SEEDS = [100, 200]
+    _EXPECTED_JOB_KEYS = {(0, 100), (0, 200), (1, 100), (1, 200)}
+
     def _make_keyspace(self) -> Keyspace:
-        # Two draws x two seeds x one (empty) branch = 4 jobs.
         return Keyspace(
             branches=[{}],
-            keyspace={"input_draw": [0, 1], "random_seed": [100, 200]},
+            keyspace={
+                "input_draw": self._INPUT_DRAWS,
+                "random_seed": self._RANDOM_SEEDS,
+            },
         )
 
     @pytest.mark.parametrize("backup_freq", [None, 300])
     def test_backup_freq_propagates_into_job_parameters(
         self, tmp_path: Path, backup_freq: int | None
     ) -> None:
-        """build_job_list forwards backup_freq into each JobParameters.
-
-        Covers the ``backup_freq=None`` case used when running psimulate
-        without backups.
+        """Covers the ``backup_freq=None`` case used when running psimulate
+        without backups: ``build_job_list`` forwards ``backup_freq`` (and the
+        rest of the backup configuration) into every ``JobParameters``.
         """
         backup_dir = tmp_path / "backups"
         backup_metadata_path = backup_dir / "backup_metadata.csv"
@@ -121,10 +127,43 @@ class TestBuildJobList:
         )
 
         assert num_completed == 0
-        assert len(jobs) == 4
+        # Guards against a regression in keyspace iteration co-occurring with
+        # a backup_freq change.
+        assert {(job.input_draw, job.random_seed) for job in jobs} == self._EXPECTED_JOB_KEYS
         for job in jobs:
             assert job.backup_configuration == {
                 "backup_dir": backup_dir,
                 "backup_freq": backup_freq,
                 "backup_metadata_path": backup_metadata_path,
             }
+
+    @pytest.mark.parametrize("backup_freq", [None, 300])
+    def test_already_complete_jobs_filtered(
+        self, tmp_path: Path, backup_freq: int | None
+    ) -> None:
+        """When ``finished_sim_metadata`` already contains a (draw, seed) pair,
+        ``build_job_list`` excludes it from the returned jobs and counts it
+        toward ``num_completed``.
+        """
+        backup_dir = tmp_path / "backups"
+        # Mark one of the four (draw, seed) pairs as already complete.
+        already_done = pd.DataFrame(
+            [{"input_draw": self._INPUT_DRAWS[0], "random_seed": self._RANDOM_SEEDS[0]}]
+        )
+        jobs, num_completed = build_job_list(
+            model_specification_path=tmp_path / "model_spec.yaml",
+            output_root=tmp_path / "results",
+            keyspace=self._make_keyspace(),
+            finished_sim_metadata=already_done,
+            backup_freq=backup_freq,
+            backup_dir=backup_dir,
+            backup_metadata_path=backup_dir / "backup_metadata.csv",
+            worker_logging_root=tmp_path / "logs",
+            extras={},
+        )
+
+        assert num_completed == 1
+        skipped = (self._INPUT_DRAWS[0], self._RANDOM_SEEDS[0])
+        assert {(job.input_draw, job.random_seed) for job in jobs} == (
+            self._EXPECTED_JOB_KEYS - {skipped}
+        )
