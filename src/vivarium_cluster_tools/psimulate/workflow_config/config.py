@@ -213,26 +213,18 @@ class BaseStepConfig(ABC):
             if not path.exists():
                 raise FileNotFoundError(f"Step '{name}': path does not exist: {path}")
 
-    @classmethod
-    @abstractmethod
-    def validate(cls, **kwargs: Any) -> None:
-        """Validate kwargs intended for the matching API function.
-
-        Each subclass declares a typed signature matching its
-        ``get_*_step_tasks`` function. Called once at the API boundary
-        (from the YAML parser or from the API function itself).
-        """
-        pass
-
-    @classmethod
-    @abstractmethod
-    def to_yaml_dict(cls, **kwargs: Any) -> dict[str, Any]:
-        """Serialize API kwargs to a YAML-ready dictionary.
-
-        Mirrors the signature of ``validate``. Produces the canonical
-        round-trip form for ``WorkflowConfig.to_dict``.
-        """
-        pass
+    # Each concrete subclass defines:
+    #
+    #   @classmethod
+    #   def validate(cls, *, <api kwargs>) -> None: ...
+    #
+    #   @classmethod
+    #   def to_yaml_dict(cls, *, <api kwargs>) -> dict[str, Any]: ...
+    #
+    # The signatures match the corresponding ``get_*_step_tasks`` function,
+    # so they can't satisfy a single base-class signature (LSP). They live
+    # on each subclass directly; the YAML parser and API functions dispatch
+    # to them via the ``STEP_TYPES`` registry.
 
     @classmethod
     @abstractmethod
@@ -248,7 +240,7 @@ class BaseStepConfig(ABC):
 
         Does no validation beyond the type-level path/string coercions
         needed to land in the API kwargs shape; semantic validation lives
-        in :meth:`validate`.
+        in each subclass's ``validate`` classmethod.
         """
         pass
 
@@ -1241,7 +1233,7 @@ def _resolve_step_type(step_dict: dict[str, Any]) -> str:
     """
     if "command" in step_dict:
         return "command"
-    step_type = step_dict.get("type", "command")
+    step_type: str = step_dict.get("type", "command")
     if step_type not in STEP_TYPES:
         step_name = step_dict.get("name", "<unnamed>")
         raise ValueError(
@@ -1356,7 +1348,7 @@ class WorkflowConfig:
                 project=project,
                 queue=queue,
             )
-            yaml_dict = step_class.to_yaml_dict(**api_kwargs)
+            yaml_dict = step_class.to_yaml_dict(**api_kwargs)  # type: ignore[attr-defined]
             parsed_steps.append(
                 ParsedStep(
                     step_type=step_type,

@@ -17,6 +17,7 @@ from tests.psimulate.workflow_config.utilities import (
     write_workflow_yaml,
 )
 from vivarium_cluster_tools.psimulate.workflow_config.config import (
+    BaseStepConfig,
     CommandStepConfig,
     NotebookStepConfig,
     PytestStepConfig,
@@ -339,7 +340,7 @@ class TestBaseStepConfig:
     )
     def test_supported_arguments(
         self,
-        cls: type,
+        cls: type[BaseStepConfig],
         expected: set[str] | None,
     ) -> None:
         assert cls._SUPPORTED_ARGS == expected
