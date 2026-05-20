@@ -4,9 +4,8 @@ Workflow Config Interface
 =========================
 
 Python API for building workflow step tasks programmatically, as an
-alternative to authoring a YAML workflow file. Each function constructs
-the corresponding step config and returns the Jobmon tasks produced by
-its ``get_tasks`` method.
+alternative to authoring a YAML workflow file. Each function validates its
+kwargs and dispatches to the matching task builder.
 
 """
 
@@ -17,16 +16,25 @@ from typing import TYPE_CHECKING, Any
 
 from vivarium_cluster_tools.psimulate.workflow_config.config import (
     DEFAULT_BACKUP_FREQ_SECONDS,
-    CommandStepConfig,
-    NotebookStepConfig,
-    PytestStepConfig,
-    PythonStepConfig,
     ResourceConfig,
-    SimulationStepConfig,
+)
+from vivarium_cluster_tools.psimulate.workflow_config.task_builders import (
+    build_command_step_tasks,
+    build_notebook_step_tasks,
+    build_pytest_step_tasks,
+    build_python_step_tasks,
+    build_simulation_step_tasks,
 )
 from vivarium_cluster_tools.psimulate.workflow_config.utilities import (
     get_or_create_build_timestamp,
     resolve_step_env_prefix,
+)
+from vivarium_cluster_tools.psimulate.workflow_config.validation import (
+    validate_command_step,
+    validate_notebook_step,
+    validate_pytest_step,
+    validate_python_step,
+    validate_simulation_step,
 )
 
 if TYPE_CHECKING:
@@ -68,24 +76,22 @@ def get_command_step_tasks(
     -------
         The Jobmon tasks produced by the step.
     """
-    CommandStepConfig.validate(
+    validate_command_step(
         name=name,
         resources=resources,
         command=command,
         output_directory=output_directory,
         environment=environment,
     )
-    step = CommandStepConfig(
+    return build_command_step_tasks(
         name=name,
         resources=resources,
         command=command,
         output_directory=output_directory,
         environment=environment,
-    )
-    return step.get_tasks(
-        tool,
-        env_prefix=resolve_step_env_prefix(step),
-        build_timestamp=get_or_create_build_timestamp(step.output_directory),
+        tool=tool,
+        env_prefix=resolve_step_env_prefix(name=name, environment=environment),
+        build_timestamp=get_or_create_build_timestamp(output_directory),
         is_resume=is_resume,
     )
 
@@ -146,7 +152,7 @@ def get_simulation_step_tasks(
     -------
         The Jobmon tasks produced by the step.
     """
-    SimulationStepConfig.validate(
+    validate_simulation_step(
         name=name,
         resources=resources,
         output_directory=output_directory,
@@ -157,7 +163,7 @@ def get_simulation_step_tasks(
         backup_freq=backup_freq,
         sim_verbosity=sim_verbosity,
     )
-    step = SimulationStepConfig(
+    return build_simulation_step_tasks(
         name=name,
         resources=resources,
         output_directory=output_directory,
@@ -167,11 +173,9 @@ def get_simulation_step_tasks(
         artifact_path=artifact_path,
         backup_freq=backup_freq,
         sim_verbosity=sim_verbosity,
-    )
-    return step.get_tasks(
-        tool,
-        env_prefix=resolve_step_env_prefix(step),
-        build_timestamp=get_or_create_build_timestamp(step.output_directory),
+        tool=tool,
+        env_prefix=resolve_step_env_prefix(name=name, environment=environment),
+        build_timestamp=get_or_create_build_timestamp(output_directory),
         is_resume=is_resume,
     )
 
@@ -222,7 +226,7 @@ def get_pytest_step_tasks(
     -------
         The Jobmon tasks produced by the step.
     """
-    PytestStepConfig.validate(
+    validate_pytest_step(
         name=name,
         resources=resources,
         output_directory=output_directory,
@@ -231,7 +235,7 @@ def get_pytest_step_tasks(
         k=k,
         runslow=runslow,
     )
-    step = PytestStepConfig(
+    return build_pytest_step_tasks(
         name=name,
         resources=resources,
         output_directory=output_directory,
@@ -239,11 +243,9 @@ def get_pytest_step_tasks(
         path=path,
         k=k,
         runslow=runslow,
-    )
-    return step.get_tasks(
-        tool,
-        env_prefix=resolve_step_env_prefix(step),
-        build_timestamp=get_or_create_build_timestamp(step.output_directory),
+        tool=tool,
+        env_prefix=resolve_step_env_prefix(name=name, environment=environment),
+        build_timestamp=get_or_create_build_timestamp(output_directory),
         is_resume=is_resume,
     )
 
@@ -300,7 +302,7 @@ def get_python_step_tasks(
     -------
         The Jobmon tasks produced by the step.
     """
-    PythonStepConfig.validate(
+    validate_python_step(
         name=name,
         resources=resources,
         output_directory=output_directory,
@@ -309,22 +311,17 @@ def get_python_step_tasks(
         positional_args=positional_args,
         keyword_args=keyword_args,
     )
-    args: dict[str, Any] = {"path": path}
-    if positional_args is not None:
-        args["positional_args"] = positional_args
-    if keyword_args is not None:
-        args["keyword_args"] = keyword_args
-    step = PythonStepConfig(
+    return build_python_step_tasks(
         name=name,
         resources=resources,
         output_directory=output_directory,
+        path=path,
         environment=environment,
-        args=args,
-    )
-    return step.get_tasks(
-        tool,
-        env_prefix=resolve_step_env_prefix(step),
-        build_timestamp=get_or_create_build_timestamp(step.output_directory),
+        positional_args=positional_args,
+        keyword_args=keyword_args,
+        tool=tool,
+        env_prefix=resolve_step_env_prefix(name=name, environment=environment),
+        build_timestamp=get_or_create_build_timestamp(output_directory),
         is_resume=is_resume,
     )
 
@@ -383,7 +380,7 @@ def get_notebook_step_tasks(
     -------
         The Jobmon tasks produced by the step.
     """
-    NotebookStepConfig.validate(
+    validate_notebook_step(
         name=name,
         resources=resources,
         output_directory=output_directory,
@@ -393,19 +390,17 @@ def get_notebook_step_tasks(
         parameters=parameters,
         cwd=cwd,
     )
-    step = NotebookStepConfig(
+    return build_notebook_step_tasks(
         name=name,
         resources=resources,
         output_directory=output_directory,
         path=path,
         output_path=output_path,
         environment=environment,
-        parameters=parameters if parameters is not None else {},
+        parameters=parameters,
         cwd=cwd,
-    )
-    return step.get_tasks(
-        tool,
-        env_prefix=resolve_step_env_prefix(step),
-        build_timestamp=get_or_create_build_timestamp(step.output_directory),
+        tool=tool,
+        env_prefix=resolve_step_env_prefix(name=name, environment=environment),
+        build_timestamp=get_or_create_build_timestamp(output_directory),
         is_resume=is_resume,
     )

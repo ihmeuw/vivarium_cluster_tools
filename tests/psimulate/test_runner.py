@@ -372,7 +372,6 @@ def test_write_configuration_workflow_command(tmp_path: Path) -> None:
 
     # Create a mock WorkflowConfig to simulate workflow input
     from vivarium_cluster_tools.psimulate.workflow_config.config import (
-        CommandStepConfig,
         ParsedStep,
         ResourceConfig,
         WorkflowConfig,
@@ -401,7 +400,6 @@ def test_write_configuration_workflow_command(tmp_path: Path) -> None:
                 step_type="command",
                 name=step_kwargs["name"],
                 api_kwargs=step_kwargs,
-                yaml_dict=CommandStepConfig.to_yaml_dict(**step_kwargs),
             )
         ],
     )

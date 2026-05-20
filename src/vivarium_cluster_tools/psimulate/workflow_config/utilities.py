@@ -1,7 +1,7 @@
 """
-===================
+==================
 Workflow Utilities
-===================
+==================
 
 Shared helpers used across the ``workflow_config`` package: filesystem
 constants for resume markers, build-timestamp management, conda env
@@ -15,13 +15,8 @@ import os
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from vivarium_cluster_tools.psimulate.jobmon_config.workflow import resolve_env_prefix
-
-if TYPE_CHECKING:
-    from vivarium_cluster_tools.psimulate.workflow_config.config import BaseStepConfig
-
 
 BUILD_TIMESTAMP_FILENAME = ".build_timestamp"
 """File written to a step's output directory to persist the build timestamp
@@ -67,22 +62,25 @@ def is_resume(output_directory: Path) -> bool:
 
 
 def resolve_step_env_prefix(
-    step: BaseStepConfig,
     *,
+    name: str,
+    environment: str | None,
     default_environment: str | None = None,
 ) -> str:
     """Resolve a step's conda environment to an absolute filesystem prefix.
 
-    Applies the standard precedence: ``step.environment`` →
+    Applies the standard precedence: ``environment`` →
     ``default_environment`` → the runner's active ``CONDA_DEFAULT_ENV``.
     The resolved env name must be a non-``"base"`` conda environment.
 
     Parameters
     ----------
-    step
-        The step config whose environment to resolve.
+    name
+        The step's name (used in error messages).
+    environment
+        The step's explicit environment, if any.
     default_environment
-        Workflow-level fallback used when ``step.environment`` is unset.
+        Workflow-level fallback used when ``environment`` is unset.
 
     Returns
     -------
@@ -96,10 +94,10 @@ def resolve_step_env_prefix(
     RuntimeError
         If the resolved env name has no matching filesystem prefix.
     """
-    env = step.environment or default_environment or os.environ.get("CONDA_DEFAULT_ENV")
+    env = environment or default_environment or os.environ.get("CONDA_DEFAULT_ENV")
     if not env or env == "base":
         raise ValueError(
-            f"Step '{step.name}': a non-base conda environment is required. "
+            f"Step '{name}': a non-base conda environment is required. "
             "Set 'environment' on the step, 'default_environment' on the workflow, "
             "or activate a conda environment before running."
         )
