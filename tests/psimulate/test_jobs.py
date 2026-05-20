@@ -1,6 +1,15 @@
 from copy import deepcopy
+from pathlib import Path
 
-from vivarium_cluster_tools.psimulate.jobs import JobParameters, generate_task_id
+import pandas as pd
+import pytest
+
+from vivarium_cluster_tools.psimulate.branches import Keyspace
+from vivarium_cluster_tools.psimulate.jobs import (
+    JobParameters,
+    build_job_list,
+    generate_task_id,
+)
 
 
 def test_branch_config_immutable() -> None:
@@ -78,3 +87,44 @@ class TestJobParametersTaskId:
         )
         expected = generate_task_id(5, 10, {"scenario": "A"})
         assert job_parameters.task_id == expected
+
+
+class TestBuildJobList:
+    def _make_keyspace(self) -> Keyspace:
+        # Two draws x two seeds x one (empty) branch = 4 jobs.
+        return Keyspace(
+            branches=[{}],
+            keyspace={"input_draw": [0, 1], "random_seed": [100, 200]},
+        )
+
+    @pytest.mark.parametrize("backup_freq", [None, 300])
+    def test_backup_freq_propagates_into_job_parameters(
+        self, tmp_path: Path, backup_freq: int | None
+    ) -> None:
+        """build_job_list forwards backup_freq into each JobParameters.
+
+        Covers the ``backup_freq=None`` case used when running psimulate
+        without backups.
+        """
+        backup_dir = tmp_path / "backups"
+        backup_metadata_path = backup_dir / "backup_metadata.csv"
+        jobs, num_completed = build_job_list(
+            model_specification_path=tmp_path / "model_spec.yaml",
+            output_root=tmp_path / "results",
+            keyspace=self._make_keyspace(),
+            finished_sim_metadata=pd.DataFrame(),
+            backup_freq=backup_freq,
+            backup_dir=backup_dir,
+            backup_metadata_path=backup_metadata_path,
+            worker_logging_root=tmp_path / "logs",
+            extras={},
+        )
+
+        assert num_completed == 0
+        assert len(jobs) == 4
+        for job in jobs:
+            assert job.backup_configuration == {
+                "backup_dir": backup_dir,
+                "backup_freq": backup_freq,
+                "backup_metadata_path": backup_metadata_path,
+            }

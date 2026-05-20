@@ -106,6 +106,68 @@ def test_get_backup(
         assert not backup
 
 
+def test_get_backup_no_metadata_file_when_backups_disabled(tmp_path: Path) -> None:
+    """When psimulate runs without backups, no metadata file is ever written.
+
+    ``get_backup`` should return ``None`` in that case so the worker falls
+    through to initializing a new simulation.
+    """
+    job_parameters = make_job_parameters(
+        input_draw=1,
+        random_seed=2,
+        branch_configuration={"branch_key": "branch_value"},
+        backup_configuration={
+            "backup_freq": None,
+            "backup_dir": tmp_path / "backups",
+            "backup_metadata_path": tmp_path / "backups" / "backup_metadata.csv",
+        },
+    )
+    assert get_backup(job_parameters) is None
+
+
+def test_get_backup_does_not_rename_pickle_when_backups_disabled(
+    tmp_path: Path,
+) -> None:
+    """Defensive: if a stray pickle exists but ``backup_freq`` is ``None``,
+    ``get_backup`` returns the loaded sim but does not rename the pickle.
+    """
+    backup_dir = tmp_path / "backups"
+    backup_dir.mkdir()
+    input_draw = 1
+    random_seed = 2
+    branch_configuration = {"branch_key": "branch_value"}
+    job_id = "prev_job"
+    metadata = pd.DataFrame(
+        {
+            "input_draw": [input_draw],
+            "random_seed": [random_seed],
+            "job_id": [job_id],
+            "branch_key": ["branch_value"],
+        }
+    )
+    metadata.to_csv(backup_dir / "backup_metadata.csv", index=False)
+    pickle_payload = [1, 2, 3, 4, 5]
+    with open(backup_dir / f"{job_id}.pkl", "wb") as f:
+        dill.dump(pickle_payload, f)
+
+    job_parameters = make_job_parameters(
+        input_draw=input_draw,
+        random_seed=random_seed,
+        branch_configuration=branch_configuration,
+        backup_configuration={
+            "backup_freq": None,
+            "backup_dir": backup_dir,
+            "backup_metadata_path": backup_dir / "backup_metadata.csv",
+        },
+    )
+
+    backup = cast(list[int], get_backup(job_parameters))
+    assert backup == pickle_payload
+    # Pickle stays at its original filename - no rename happened.
+    assert (backup_dir / f"{job_id}.pkl").exists()
+    assert not (backup_dir / f"{job_parameters.task_id}.pkl").exists()
+
+
 def test_remove_backups(tmp_path: Path) -> None:
     # Ensure deleting non-existent file does not raise an error
     remove_backups(tmp_path / "job_id.pkl")
