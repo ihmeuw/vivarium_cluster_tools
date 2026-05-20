@@ -16,7 +16,7 @@ dispatched by the first positional argument:
   failing command's output. Used by typed steps (pytest, python, notebook,
   command) via ``BaseStepConfig._wrap_for_logging``.
 
-Both modes share ``configure_dual_sink`` so INFO+ logs land in stdout
+Both modes share ``_configure_dual_sink`` so INFO+ logs land in stdout
 (workflow log file) and WARNING+ logs land in stderr (Jobmon GUI).
 
 Usage::
@@ -44,7 +44,6 @@ from loguru import logger
 from vivarium_cluster_tools.psimulate import COMMANDS
 from vivarium_cluster_tools.psimulate.jobs import JobParameters
 from vivarium_cluster_tools.psimulate.results.writing import write_task_results
-from vivarium_cluster_tools.psimulate.worker._logging import configure_dual_sink
 from vivarium_cluster_tools.psimulate.worker.load_test_work_horse import (
     work_horse as load_test_work_horse,
 )
@@ -53,6 +52,19 @@ from vivarium_cluster_tools.psimulate.worker.vivarium_work_horse import work_hor
 BUFFER_MAXLEN: int = 10_000
 """Maximum number of subprocess output lines retained for the failure replay.
 Exposed at module level so tests can monkeypatch a smaller cap."""
+
+
+def _configure_dual_sink() -> None:
+    """Route INFO+ to stdout and WARNING+ to stderr.
+
+    Called once at the top of each worker entry point so warnings and
+    errors land in the SLURM stderr file and the Jobmon GUI surfaces them.
+    Removes loguru's default stderr handler first so INFO-level messages
+    don't end up duplicated on stderr.
+    """
+    logger.remove()
+    logger.add(sys.stdout, level="INFO")
+    logger.add(sys.stderr, level="WARNING")
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -183,7 +195,7 @@ def _run_subprocess(args: argparse.Namespace) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
-    configure_dual_sink()
+    _configure_dual_sink()
 
     if args.mode == "simulation":
         return _run_simulation(args)
