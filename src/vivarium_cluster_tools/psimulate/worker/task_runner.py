@@ -34,6 +34,7 @@ Usage::
 
 import argparse
 import json
+import signal
 import subprocess
 import sys
 from collections import deque
@@ -52,6 +53,11 @@ from vivarium_cluster_tools.psimulate.worker.vivarium_work_horse import work_hor
 BUFFER_MAXLEN: int = 10_000
 """Maximum number of subprocess output lines retained for the failure replay.
 Exposed at module level so tests can monkeypatch a smaller cap."""
+
+CHILD_TERMINATE_GRACE_SECONDS: float = 15.0
+"""Seconds to wait for the child to exit after SIGTERM before SIGKILLing it.
+Sized as a sub-budget of SLURM's default 30s ``KillWait`` so the parent still
+has time to replay the buffer to stderr afterwards."""
 
 
 def _configure_dual_sink() -> None:
@@ -148,6 +154,11 @@ def _run_subprocess(inner_argv: list[str]) -> int:
     buffered output is replayed to ``sys.stderr`` so the SLURM stderr file
     (and the Jobmon GUI's "Task Instance stderr" pane) surfaces the failing
     command's output.
+
+    SIGTERM and SIGINT received by this process are forwarded to the child
+    so it has a chance to flush a final traceback before being reaped. The
+    finally block guarantees the buffer is still replayed — and the child
+    is terminated, not orphaned — on parent-killed and exception paths.
     """
     logger.info(f"Running subprocess: {' '.join(inner_argv)}")
     buffered: deque[str] = deque(maxlen=BUFFER_MAXLEN)
@@ -158,18 +169,39 @@ def _run_subprocess(inner_argv: list[str]) -> int:
         bufsize=1,
         text=True,
     )
-    assert proc.stdout is not None
-    for line in proc.stdout:
-        sys.stdout.write(line)
-        sys.stdout.flush()
-        buffered.append(line)
-    exit_code = proc.wait()
 
-    if exit_code != 0:
-        logger.error(f"Subprocess exited with code {exit_code}; replaying output to stderr.")
-        sys.stderr.writelines(buffered)
-        sys.stderr.flush()
-    return exit_code
+    def _forward_signal(signum: int, _frame: object) -> None:
+        try:
+            proc.send_signal(signum)
+        except ProcessLookupError:
+            pass
+
+    prev_term = signal.signal(signal.SIGTERM, _forward_signal)
+    prev_int = signal.signal(signal.SIGINT, _forward_signal)
+    try:
+        assert proc.stdout is not None
+        for line in proc.stdout:
+            sys.stdout.write(line)
+            sys.stdout.flush()
+            buffered.append(line)
+        return proc.wait()
+    finally:
+        signal.signal(signal.SIGTERM, prev_term)
+        signal.signal(signal.SIGINT, prev_int)
+        if proc.poll() is None:
+            proc.terminate()
+            try:
+                proc.wait(timeout=CHILD_TERMINATE_GRACE_SECONDS)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait()
+        if proc.returncode != 0:
+            logger.error(
+                f"Subprocess exited with code {proc.returncode}; "
+                "replaying output to stderr."
+            )
+            sys.stderr.writelines(buffered)
+            sys.stderr.flush()
 
 
 def main(argv: list[str] | None = None) -> int:
