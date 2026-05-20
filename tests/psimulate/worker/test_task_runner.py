@@ -13,13 +13,18 @@ from unittest.mock import patch
 
 import pandas as pd
 import pytest
+from loguru import logger
 
 from tests.psimulate.conftest import make_job_parameters
 from vivarium_cluster_tools.psimulate import COMMANDS
 from vivarium_cluster_tools.psimulate.jobs import JobParameters
 from vivarium_cluster_tools.psimulate.results.writing import write_metadata
 from vivarium_cluster_tools.psimulate.worker import task_runner
-from vivarium_cluster_tools.psimulate.worker.task_runner import main, parse_args
+from vivarium_cluster_tools.psimulate.worker.task_runner import (
+    _configure_dual_sink,
+    main,
+    parse_args,
+)
 
 PY = sys.executable
 
@@ -230,11 +235,15 @@ class TestSubprocessMode:
     ) -> None:
         """On non-zero exit, captured stdout is replayed to stderr so the
         Jobmon GUI (which reads the SLURM stderr file) sees the failure
-        output."""
+        output. Also asserts the runner's own ERROR line — the only
+        observable signal that ``_configure_dual_sink``'s WARNING+ sink
+        is wired correctly through loguru."""
         main(["subprocess", PY, "-c", "print('boom'); import sys; sys.exit(2)"])
         out, err = capfd.readouterr()
         assert "boom" in out
         assert "boom" in err
+        assert "Subprocess exited with code 2" in err
+        assert "replaying output to stderr" in err
 
     def test_exit_code_propagates_on_success(self) -> None:
         assert main(["subprocess", PY, "-c", "pass"]) == 0
@@ -281,3 +290,23 @@ class TestSubprocessMode:
         """``subprocess`` mode with no argv to execute must raise."""
         with pytest.raises(ValueError, match="requires argv to execute"):
             main(["subprocess"])
+
+
+class TestConfigureDualSink:
+    """Tests for ``_configure_dual_sink`` — the loguru routing setup shared
+    by both worker entry points. Asserts the level-routing contract
+    directly rather than via the subprocess code path."""
+
+    def test_routes_levels_to_correct_streams(
+        self, capfd: pytest.CaptureFixture[str]
+    ) -> None:
+        """INFO+ records go to stdout; WARNING+ records also go to stderr;
+        INFO records must NOT leak to stderr."""
+        _configure_dual_sink()
+        logger.info("info-msg")
+        logger.warning("warn-msg")
+        out, err = capfd.readouterr()
+        assert "info-msg" in out
+        assert "warn-msg" in out
+        assert "warn-msg" in err
+        assert "info-msg" not in err

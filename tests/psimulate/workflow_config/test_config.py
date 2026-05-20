@@ -580,6 +580,25 @@ class TestSimulationStepConfig:
         assert config.artifact_path is None
         assert config.resources.hardware is None
 
+    def test_build_command_raises_not_implemented(
+        self, valid_model_spec_file: Path, valid_branch_config_file: Path
+    ) -> None:
+        """SimulationStepConfig deliberately does not implement ``_build_command``:
+        simulation tasks run ``task_runner simulation`` in-process and must
+        not be routed through the typed-step ``subprocess`` wrapper. This
+        test guards against a refactor that silently routes simulation
+        through ``_create_single_command_task`` (which would double-wrap
+        the command as ``task_runner subprocess … task_runner simulation …``)."""
+        config = SimulationStepConfig(
+            name="sim",
+            resources=ResourceConfig(memory_gb=5, project="proj_simscience", queue="all.q"),
+            output_directory=Path("/tmp/results"),
+            model_specification=valid_model_spec_file,
+            branch_configuration=valid_branch_config_file,
+        )
+        with pytest.raises(NotImplementedError, match="does not use _build_command"):
+            config._build_command()
+
     def test_kwargs_from_yaml(
         self,
         valid_model_spec_file: Path,

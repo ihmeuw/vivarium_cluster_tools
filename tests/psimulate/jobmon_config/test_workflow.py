@@ -11,6 +11,7 @@ import pytest
 from pytest_mock import MockerFixture
 
 from tests.psimulate.conftest import make_job_parameters
+from vivarium_cluster_tools.psimulate import TASK_RUNNER_MODULE
 from vivarium_cluster_tools.psimulate.jobmon_config.workflow import build_workflow
 from vivarium_cluster_tools.psimulate.jobs import JobParameters
 from vivarium_cluster_tools.psimulate.paths import OutputPaths
@@ -133,6 +134,28 @@ class TestBuildWorkflow:
         assert kwargs["op_args"] == ["command"]
         assert kwargs["default_cluster_name"] == "slurm"
         assert kwargs["default_compute_resources"] == native_spec.to_jobmon_spec.return_value
+
+    def test_command_template_invokes_task_runner_in_simulation_mode(
+        self,
+        mock_tool_cls: MagicMock,
+        mock_write_metadata: MagicMock,
+        output_paths: OutputPaths,
+        native_spec: MagicMock,
+        two_jobs: list[JobParameters],
+    ) -> None:
+        """The worker command template must invoke ``task_runner`` with the
+        ``simulation`` subcommand. Dropping the ``simulation`` token would
+        break every simulation task at runtime; this assertion is the
+        regression guard."""
+        self._call_build_workflow(
+            mock_tool_cls, mock_write_metadata, output_paths, native_spec, two_jobs
+        )
+        kwargs = mock_tool_cls.return_value.get_task_template.call_args.kwargs
+        command_template = kwargs["command_template"]
+        assert f"python -m {TASK_RUNNER_MODULE} simulation " in command_template
+        # Must NOT be wrapped — simulation steps run task_runner in-process,
+        # not via the ``subprocess`` mode used by typed steps.
+        assert "subprocess" not in command_template
 
     def test_write_metadata_called_per_job(
         self,
