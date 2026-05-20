@@ -188,13 +188,6 @@ class BaseStepConfig(ABC):
     """Arguments supported in the 'args' section of the step configuration. Arguments not
     in this set will be rejected with a validation error."""
 
-    _WRAP_FOR_LOGGING: ClassVar[bool] = True
-    """Whether commands produced by ``_build_command`` should be wrapped by
-    ``task_runner subprocess`` so failing-task output appears in the SLURM
-    stderr file (and thus the Jobmon GUI). Subclasses can override to
-    ``False`` to opt out (e.g. simulation steps that already have their own
-    dual-sink logging setup via the ``simulation`` mode)."""
-
     @property
     def native_specification(self) -> NativeSpecification:
         """The Jobmon-facing resource specification for this step."""
@@ -314,21 +307,18 @@ class BaseStepConfig(ABC):
         pass
 
     def _wrap_for_logging(self, command: str) -> str:
-        """Prepend the ``task_runner subprocess`` wrapper when enabled.
+        """Prepend the ``task_runner subprocess`` wrapper.
 
-        When :attr:`_WRAP_FOR_LOGGING` is ``True``, the returned command
-        runs through
+        The returned command runs through
         :mod:`vivarium_cluster_tools.psimulate.worker.task_runner` so the
-        child's output is duplicated to the SLURM stderr file on failure.
-        Returns ``command`` unchanged otherwise.
+        child's output is replayed to the SLURM stderr file on failure
+        (and thus surfaces in the Jobmon GUI).
 
         The module path is pulled from ``psimulate.TASK_RUNNER_MODULE``
         rather than imported from ``task_runner`` itself, so workflow-config
         parsing does not pay for ``task_runner``'s transitive work-horse
         imports (``vivarium.framework.engine``, ``dill``, ``pandas``).
         """
-        if not self._WRAP_FOR_LOGGING:
-            return command
         return f"python -m {TASK_RUNNER_MODULE} subprocess {command}"
 
     def _create_single_command_task(

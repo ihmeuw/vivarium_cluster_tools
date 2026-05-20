@@ -464,20 +464,6 @@ class TestBaseStepConfig:
         assert _SUBPROCESS_WRAPPER_PREFIX in cmd
         assert "echo hello world" in cmd
 
-    def test_wrap_for_logging_opt_out(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """The default class attribute wraps; setting it to False opts out."""
-        config = CommandStepConfig(
-            name="raw",
-            resources=ResourceConfig(memory_gb=4, project="proj_simscience", queue="all.q"),
-            command="echo hello world",
-            output_directory=Path("/tmp/results"),
-        )
-        # Default: wrapping applies.
-        assert _SUBPROCESS_WRAPPER_PREFIX in config._wrap_for_logging("echo hello world")
-        # Opt-out: wrapping is bypassed.
-        monkeypatch.setattr(CommandStepConfig, "_WRAP_FOR_LOGGING", False)
-        assert config._wrap_for_logging("echo hello world") == "echo hello world"
-
 
 class TestCommandStepConfig:
     """Tests for CommandStepConfig - the default command-based step type."""
