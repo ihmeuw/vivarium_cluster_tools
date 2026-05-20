@@ -16,7 +16,7 @@ import shlex
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from vivarium_cluster_tools.psimulate import COMMANDS, TASK_RUNNER_MODULE, branches
+from vivarium_cluster_tools.psimulate import COMMANDS, branches, wrap_for_subprocess
 from vivarium_cluster_tools.psimulate.jobmon_config.workflow import get_task_list
 from vivarium_cluster_tools.psimulate.jobs import (
     BackupConfiguration,
@@ -123,6 +123,7 @@ def build_simulation_step_tasks(
         native_specification=resources.to_native_specification(name),
         env_prefix=env_prefix,
         template_name=f"psimulate_{name}",
+        wrap_command=True,
     )
 
 
@@ -231,11 +232,11 @@ def _create_single_command_task(
 ) -> Task:
     """Create a single Jobmon task that runs a command in a conda env.
 
-    The supplied ``command`` is wrapped by :func:`_wrap_for_logging` so the
+    The supplied ``command`` is wrapped with
+    :func:`~vivarium_cluster_tools.psimulate.wrap_for_subprocess` so the
     child process's output is replayed to the SLURM stderr file on failure
-    (and thus surfaces in the Jobmon GUI). Simulation steps bypass this
-    helper and go through ``get_task_list`` instead, which dispatches
-    ``task_runner simulation`` directly — so they avoid double-wrapping.
+    (and thus surfaces in the Jobmon GUI). Workflow simulation steps go
+    through ``get_task_list`` instead and apply the same wrapping there.
     """
     task_template = tool.get_task_template(
         template_name="workflow_command_step",
@@ -252,24 +253,8 @@ def _create_single_command_task(
         name=name,
         compute_resources=compute_resources,
         env_prefix=env_prefix,
-        command=_wrap_for_logging(command),
+        command=wrap_for_subprocess(command),
     )
-
-
-def _wrap_for_logging(command: str) -> str:
-    """Prepend the ``task_runner subprocess`` wrapper.
-
-    The returned command runs through
-    :mod:`vivarium_cluster_tools.psimulate.worker.task_runner` so the
-    child's output is replayed to the SLURM stderr file on failure (and
-    thus surfaces in the Jobmon GUI).
-
-    The module path is pulled from ``psimulate.TASK_RUNNER_MODULE`` rather
-    than imported from ``task_runner`` itself, so workflow-config parsing
-    does not pay for ``task_runner``'s transitive work-horse imports
-    (``vivarium.framework.engine``, ``dill``, ``pandas``).
-    """
-    return f"python -m {TASK_RUNNER_MODULE} subprocess {command}"
 
 
 def _build_pytest_command(

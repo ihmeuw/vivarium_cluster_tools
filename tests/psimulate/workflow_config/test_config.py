@@ -654,6 +654,7 @@ class TestSimulationStep:
                 native_specification=resources.to_native_specification("sim_step"),
                 env_prefix="/envs/test_env",
                 template_name="psimulate_sim_step",
+                wrap_command=True,
             )
 
             # -- Assert: returns whatever get_task_list returns --

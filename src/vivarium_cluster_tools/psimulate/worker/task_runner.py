@@ -1,34 +1,23 @@
 """
-========================
+==================
 Jobmon Task Runner
-========================
+==================
 
-Single CLI entry point for Jobmon worker tasks. Two execution modes,
-dispatched by the first positional argument:
+CLI entry point for Jobmon worker tasks. Dispatches on the first positional
+argument:
 
-* ``simulation`` — load a task's metadata JSON, run the appropriate work
-  horse in-process, and write its results. Used by simulation steps and
-  the legacy ``psimulate run``/``restart``/``expand``/``load_test`` paths.
+* ``simulation`` — load the task's metadata JSON and run the work horse
+  in-process. Invoked directly by ``psimulate run`` / ``restart`` /
+  ``expand`` / ``load_test``; workflow simulation steps invoke it nested
+  inside ``subprocess`` (below).
+* ``subprocess`` — spawn the following argv as a child, mirror its stdout
+  live, and replay the captured tail to stderr on non-zero exit so failures
+  surface in the SLURM stderr file and the Jobmon GUI. Used by every
+  workflow step type via
+  :func:`~vivarium_cluster_tools.psimulate.wrap_for_subprocess`.
 
-* ``subprocess`` — spawn the argv following ``subprocess`` as a child
-  process, mirror its stdout in real time, and replay the captured output
-  to stderr on non-zero exit so the SLURM stderr file (and the Jobmon GUI)
-  surface the failing command's output. Used by typed steps (pytest,
-  python, notebook, command) via ``BaseStepConfig._wrap_for_logging``.
-
-Both modes share ``_configure_dual_sink`` so INFO+ logs land in stdout
+Both modes call ``_configure_dual_sink`` so INFO+ logs land in stdout
 (workflow log file) and WARNING+ logs land in stderr (Jobmon GUI).
-
-Usage::
-
-    python -m vivarium_cluster_tools.psimulate.worker.task_runner simulation \\
-        --metadata-dir /path/to/metadata \\
-        --task-id <task_id> \\
-        --results-dir /path/to/results \\
-        --command run
-
-    python -m vivarium_cluster_tools.psimulate.worker.task_runner subprocess \\
-        pytest tests/ -k some_filter
 
 """
 
