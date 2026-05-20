@@ -16,6 +16,7 @@ from tests.psimulate.workflow_config.utilities import (
     make_workflow_dict,
     write_workflow_yaml,
 )
+from vivarium_cluster_tools.psimulate import TASK_RUNNER_MODULE
 from vivarium_cluster_tools.psimulate.workflow_config.config import (
     BaseStepConfig,
     CommandStepConfig,
@@ -26,6 +27,8 @@ from vivarium_cluster_tools.psimulate.workflow_config.config import (
     SimulationStepConfig,
     WorkflowConfig,
 )
+
+_SUBPROCESS_WRAPPER_PREFIX = f"python -m {TASK_RUNNER_MODULE} subprocess "
 
 
 class TestWorkflowConfigFromYaml:
@@ -380,7 +383,7 @@ class TestBaseStepConfig:
             env_prefix="/path/to/envs/my_env",
             command=(
                 "python -m vivarium_cluster_tools.psimulate.worker.task_runner "
-                "subprocess -- echo hello world"
+                "subprocess echo hello world"
             ),
         )
 
@@ -435,7 +438,7 @@ class TestBaseStepConfig:
         )
 
         cmd = mock_template.create_task.call_args.kwargs["command"]
-        assert "vivarium_cluster_tools.psimulate.worker.task_runner subprocess --" in cmd
+        assert _SUBPROCESS_WRAPPER_PREFIX in cmd
         assert "pytest" in cmd  # inner command preserved
 
     def test_command_step_command_is_wrapped_with_runner(self) -> None:
@@ -458,7 +461,7 @@ class TestBaseStepConfig:
         )
 
         cmd = mock_template.create_task.call_args.kwargs["command"]
-        assert "vivarium_cluster_tools.psimulate.worker.task_runner subprocess --" in cmd
+        assert _SUBPROCESS_WRAPPER_PREFIX in cmd
         assert "echo hello world" in cmd
 
     def test_wrap_for_logging_opt_out(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -470,10 +473,7 @@ class TestBaseStepConfig:
             output_directory=Path("/tmp/results"),
         )
         # Default: wrapping applies.
-        assert (
-            "vivarium_cluster_tools.psimulate.worker.task_runner subprocess --"
-            in config._wrap_for_logging("echo hello world")
-        )
+        assert _SUBPROCESS_WRAPPER_PREFIX in config._wrap_for_logging("echo hello world")
         # Opt-out: wrapping is bypassed.
         monkeypatch.setattr(CommandStepConfig, "_WRAP_FOR_LOGGING", False)
         assert config._wrap_for_logging("echo hello world") == "echo hello world"
@@ -947,7 +947,7 @@ class TestPytestStepConfig:
         call_kwargs = mock_template.create_task.call_args[1]
         assert call_kwargs["command"] == (
             "python -m vivarium_cluster_tools.psimulate.worker.task_runner "
-            f"subprocess -- pytest {valid_pytest_path} "
+            f"subprocess pytest {valid_pytest_path} "
             "-k 'test_foo or test_bar' --runslow --numprocesses 4"
         )
 

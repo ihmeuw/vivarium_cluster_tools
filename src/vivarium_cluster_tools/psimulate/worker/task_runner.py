@@ -10,11 +10,11 @@ dispatched by the first positional argument:
   horse in-process, and write its results. Used by simulation steps and
   the legacy ``psimulate run``/``restart``/``expand``/``load_test`` paths.
 
-* ``subprocess`` — spawn the argv after ``--`` as a child process, mirror
-  its stdout in real time, and replay the captured output to stderr on
-  non-zero exit so the SLURM stderr file (and the Jobmon GUI) surface the
-  failing command's output. Used by typed steps (pytest, python, notebook,
-  command) via ``BaseStepConfig._wrap_for_logging``.
+* ``subprocess`` — spawn the argv following ``subprocess`` as a child
+  process, mirror its stdout in real time, and replay the captured output
+  to stderr on non-zero exit so the SLURM stderr file (and the Jobmon GUI)
+  surface the failing command's output. Used by typed steps (pytest,
+  python, notebook, command) via ``BaseStepConfig._wrap_for_logging``.
 
 Both modes share ``_configure_dual_sink`` so INFO+ logs land in stdout
 (workflow log file) and WARNING+ logs land in stderr (Jobmon GUI).
@@ -28,7 +28,7 @@ Usage::
         --command run
 
     python -m vivarium_cluster_tools.psimulate.worker.task_runner subprocess \\
-        -- pytest tests/ -k some_filter
+        pytest tests/ -k some_filter
 
 """
 
@@ -68,10 +68,10 @@ def _configure_dual_sink() -> None:
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    """Parse argv for either ``simulation`` or ``subprocess`` mode.
+    """Parse argv for ``simulation`` mode.
 
-    Returns a namespace with ``mode`` set to one of those strings and
-    additional fields depending on the mode.
+    ``subprocess`` mode is dispatched directly in :func:`main` and bypasses
+    argparse — see the module docstring.
     """
     parser = argparse.ArgumentParser(description="Run a single Jobmon worker task.")
     subparsers = parser.add_subparsers(dest="mode", required=True)
@@ -103,17 +103,6 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         type=str,
         required=True,
         help="The psimulate command (e.g. run, restart, expand, load_test).",
-    )
-
-    sub = subparsers.add_parser(
-        "subprocess",
-        help="Run the argv after '--' as a child process with dual-stream logging.",
-    )
-    # Everything after `--` is collected by argparse into `inner_argv`.
-    sub.add_argument(
-        "inner_argv",
-        nargs=argparse.REMAINDER,
-        help="Argv to execute; must be preceded by a literal '--' separator.",
     )
 
     return parser.parse_args(argv)
@@ -151,8 +140,8 @@ def _run_simulation(args: argparse.Namespace) -> int:
     return 0
 
 
-def _run_subprocess(args: argparse.Namespace) -> int:
-    """Spawn ``args.inner_argv`` as a child process with dual-stream logging.
+def _run_subprocess(inner_argv: list[str]) -> int:
+    """Spawn ``inner_argv`` as a child process with dual-stream logging.
 
     The child's stdout (with stderr merged in) is mirrored to ``sys.stdout``
     in real time and buffered in a capped deque. On non-zero exit, the
@@ -160,16 +149,6 @@ def _run_subprocess(args: argparse.Namespace) -> int:
     (and the Jobmon GUI's "Task Instance stderr" pane) surfaces the failing
     command's output.
     """
-    inner_argv = list(args.inner_argv)
-    if not inner_argv or inner_argv[0] != "--":
-        raise ValueError(
-            "subprocess mode requires a literal '--' separator before the "
-            "argv to run (got: " + repr(inner_argv) + ")."
-        )
-    inner_argv = inner_argv[1:]
-    if not inner_argv:
-        raise ValueError("subprocess mode requires argv after the '--' separator.")
-
     logger.info(f"Running subprocess: {' '.join(inner_argv)}")
     buffered: deque[str] = deque(maxlen=BUFFER_MAXLEN)
     proc = subprocess.Popen(
@@ -194,14 +173,16 @@ def _run_subprocess(args: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    args = parse_args(argv)
+    raw = list(sys.argv[1:] if argv is None else argv)
     _configure_dual_sink()
 
-    if args.mode == "simulation":
-        return _run_simulation(args)
-    if args.mode == "subprocess":
-        return _run_subprocess(args)
-    raise ValueError(f"Unknown mode: {args.mode!r}")
+    if raw and raw[0] == "subprocess":
+        inner_argv = raw[1:]
+        if not inner_argv:
+            raise ValueError("subprocess mode requires argv to execute.")
+        return _run_subprocess(inner_argv)
+
+    return _run_simulation(parse_args(raw))
 
 
 if __name__ == "__main__":

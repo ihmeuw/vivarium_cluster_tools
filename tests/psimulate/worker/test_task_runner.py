@@ -204,15 +204,15 @@ class TestMainMissingMetadata:
 
 
 class TestSubprocessMode:
-    """Tests for ``task_runner subprocess -- <argv>`` — the dual-stream
-    wrapper used by typed workflow steps (pytest, python, notebook, raw
-    command). All tests use real Python subprocesses (no Popen mocking)."""
+    """Tests for ``task_runner subprocess <argv>`` — the dual-stream wrapper
+    used by typed workflow steps (pytest, python, notebook, raw command).
+    All tests use real Python subprocesses (no Popen mocking)."""
 
     def test_success_writes_subprocess_output_to_stdout(
         self, capfd: pytest.CaptureFixture[str]
     ) -> None:
         """On exit 0, the subprocess's stdout is mirrored to our stdout."""
-        main(["subprocess", "--", PY, "-c", "print('hello')"])
+        main(["subprocess", PY, "-c", "print('hello')"])
         out, _ = capfd.readouterr()
         assert "hello" in out
 
@@ -220,7 +220,7 @@ class TestSubprocessMode:
         self, capfd: pytest.CaptureFixture[str]
     ) -> None:
         """On exit 0, captured output must NOT be replayed to stderr."""
-        main(["subprocess", "--", PY, "-c", "print('alpha'); print('beta')"])
+        main(["subprocess", PY, "-c", "print('alpha'); print('beta')"])
         _, err = capfd.readouterr()
         assert "alpha" not in err
         assert "beta" not in err
@@ -231,25 +231,24 @@ class TestSubprocessMode:
         """On non-zero exit, captured stdout is replayed to stderr so the
         Jobmon GUI (which reads the SLURM stderr file) sees the failure
         output."""
-        main(["subprocess", "--", PY, "-c", "print('boom'); import sys; sys.exit(2)"])
+        main(["subprocess", PY, "-c", "print('boom'); import sys; sys.exit(2)"])
         out, err = capfd.readouterr()
         assert "boom" in out
         assert "boom" in err
 
     def test_exit_code_propagates_on_success(self) -> None:
-        assert main(["subprocess", "--", PY, "-c", "pass"]) == 0
+        assert main(["subprocess", PY, "-c", "pass"]) == 0
 
     def test_exit_code_propagates_on_failure(self) -> None:
-        assert main(["subprocess", "--", PY, "-c", "import sys; sys.exit(7)"]) == 7
+        assert main(["subprocess", PY, "-c", "import sys; sys.exit(7)"]) == 7
 
-    def test_argv_after_double_dash_is_executed(self, tmp_path: Path) -> None:
-        """Whatever follows ``--`` is what gets executed — prove it by
-        having the child write to a tmp file we can read back."""
+    def test_inner_argv_is_executed(self, tmp_path: Path) -> None:
+        """Whatever follows ``subprocess`` is what gets executed — prove it
+        by having the child write to a tmp file we can read back."""
         marker = tmp_path / "ran.txt"
         main(
             [
                 "subprocess",
-                "--",
                 PY,
                 "-c",
                 f"open({str(marker)!r}, 'w').write('here')",
@@ -268,7 +267,6 @@ class TestSubprocessMode:
         code = main(
             [
                 "subprocess",
-                "--",
                 PY,
                 "-c",
                 "import sys\nfor i in range(100): print(f'line-{i}')\nsys.exit(1)",
@@ -279,8 +277,7 @@ class TestSubprocessMode:
         assert "line-99" in err  # tail preserved
         assert "line-0" not in err  # head dropped (capped at 5)
 
-    def test_missing_double_dash_raises(self) -> None:
-        """``subprocess`` mode without a ``--`` separator must raise —
-        refusing to guess is safer than silently running argv[0]."""
-        with pytest.raises((ValueError, SystemExit)):
-            main(["subprocess", "echo", "hi"])  # no '--'
+    def test_missing_inner_argv_raises(self) -> None:
+        """``subprocess`` mode with no argv to execute must raise."""
+        with pytest.raises(ValueError, match="requires argv to execute"):
+            main(["subprocess"])

@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING, Any, ClassVar
 
 import yaml
 
-from vivarium_cluster_tools.psimulate import COMMANDS, branches
+from vivarium_cluster_tools.psimulate import COMMANDS, TASK_RUNNER_MODULE, branches
 from vivarium_cluster_tools.psimulate.cluster.interface import NativeSpecification
 from vivarium_cluster_tools.psimulate.cluster.validation import (
     validate_hardware,
@@ -190,8 +190,8 @@ class BaseStepConfig(ABC):
 
     _WRAP_FOR_LOGGING: ClassVar[bool] = True
     """Whether commands produced by ``_build_command`` should be wrapped by
-    ``task_runner subprocess --`` so failing-task output appears in the
-    SLURM stderr file (and thus the Jobmon GUI). Subclasses can override to
+    ``task_runner subprocess`` so failing-task output appears in the SLURM
+    stderr file (and thus the Jobmon GUI). Subclasses can override to
     ``False`` to opt out (e.g. simulation steps that already have their own
     dual-sink logging setup via the ``simulation`` mode)."""
 
@@ -322,16 +322,14 @@ class BaseStepConfig(ABC):
         child's output is duplicated to the SLURM stderr file on failure.
         Returns ``command`` unchanged otherwise.
 
-        The module path is duplicated as a string literal rather than
-        imported from ``task_runner`` to keep workflow-config parsing free
-        of the heavy work-horse imports that ``task_runner`` pulls in.
+        The module path is pulled from ``psimulate.TASK_RUNNER_MODULE``
+        rather than imported from ``task_runner`` itself, so workflow-config
+        parsing does not pay for ``task_runner``'s transitive work-horse
+        imports (``vivarium.framework.engine``, ``dill``, ``pandas``).
         """
         if not self._WRAP_FOR_LOGGING:
             return command
-        return (
-            "python -m vivarium_cluster_tools.psimulate.worker.task_runner "
-            f"subprocess -- {command}"
-        )
+        return f"python -m {TASK_RUNNER_MODULE} subprocess {command}"
 
     def _create_single_command_task(
         self, tool: Tool, *, env_prefix: str, command: str
