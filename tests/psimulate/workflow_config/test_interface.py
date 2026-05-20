@@ -430,6 +430,8 @@ def test_validate_signature_matches_api_fn_signature(step_type: str) -> None:
     either side fails at test time instead of at workflow-build time.
     """
     step_class = STEP_TYPES[step_type]
-    validate_params = set(inspect.signature(step_class.validate).parameters)
+    # ``validate`` lives on each concrete subclass with a typed signature, so
+    # mypy can't see it on ``type[BaseStepConfig]``.
+    validate_params = set(inspect.signature(step_class.validate).parameters)  # type: ignore[attr-defined]
     api_params = set(inspect.signature(STEP_TYPE_API_FNS[step_type]).parameters)
     assert validate_params == api_params - {"tool", "is_resume"}
