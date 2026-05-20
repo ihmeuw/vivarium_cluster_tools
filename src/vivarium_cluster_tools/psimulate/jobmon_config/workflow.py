@@ -13,20 +13,16 @@ import json
 import os
 import subprocess
 from pathlib import Path
-from typing import TYPE_CHECKING
 
-from jobmon.client.api import Tool
 from loguru import logger
 
 from vivarium_cluster_tools.psimulate import TASK_RUNNER_MODULE
 from vivarium_cluster_tools.psimulate.cluster.interface import NativeSpecification
+from vivarium_cluster_tools.psimulate.jobmon_config import client
+from vivarium_cluster_tools.psimulate.jobmon_config.client import Task, Tool, Workflow
 from vivarium_cluster_tools.psimulate.jobs import JobParameters
 from vivarium_cluster_tools.psimulate.paths import OutputPaths
 from vivarium_cluster_tools.psimulate.results.writing import write_metadata
-
-if TYPE_CHECKING:
-    from jobmon.client.task import Task
-    from jobmon.client.workflow import Workflow
 
 
 def resolve_env_prefix(env: str) -> str:
@@ -122,13 +118,13 @@ def get_task_list(
     if env_prefix is not None:
         worker_command = f"PATH={env_prefix}/bin:$PATH {worker_command}"
 
-    task_template = tool.get_task_template(
+    task_template = client.make_task_template(
+        tool,
         template_name=template_name,
         command_template=worker_command,
         node_args=["task_id"],
         task_args=["metadata_dir", "results_dir"],
         op_args=["command"],
-        default_cluster_name="slurm",
         default_compute_resources=native_specification.to_jobmon_spec(worker_logging_root),
     )
 
@@ -140,7 +136,8 @@ def get_task_list(
         )
 
     # Batch-create all tasks
-    tasks = task_template.create_tasks(
+    tasks = client.create_tasks(
+        task_template,
         max_attempts=max_attempts,
         task_id=[jp.task_id for jp in job_parameters_list],
         metadata_dir=str(metadata_dir),
@@ -186,7 +183,7 @@ def build_workflow(
     -------
         A ready-to-run Jobmon Workflow object.
     """
-    tool = Tool(name="vivarium_cluster_tools")
+    tool = client.make_tool()
 
     tasks = get_task_list(
         tool=tool,
@@ -199,15 +196,15 @@ def build_workflow(
         max_attempts=max_attempts,
     )
 
-    workflow = tool.create_workflow(
+    workflow = client.make_workflow(
+        tool,
         workflow_args=workflow_name,
         name=workflow_name,
+        max_attempts=max_attempts,
         max_concurrently_running=max_workers,
-        default_cluster_name="slurm",
-        default_max_attempts=max_attempts,
     )
 
-    workflow.add_tasks(tasks)
+    client.add_tasks(workflow, tasks)
 
     logger.debug(
         f"Built Jobmon workflow '{workflow_name}' with {len(tasks)} tasks "

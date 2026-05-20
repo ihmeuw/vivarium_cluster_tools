@@ -30,8 +30,7 @@ from vivarium_cluster_tools.psimulate.workflow_config.utilities import (
 )
 
 if TYPE_CHECKING:
-    from jobmon.client.api import Tool
-    from jobmon.client.task import Task
+    from vivarium_cluster_tools.psimulate.jobmon_config.client import Task, Tool
 
 
 def get_command_step_tasks(

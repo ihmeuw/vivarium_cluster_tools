@@ -26,6 +26,7 @@ from vivarium_cluster_tools.psimulate.cluster.validation import (
     validate_project,
     validate_runtime_and_queue,
 )
+from vivarium_cluster_tools.psimulate.jobmon_config import client
 from vivarium_cluster_tools.psimulate.jobmon_config.workflow import get_task_list
 from vivarium_cluster_tools.psimulate.jobs import (
     BackupConfiguration,
@@ -38,8 +39,7 @@ from vivarium_cluster_tools.psimulate.workflow_config.utilities import (
 )
 
 if TYPE_CHECKING:
-    from jobmon.client.api import Tool
-    from jobmon.client.task import Task
+    from vivarium_cluster_tools.psimulate.jobmon_config.client import Task, Tool
 
 REQUIRED_WORKFLOW_FIELDS = {"name", "steps"}
 
@@ -341,18 +341,19 @@ class BaseStepConfig(ABC):
         -------
             A Jobmon Task instance.
         """
-        task_template = tool.get_task_template(
+        task_template = client.make_task_template(
+            tool,
             template_name="workflow_command_step",
             command_template="PATH={env_prefix}/bin:$PATH {command}",
             node_args=["command", "env_prefix"],
             task_args=[],
             op_args=[],
-            default_cluster_name="slurm",
         )
         compute_resources = self.native_specification.to_jobmon_spec(
             worker_logging_root=self.output_directory,
         )
-        return task_template.create_task(
+        return client.create_task(
+            task_template,
             name=self.name,
             compute_resources=compute_resources,
             env_prefix=env_prefix,
