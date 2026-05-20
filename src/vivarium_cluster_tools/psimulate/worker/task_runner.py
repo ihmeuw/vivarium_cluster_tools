@@ -74,11 +74,7 @@ def _configure_dual_sink() -> None:
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    """Parse argv for ``simulation`` mode.
-
-    ``subprocess`` mode is dispatched directly in :func:`main` and bypasses
-    argparse — see the module docstring.
-    """
+    """Parse argv for ``simulation`` mode."""
     parser = argparse.ArgumentParser(description="Run a single Jobmon worker task.")
     subparsers = parser.add_subparsers(dest="mode", required=True)
 
@@ -155,9 +151,7 @@ def _run_subprocess(inner_argv: list[str]) -> int:
     (and the Jobmon GUI's "Task Instance stderr" pane) surfaces the failing
     command's output.
 
-    SIGTERM and SIGINT received by this process are forwarded to the child
-    so it has a chance to flush a final traceback before being reaped. The
-    finally block guarantees the buffer is still replayed — and the child
+    The finally block guarantees the buffer is still replayed — and the child
     is terminated, not orphaned — on parent-killed and exception paths.
     """
     logger.info(f"Running subprocess: {' '.join(inner_argv)}")
