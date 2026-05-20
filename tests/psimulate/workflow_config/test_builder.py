@@ -17,6 +17,30 @@ from vivarium_cluster_tools.psimulate.workflow_config.config import (
 )
 
 
+def _command_parsed_step(
+    *,
+    name: str,
+    resources: ResourceConfig,
+    command: str,
+    output_directory: Path,
+    environment: str | None = None,
+) -> ParsedStep:
+    """Build a ``ParsedStep`` carrying a command step's API kwargs."""
+    api_kwargs = {
+        "name": name,
+        "resources": resources,
+        "command": command,
+        "output_directory": output_directory,
+        "environment": environment,
+    }
+    return ParsedStep(
+        step_type="command",
+        name=name,
+        api_kwargs=api_kwargs,
+        yaml_dict=CommandStepConfig.to_yaml_dict(**api_kwargs),
+    )
+
+
 @pytest.fixture()
 def three_step_config() -> WorkflowConfig:
     """A ``WorkflowConfig`` with three sequential raw-command steps."""
@@ -27,15 +51,13 @@ def three_step_config() -> WorkflowConfig:
         output_directory=Path("/tmp/results"),
         default_environment=None,
         steps=[
-            ParsedStep.from_step_config(
-                CommandStepConfig(
-                    name=f"step{i}",
-                    resources=ResourceConfig(
-                        memory_gb=1, project="proj_simscience", queue="all.q"
-                    ),
-                    command=f"echo step{i}",
-                    output_directory=Path("/tmp/results"),
-                )
+            _command_parsed_step(
+                name=f"step{i}",
+                resources=ResourceConfig(
+                    memory_gb=1, project="proj_simscience", queue="all.q"
+                ),
+                command=f"echo step{i}",
+                output_directory=Path("/tmp/results"),
             )
             for i in (1, 2, 3)
         ],
@@ -94,15 +116,13 @@ def _make_single_step_config(
         output_directory=Path("/tmp/results"),
         default_environment=default_environment,
         steps=[
-            ParsedStep.from_step_config(
-                CommandStepConfig(
-                    name="s1",
-                    resources=resources
-                    or ResourceConfig(memory_gb=1, project="proj_simscience", queue="all.q"),
-                    command="echo hi",
-                    output_directory=Path("/tmp/results"),
-                    environment=step_environment,
-                )
+            _command_parsed_step(
+                name="s1",
+                resources=resources
+                or ResourceConfig(memory_gb=1, project="proj_simscience", queue="all.q"),
+                command="echo hi",
+                output_directory=Path("/tmp/results"),
+                environment=step_environment,
             )
         ],
     )

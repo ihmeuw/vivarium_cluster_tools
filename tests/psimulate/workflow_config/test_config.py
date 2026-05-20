@@ -17,6 +17,7 @@ from tests.psimulate.workflow_config.utilities import (
     write_workflow_yaml,
 )
 from vivarium_cluster_tools.psimulate.workflow_config.config import (
+    BaseStepConfig,
     CommandStepConfig,
     NotebookStepConfig,
     PytestStepConfig,
@@ -131,7 +132,9 @@ class TestWorkflowConfigValidation:
         steps = [{"name": "no_cmd", "resources": {"memory_gb": 4}}]
         data = make_workflow_dict(steps=steps)
         yaml_path = write_workflow_yaml(tmp_path, data)
-        with pytest.raises(KeyError, match="command"):
+        with pytest.raises(
+            ValueError, match="command-based steps require a top-level 'command' field"
+        ):
             WorkflowConfig.from_yaml_with_cli_overrides(yaml_path)
 
     def test_rejects_step_without_resources(self, tmp_path: Path) -> None:
@@ -147,7 +150,9 @@ class TestWorkflowConfigValidation:
         with pytest.raises(KeyError, match="workflow"):
             WorkflowConfig.from_yaml_with_cli_overrides(yaml_path)
 
-    def test_rejects_step_with_both_command_and_type(self, tmp_path: Path) -> None:
+    def test_rejects_command_with_mismatched_type(self, tmp_path: Path) -> None:
+        """When ``command`` is set, ``type`` must be omitted or ``"command"``;
+        any other ``type`` value is rejected."""
         steps = [
             {
                 "name": "bad_step",
@@ -158,32 +163,45 @@ class TestWorkflowConfigValidation:
         ]
         data = make_workflow_dict(steps=steps)
         yaml_path = write_workflow_yaml(tmp_path, data)
-        with pytest.raises(ValueError, match="Cannot specify both 'command' and 'type'"):
+        with pytest.raises(ValueError, match="cannot specify both 'command' and 'type"):
             WorkflowConfig.from_yaml_with_cli_overrides(yaml_path)
 
-    def test_rejects_explicit_type_command(self, tmp_path: Path) -> None:
-        """`type: command` is not a supported YAML form; the bare ``command``
-        field is the canonical shorthand for command steps."""
+    def test_accepts_command_with_explicit_type_command(self, tmp_path: Path) -> None:
+        """``type: command`` paired with a top-level ``command`` is accepted."""
         steps = [
             {
-                "name": "bad_step",
+                "name": "explicit",
                 "type": "command",
                 "command": "echo hello",
                 "resources": {"memory_gb": 4},
             }
         ]
-        # The 'both command and type' check fires before the type: command check.
-        # Drop 'command' so we hit the targeted branch.
-        steps[0].pop("command")
         data = make_workflow_dict(steps=steps)
         yaml_path = write_workflow_yaml(tmp_path, data)
-        with pytest.raises(ValueError, match="'type: command' is not supported"):
+        config = WorkflowConfig.from_yaml_with_cli_overrides(yaml_path)
+        assert config.steps[0].step_type == "command"
+        assert config.steps[0].api_kwargs["command"] == "echo hello"
+
+    def test_rejects_type_command_without_command_field(self, tmp_path: Path) -> None:
+        """``type: command`` alone is rejected; a top-level ``command`` field
+        is still required for command steps."""
+        steps = [
+            {
+                "name": "bad_step",
+                "type": "command",
+                "resources": {"memory_gb": 4},
+            }
+        ]
+        data = make_workflow_dict(steps=steps)
+        yaml_path = write_workflow_yaml(tmp_path, data)
+        with pytest.raises(
+            ValueError, match="command-based steps require a top-level 'command' field"
+        ):
             WorkflowConfig.from_yaml_with_cli_overrides(yaml_path)
 
     def test_rejects_unsupported_step_type(self, tmp_path: Path) -> None:
-        """An unknown ``type`` value raises and the error message does not
-        advertise ``command`` (which is reached via the bare-``command`` form,
-        not via ``type``)."""
+        """An unknown ``type`` value raises; the error message lists every
+        valid step type, including ``command``."""
         steps = [
             {
                 "name": "bad_step",
@@ -195,7 +213,7 @@ class TestWorkflowConfigValidation:
         yaml_path = write_workflow_yaml(tmp_path, data)
         with pytest.raises(ValueError, match="unsupported type 'not_a_type'") as excinfo:
             WorkflowConfig.from_yaml_with_cli_overrides(yaml_path)
-        assert "command" not in str(excinfo.value)
+        assert "command" in str(excinfo.value)
 
 
 class TestWorkflowConfigFromYamlWithCliOverrides:
@@ -311,64 +329,21 @@ class TestBaseStepConfig:
     """Tests for behavior implemented in BaseStepConfig (tested via concrete subclasses)."""
 
     @pytest.mark.parametrize(
-        "cls, kwargs, expected",
+        "cls, expected",
         [
-            (
-                CommandStepConfig,
-                {
-                    "name": "cmd",
-                    "command": "echo hi",
-                },
-                None,
-            ),
-            (
-                PytestStepConfig,
-                {
-                    "name": "tests",
-                },
-                {"path", "k", "runslow"},
-            ),
-            (
-                PythonStepConfig,
-                {
-                    "name": "script",
-                },
-                {"path", "positional_args", "keyword_args"},
-            ),
-            (
-                NotebookStepConfig,
-                {
-                    "name": "notebook",
-                },
-                {"path", "parameters", "output_path", "cwd"},
-            ),
+            (CommandStepConfig, None),
+            (PytestStepConfig, {"path", "k", "runslow"}),
+            (PythonStepConfig, {"path", "positional_args", "keyword_args"}),
+            (NotebookStepConfig, {"path", "parameters", "output_path", "cwd"}),
         ],
         ids=["command", "pytest", "python", "notebook"],
     )
     def test_supported_arguments(
         self,
-        cls: type,
-        kwargs: dict[str, Any],
+        cls: type[BaseStepConfig],
         expected: set[str] | None,
-        valid_pytest_path: str,
-        valid_python_script: str,
-        valid_notebook_path: Path,
     ) -> None:
-        common = {
-            "resources": ResourceConfig(
-                memory_gb=4, project="proj_simscience", queue="all.q"
-            ),
-            "output_directory": Path("/tmp/results"),
-        }
-        if cls == PytestStepConfig:
-            kwargs["path"] = valid_pytest_path
-        elif cls == PythonStepConfig:
-            kwargs["args"] = {"path": valid_python_script}
-        elif cls == NotebookStepConfig:
-            kwargs["path"] = valid_notebook_path
-            kwargs["output_path"] = Path("/tmp/results/run_notebook.ipynb")
-        config = cls(**{**common, **kwargs})
-        assert config.supported_arguments == expected
+        assert cls._SUPPORTED_ARGS == expected
 
     def test_get_tasks_creates_single_task(self) -> None:
         """Base class get_tasks wires _build_command into a single Jobmon task."""
@@ -431,13 +406,13 @@ class TestBaseStepConfig:
 
     def test_validate_required_paths_rejects_nonexistent(self) -> None:
         with pytest.raises(FileNotFoundError, match="does not exist"):
-            PythonStepConfig(
+            PythonStepConfig.validate(
                 name="bad",
                 resources=ResourceConfig(
                     memory_gb=4, project="proj_simscience", queue="all.q"
                 ),
                 output_directory=Path("/tmp/results"),
-                args={"path": "/nonexistent/script.py"},
+                path="/nonexistent/script.py",
             )
 
     def test_pytest_step_command_is_wrapped_with_runner(self, valid_pytest_path: str) -> None:
@@ -507,15 +482,14 @@ class TestBaseStepConfig:
 class TestCommandStepConfig:
     """Tests for CommandStepConfig - the default command-based step type."""
 
-    def test_to_dict(self) -> None:
-        config = CommandStepConfig(
+    def test_to_yaml_dict(self) -> None:
+        result = CommandStepConfig.to_yaml_dict(
             name="test_step",
             resources=ResourceConfig(memory_gb=4, project="proj_simscience", queue="all.q"),
             command="echo test",
             output_directory=Path("/tmp/results"),
             environment="my_env",
         )
-        result = config.to_dict()
         assert result == {
             "name": "test_step",
             "command": "echo test",
@@ -620,7 +594,7 @@ class TestSimulationStepConfig:
         assert config.artifact_path is None
         assert config.resources.hardware is None
 
-    def test_from_dict_deserialization(
+    def test_kwargs_from_yaml(
         self,
         valid_model_spec_file: Path,
         valid_branch_config_file: Path,
@@ -635,47 +609,36 @@ class TestSimulationStepConfig:
             },
         }
 
-        config = SimulationStepConfig.from_dict(
+        kwargs = SimulationStepConfig.kwargs_from_yaml(
             step_dict,
             output_directory=Path("/tmp/results"),
             project="proj_simscience",
             queue="all.q",
         )
-        assert isinstance(config, SimulationStepConfig)
-        assert config.name == "sim"
-        assert config.model_specification == valid_model_spec_file
-        assert config.branch_configuration == valid_branch_config_file
+        assert kwargs["name"] == "sim"
+        assert kwargs["model_specification"] == valid_model_spec_file
+        assert kwargs["branch_configuration"] == valid_branch_config_file
 
-    def test_from_dict_rejects_unsupported_args(
+    def test_check_supported_args_rejects_unsupported(
         self,
         valid_model_spec_file: Path,
         valid_branch_config_file: Path,
     ) -> None:
-        step_dict: dict[str, Any] = {
-            "name": "sim",
-            "type": "simulation",
-            "resources": {"memory_gb": 5},
-            "args": {
-                "model_specification": str(valid_model_spec_file),
-                "branch_configuration": str(valid_branch_config_file),
-                "bogus_field": "nope",
-            },
+        args = {
+            "model_specification": str(valid_model_spec_file),
+            "branch_configuration": str(valid_branch_config_file),
+            "bogus_field": "nope",
         }
         with pytest.raises(ValueError, match="unsupported args"):
-            SimulationStepConfig.from_dict(
-                step_dict,
-                output_directory=Path("/tmp/results"),
-                project="proj_simscience",
-                queue="all.q",
-            )
+            SimulationStepConfig._check_supported_args(args, "sim")
 
-    def test_to_dict_serialization(
+    def test_to_yaml_dict_serialization(
         self,
         valid_model_spec_file: Path,
         valid_branch_config_file: Path,
         valid_artifact_file: Path,
     ) -> None:
-        config = SimulationStepConfig(
+        result = SimulationStepConfig.to_yaml_dict(
             name="sim",
             resources=ResourceConfig(
                 memory_gb=5,
@@ -689,7 +652,6 @@ class TestSimulationStepConfig:
             branch_configuration=valid_branch_config_file,
             artifact_path=valid_artifact_file,
         )
-        result = config.to_dict()
         assert result["type"] == "simulation"
         assert result["name"] == "sim"
         assert result["args"]["model_specification"] == str(valid_model_spec_file)
@@ -697,19 +659,18 @@ class TestSimulationStepConfig:
         assert result["args"]["artifact_path"] == str(valid_artifact_file)
         assert result["resources"]["hardware"] == ["r650"]
 
-    def test_to_dict_omits_none_optional_fields(
+    def test_to_yaml_dict_omits_none_optional_fields(
         self,
         valid_model_spec_file: Path,
         valid_branch_config_file: Path,
     ) -> None:
-        config = SimulationStepConfig(
+        result = SimulationStepConfig.to_yaml_dict(
             name="sim",
             resources=ResourceConfig(memory_gb=5, project="proj_simscience", queue="all.q"),
             output_directory=Path("/tmp/results"),
             model_specification=valid_model_spec_file,
             branch_configuration=valid_branch_config_file,
         )
-        result = config.to_dict()
         assert "artifact_path" not in result["args"]
         assert "hardware" not in result["resources"]
 
@@ -878,7 +839,7 @@ class TestPytestStepConfig:
 
     def test_rejects_neither_path_nor_k(self) -> None:
         with pytest.raises(ValueError, match="at least one of 'path' or 'k'"):
-            PytestStepConfig(
+            PytestStepConfig.validate(
                 name="tests",
                 resources=ResourceConfig(
                     memory_gb=4, project="proj_simscience", queue="all.q"
@@ -901,38 +862,30 @@ class TestPytestStepConfig:
         assert config.k == "not slow"
         assert config.runslow is True
 
-    def test_from_dict_deserialization(self, valid_pytest_path: str) -> None:
+    def test_kwargs_from_yaml(self, valid_pytest_path: str) -> None:
         step_dict = make_pytest_step_dict(
             args={"path": valid_pytest_path, "k": "test_foo", "runslow": True},
             resources={"memory_gb": 8, "runtime": "02:00:00", "cores": 4},
         )
-        config = PytestStepConfig.from_dict(
+        kwargs = PytestStepConfig.kwargs_from_yaml(
             step_dict,
             output_directory=Path("/tmp/results"),
             project="proj_simscience",
             queue="all.q",
         )
-        assert isinstance(config, PytestStepConfig)
-        assert config.name == "run_tests"
-        assert config.path == valid_pytest_path
-        assert config.k == "test_foo"
-        assert config.runslow is True
-        assert config.resources.cores == 4
+        assert kwargs["name"] == "run_tests"
+        assert kwargs["path"] == valid_pytest_path
+        assert kwargs["k"] == "test_foo"
+        assert kwargs["runslow"] is True
+        assert kwargs["resources"].cores == 4
 
-    def test_from_dict_rejects_unsupported_args(self, valid_pytest_path: str) -> None:
-        step_dict = make_pytest_step_dict(
-            args={"path": valid_pytest_path, "bogus_flag": "nope"},
-        )
+    def test_check_supported_args_rejects_unsupported(self, valid_pytest_path: str) -> None:
+        args = {"path": valid_pytest_path, "bogus_flag": "nope"}
         with pytest.raises(ValueError, match="unsupported args"):
-            PytestStepConfig.from_dict(
-                step_dict,
-                output_directory=Path("/tmp/results"),
-                project="proj_simscience",
-                queue="all.q",
-            )
+            PytestStepConfig._check_supported_args(args, "run_tests")
 
-    def test_to_dict_serialization(self, valid_pytest_path: str) -> None:
-        config = PytestStepConfig(
+    def test_to_yaml_dict_serialization(self, valid_pytest_path: str) -> None:
+        result = PytestStepConfig.to_yaml_dict(
             name="tests",
             resources=ResourceConfig(
                 memory_gb=8, project="proj_simscience", queue="all.q", cores=4
@@ -942,7 +895,6 @@ class TestPytestStepConfig:
             k="test_foo",
             runslow=True,
         )
-        result = config.to_dict()
         assert result == {
             "name": "tests",
             "type": "pytest",
@@ -960,14 +912,13 @@ class TestPytestStepConfig:
             },
         }
 
-    def test_to_dict_omits_unset_optional_fields(self, valid_pytest_path: str) -> None:
-        config = PytestStepConfig(
+    def test_to_yaml_dict_omits_unset_optional_fields(self, valid_pytest_path: str) -> None:
+        result = PytestStepConfig.to_yaml_dict(
             name="tests",
             resources=ResourceConfig(memory_gb=4, project="proj_simscience", queue="all.q"),
             output_directory=Path("/tmp/results"),
             path=valid_pytest_path,
         )
-        result = config.to_dict()
         assert result["args"] == {"path": valid_pytest_path}
 
     def test_get_tasks_builds_correct_command(self, valid_pytest_path: str) -> None:
@@ -1039,30 +990,34 @@ class TestPytestStepConfig:
             == f"pytest {valid_pytest_paths[0]} {valid_pytest_paths[1]}"
         )
 
-    def test_to_dict_multiple_paths(self, valid_pytest_paths: list[str]) -> None:
-        config = PytestStepConfig(
+    def test_to_yaml_dict_multiple_paths(self, valid_pytest_paths: list[str]) -> None:
+        result = PytestStepConfig.to_yaml_dict(
             name="tests",
             resources=ResourceConfig(memory_gb=4, project="proj_simscience", queue="all.q"),
             output_directory=Path("/tmp/results"),
             path=valid_pytest_paths,
         )
-        result = config.to_dict()
         assert result["args"] == {"path": valid_pytest_paths}
 
-    def test_from_dict_multiple_paths(self, valid_pytest_paths: list[str]) -> None:
+    def test_kwargs_from_yaml_multiple_paths(self, valid_pytest_paths: list[str]) -> None:
         step_dict = make_pytest_step_dict(
             args={"path": valid_pytest_paths},
         )
-        config = PytestStepConfig.from_dict(
+        kwargs = PytestStepConfig.kwargs_from_yaml(
             step_dict,
             output_directory=Path("/tmp/results"),
             project="proj_simscience",
             queue="all.q",
         )
-        assert config.path == valid_pytest_paths
+        assert kwargs["path"] == valid_pytest_paths
+        step = PytestStepConfig(
+            name=kwargs["name"],
+            resources=kwargs["resources"],
+            output_directory=kwargs["output_directory"],
+            path=kwargs["path"],
+        )
         assert (
-            config._build_command()
-            == f"pytest {valid_pytest_paths[0]} {valid_pytest_paths[1]}"
+            step._build_command() == f"pytest {valid_pytest_paths[0]} {valid_pytest_paths[1]}"
         )
 
     def test_routes_to_pytest_step_from_yaml(self, tmp_path: Path) -> None:
@@ -1116,41 +1071,35 @@ class TestPythonStepConfig:
     def test_rejects_invalid_configurations(
         self, valid_python_script: str, extra_args: dict[str, Any], match: str
     ) -> None:
-        args = {"path": valid_python_script, **extra_args}
+        kwargs: dict[str, Any] = {
+            "name": "bad",
+            "resources": ResourceConfig(
+                memory_gb=4, project="proj_simscience", queue="all.q"
+            ),
+            "output_directory": Path("/tmp/results"),
+            "path": extra_args.pop("path", valid_python_script),
+            **extra_args,
+        }
         with pytest.raises(ValueError, match=match):
-            PythonStepConfig(
-                name="bad",
-                resources=ResourceConfig(
-                    memory_gb=4, project="proj_simscience", queue="all.q"
-                ),
-                output_directory=Path("/tmp/results"),
-                args=args,
-            )
+            PythonStepConfig.validate(**kwargs)
 
     def test_rejects_missing_path(self) -> None:
         with pytest.raises(ValueError, match="path"):
-            PythonStepConfig(
+            PythonStepConfig.validate(
                 name="bad",
                 resources=ResourceConfig(
                     memory_gb=4, project="proj_simscience", queue="all.q"
                 ),
                 output_directory=Path("/tmp/results"),
-                args={},
+                path="",
             )
 
-    def test_from_dict_rejects_unexpected_top_level_key(
+    def test_check_supported_args_rejects_unexpected_top_level_key(
         self, valid_python_script: str
     ) -> None:
-        step_dict = make_python_step_dict(
-            args={"path": valid_python_script, "unknown_key": "val"},
-        )
+        args = {"path": valid_python_script, "unknown_key": "val"}
         with pytest.raises(ValueError, match="unsupported args"):
-            PythonStepConfig.from_dict(
-                step_dict,
-                output_directory=Path("/tmp/results"),
-                project="proj_simscience",
-                queue="all.q",
-            )
+            PythonStepConfig._check_supported_args(args, "run_script")
 
     def test_accepts_valid_configuration(self, valid_python_script: str) -> None:
         config = PythonStepConfig(
@@ -1233,7 +1182,7 @@ class TestPythonStepConfig:
         )
         assert config._build_command() == expected_command.format(path=valid_python_script)
 
-    def test_from_dict_deserialization(self, valid_python_script: str) -> None:
+    def test_kwargs_from_yaml(self, valid_python_script: str) -> None:
         step_dict = make_python_step_dict(
             args={
                 "path": valid_python_script,
@@ -1241,33 +1190,35 @@ class TestPythonStepConfig:
                 "keyword_args": {"verbose": True},
             },
         )
-        config = PythonStepConfig.from_dict(
+        kwargs = PythonStepConfig.kwargs_from_yaml(
             step_dict,
             output_directory=Path("/tmp/results"),
             project="proj_simscience",
             queue="all.q",
         )
-        assert isinstance(config, PythonStepConfig)
-        assert config.name == "run_script"
-        assert config.args["path"] == valid_python_script
-        assert config.args["positional_args"] == ["/mnt/data"]
-        assert config.args["keyword_args"]["verbose"] is True
+        assert kwargs["name"] == "run_script"
+        assert kwargs["path"] == valid_python_script
+        assert kwargs["positional_args"] == ["/mnt/data"]
+        assert kwargs["keyword_args"]["verbose"] is True
 
-    def test_from_dict_rejects_missing_path(self) -> None:
+    def test_kwargs_from_yaml_rejects_missing_path(self) -> None:
         step_dict = make_python_step_dict(args={"input_dir": "/mnt/data"})
+        # _check_supported_args fires first in _parse_steps; here we test
+        # kwargs_from_yaml independently with args lacking a 'path' key.
+        step_dict["args"] = {}
         with pytest.raises(ValueError, match="path"):
-            PythonStepConfig.from_dict(
+            PythonStepConfig.kwargs_from_yaml(
                 step_dict,
                 output_directory=Path("/tmp/results"),
                 project="proj_simscience",
                 queue="all.q",
             )
 
-    def test_from_dict_rejects_missing_args_key(self) -> None:
+    def test_kwargs_from_yaml_rejects_missing_args_key(self) -> None:
         step_dict = make_python_step_dict()
         del step_dict["args"]
         with pytest.raises(KeyError, match="args"):
-            PythonStepConfig.from_dict(
+            PythonStepConfig.kwargs_from_yaml(
                 step_dict,
                 output_directory=Path("/tmp/results"),
                 project="proj_simscience",
@@ -1276,35 +1227,38 @@ class TestPythonStepConfig:
 
     def test_rejects_none_in_positional_args(self, valid_python_script: str) -> None:
         with pytest.raises(ValueError, match="scalar"):
-            PythonStepConfig(
+            PythonStepConfig.validate(
                 name="bad",
                 resources=ResourceConfig(
                     memory_gb=4, project="proj_simscience", queue="all.q"
                 ),
                 output_directory=Path("/tmp/results"),
-                args={"path": valid_python_script, "positional_args": [None]},
+                path=valid_python_script,
+                positional_args=[None],
             )
 
-    def test_to_dict_round_trip(self, valid_python_script: str) -> None:
-        config = PythonStepConfig(
-            name="run_script",
-            resources=ResourceConfig(memory_gb=4, project="proj_simscience", queue="all.q"),
-            output_directory=Path("/tmp/results"),
-            args={
-                "path": valid_python_script,
-                "positional_args": ["/mnt/data"],
-                "keyword_args": {"verbose": True},
-            },
-        )
-        serialized = config.to_dict()
-        restored = PythonStepConfig.from_dict(
+    def test_yaml_dict_round_trip(self, valid_python_script: str) -> None:
+        original_kwargs: dict[str, Any] = {
+            "name": "run_script",
+            "resources": ResourceConfig(
+                memory_gb=4, project="proj_simscience", queue="all.q"
+            ),
+            "output_directory": Path("/tmp/results"),
+            "path": valid_python_script,
+            "positional_args": ["/mnt/data"],
+            "keyword_args": {"verbose": True},
+        }
+        serialized = PythonStepConfig.to_yaml_dict(**original_kwargs)
+        restored = PythonStepConfig.kwargs_from_yaml(
             serialized,
             output_directory=Path("/tmp/results"),
             project="proj_simscience",
             queue="all.q",
         )
-        assert restored.name == config.name
-        assert restored.args == config.args
+        assert restored["name"] == original_kwargs["name"]
+        assert restored["path"] == original_kwargs["path"]
+        assert restored["positional_args"] == original_kwargs["positional_args"]
+        assert restored["keyword_args"] == original_kwargs["keyword_args"]
 
     def test_routes_to_python_step_from_yaml(
         self, tmp_path: Path, valid_python_script: str
@@ -1372,35 +1326,28 @@ class TestNotebookStepConfig:
     ) -> None:
         kwargs = {**self._base_kwargs(valid_notebook_path), **overrides}
         with pytest.raises(ValueError, match=match):
-            NotebookStepConfig(**kwargs)
+            NotebookStepConfig.validate(**kwargs)
 
-    def test_from_dict_rejects_missing_output_path(self, valid_notebook_path: Path) -> None:
+    def test_kwargs_from_yaml_rejects_missing_output_path(
+        self, valid_notebook_path: Path
+    ) -> None:
         step_dict = make_notebook_step_dict(
             args={"path": str(valid_notebook_path)},
         )
         with pytest.raises(ValueError, match="output_path"):
-            NotebookStepConfig.from_dict(
+            NotebookStepConfig.kwargs_from_yaml(
                 step_dict,
                 output_directory=Path("/tmp/results"),
                 project="proj_simscience",
                 queue="all.q",
             )
 
-    def test_from_dict_rejects_unsupported_args(self, valid_notebook_path: Path) -> None:
-        step_dict = make_notebook_step_dict(
-            args={"path": str(valid_notebook_path), "bogus": "nope"},
-        )
+    def test_check_supported_args_rejects_unsupported(
+        self, valid_notebook_path: Path
+    ) -> None:
+        args = {"path": str(valid_notebook_path), "bogus": "nope"}
         with pytest.raises(ValueError, match="unsupported args"):
-            NotebookStepConfig.from_dict(
-                step_dict,
-                output_directory=Path("/tmp/results"),
-                project="proj_simscience",
-                queue="all.q",
-            )
-
-    def test_required_paths_only_contains_input(self, valid_notebook_path: Path) -> None:
-        config = NotebookStepConfig(**self._base_kwargs(valid_notebook_path))
-        assert config.required_paths == [valid_notebook_path]
+            NotebookStepConfig._check_supported_args(args, "run_notebook")
 
     @pytest.mark.parametrize(
         "field_overrides, expected_command_template",
@@ -1472,8 +1419,8 @@ class TestNotebookStepConfig:
         )
         assert config._build_command() == expected
 
-    def test_to_dict_serialization(self, valid_notebook_path: Path) -> None:
-        config = NotebookStepConfig(
+    def test_to_yaml_dict_serialization(self, valid_notebook_path: Path) -> None:
+        result = NotebookStepConfig.to_yaml_dict(
             name="run_notebook",
             resources=ResourceConfig(
                 memory_gb=8,
@@ -1487,7 +1434,6 @@ class TestNotebookStepConfig:
             parameters={"year": 2020, "verbose": True},
             cwd=Path("/tmp/notebooks"),
         )
-        result = config.to_dict()
         assert result["name"] == "run_notebook"
         assert result["type"] == "notebook"
         assert result["args"]["path"] == str(valid_notebook_path)
@@ -1497,28 +1443,30 @@ class TestNotebookStepConfig:
         )
         assert result["args"]["cwd"] == str(Path("/tmp/notebooks"))
 
-    def test_to_dict_round_trip(self, valid_notebook_path: Path) -> None:
-        config = NotebookStepConfig(
-            name="run_notebook",
-            resources=ResourceConfig(memory_gb=4, project="proj_simscience", queue="all.q"),
-            output_directory=Path("/tmp/results"),
-            path=valid_notebook_path,
-            output_path=Path("/tmp/results/run_notebook.ipynb"),
-            parameters={"year": 2020},
-        )
-        serialized = config.to_dict()
-        restored = NotebookStepConfig.from_dict(
+    def test_yaml_dict_round_trip(self, valid_notebook_path: Path) -> None:
+        original_kwargs: dict[str, Any] = {
+            "name": "run_notebook",
+            "resources": ResourceConfig(
+                memory_gb=4, project="proj_simscience", queue="all.q"
+            ),
+            "output_directory": Path("/tmp/results"),
+            "path": valid_notebook_path,
+            "output_path": Path("/tmp/results/run_notebook.ipynb"),
+            "parameters": {"year": 2020},
+        }
+        serialized = NotebookStepConfig.to_yaml_dict(**original_kwargs)
+        restored = NotebookStepConfig.kwargs_from_yaml(
             serialized,
             output_directory=Path("/tmp/results"),
             project="proj_simscience",
             queue="all.q",
         )
-        assert restored.name == config.name
-        assert restored.path == config.path
-        assert restored.parameters == config.parameters
-        assert restored.output_path == config.output_path
+        assert restored["name"] == original_kwargs["name"]
+        assert restored["path"] == original_kwargs["path"]
+        assert restored["parameters"] == original_kwargs["parameters"]
+        assert restored["output_path"] == original_kwargs["output_path"]
 
-    def test_from_dict_resolves_paths(
+    def test_kwargs_from_yaml_resolves_paths(
         self, tmp_path: Path, valid_notebook_path: Path
     ) -> None:
         step_dict = make_notebook_step_dict(
@@ -1528,15 +1476,15 @@ class TestNotebookStepConfig:
                 "cwd": ".",
             },
         )
-        config = NotebookStepConfig.from_dict(
+        kwargs = NotebookStepConfig.kwargs_from_yaml(
             step_dict,
             output_directory=Path("/tmp/results"),
             project="proj_simscience",
             queue="all.q",
         )
-        assert config.path is not None and config.path.is_absolute()
-        assert config.output_path is not None and config.output_path.is_absolute()
-        assert config.cwd is not None and config.cwd.is_absolute()
+        assert kwargs["path"].is_absolute()
+        assert kwargs["output_path"].is_absolute()
+        assert kwargs["cwd"].is_absolute()
 
     def test_routes_to_notebook_step_from_yaml(
         self, tmp_path: Path, valid_notebook_path: Path

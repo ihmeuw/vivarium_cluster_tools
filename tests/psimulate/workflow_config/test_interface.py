@@ -10,6 +10,7 @@ from unittest.mock import MagicMock
 import pytest
 from pytest_mock import MockerFixture
 
+from vivarium_cluster_tools.psimulate.workflow_config.builder import STEP_TYPE_API_FNS
 from vivarium_cluster_tools.psimulate.workflow_config.config import (
     STEP_TYPES,
     BaseStepConfig,
@@ -21,7 +22,6 @@ from vivarium_cluster_tools.psimulate.workflow_config.config import (
     SimulationStepConfig,
 )
 from vivarium_cluster_tools.psimulate.workflow_config.interface import (
-    STEP_TYPE_API_FNS,
     get_command_step_tasks,
     get_notebook_step_tasks,
     get_pytest_step_tasks,
@@ -292,10 +292,9 @@ def test_step_env_falls_back_to_conda_default_env(
 @pytest.mark.parametrize(
     "api_fn, extra_kwargs, expected_error",
     [
-        # Empty command -> CommandStepConfig._validate raises ValueError.
+        # Empty command -> CommandStepConfig.validate raises ValueError.
         (get_command_step_tasks, {"command": ""}, ValueError),
-        # Nonexistent paths -> SimulationStepConfig._validate_required_paths
-        # raises FileNotFoundError.
+        # Nonexistent paths -> SimulationStepConfig.validate raises FileNotFoundError.
         (
             get_simulation_step_tasks,
             {
@@ -304,12 +303,11 @@ def test_step_env_falls_back_to_conda_default_env(
             },
             FileNotFoundError,
         ),
-        # Neither path nor k -> PytestStepConfig._validate raises ValueError.
+        # Neither path nor k -> PytestStepConfig.validate raises ValueError.
         (get_pytest_step_tasks, {}, ValueError),
-        # Nonexistent script -> PythonStepConfig._validate_required_paths
-        # raises FileNotFoundError.
+        # Nonexistent script -> PythonStepConfig.validate raises FileNotFoundError.
         (get_python_step_tasks, {"path": "/nonexistent/script.py"}, FileNotFoundError),
-        # Bad notebook extension -> NotebookStepConfig._validate raises ValueError.
+        # Bad notebook extension -> NotebookStepConfig.validate raises ValueError.
         (
             get_notebook_step_tasks,
             {
@@ -326,11 +324,8 @@ def test_validation_propagates_through_api(
     extra_kwargs: dict[str, Any],
     expected_error: type[Exception],
 ) -> None:
-    """Dataclass __post_init__ validation must fire when constructing via the API.
-
-    Validation fires during construction, before ``get_tasks`` is called,
-    so no patching of ``get_tasks`` is required.
-    """
+    """Each API function calls ``cls.validate(**kwargs)`` before constructing,
+    so bad kwargs raise without ever reaching ``get_tasks``."""
     common: dict[str, Any] = {
         "name": "bad",
         "resources": _resources(),
@@ -410,57 +405,6 @@ class TestGetOrCreateBuildTimestamp:
         assert (target / BUILD_TIMESTAMP_FILENAME).read_text().strip() == ts
 
 
-def _build_step_instance(
-    step_type: str,
-    *,
-    valid_model_spec_file: Path,
-    valid_branch_config_file: Path,
-    valid_pytest_path: str,
-    valid_python_script: str,
-    valid_notebook_path: Path,
-) -> BaseStepConfig:
-    """Build a minimal-valid instance of the step config for ``step_type``."""
-    output_directory = Path("/tmp/results")
-    if step_type == "command":
-        return CommandStepConfig(
-            name="c",
-            resources=_resources(),
-            command="echo hi",
-            output_directory=output_directory,
-        )
-    if step_type == "simulation":
-        return SimulationStepConfig(
-            name="s",
-            resources=_resources(),
-            output_directory=output_directory,
-            model_specification=valid_model_spec_file,
-            branch_configuration=valid_branch_config_file,
-        )
-    if step_type == "pytest":
-        return PytestStepConfig(
-            name="t",
-            resources=_resources(),
-            output_directory=output_directory,
-            path=valid_pytest_path,
-        )
-    if step_type == "python":
-        return PythonStepConfig(
-            name="p",
-            resources=_resources(),
-            output_directory=output_directory,
-            args={"path": valid_python_script},
-        )
-    if step_type == "notebook":
-        return NotebookStepConfig(
-            name="n",
-            resources=_resources(),
-            output_directory=output_directory,
-            path=valid_notebook_path,
-            output_path=valid_notebook_path.parent / "out.ipynb",
-        )
-    raise ValueError(f"No factory for step_type {step_type!r}")
-
-
 def test_step_type_registries_match() -> None:
     """``STEP_TYPES`` and ``STEP_TYPE_API_FNS`` must have identical keysets.
 
@@ -471,35 +415,23 @@ def test_step_type_registries_match() -> None:
     assert STEP_TYPE_API_FNS.keys() == STEP_TYPES.keys(), (
         "Step-type registries disagree: "
         f"config.STEP_TYPES={sorted(STEP_TYPES)} vs "
-        f"interface.STEP_TYPE_API_FNS={sorted(STEP_TYPE_API_FNS)}"
+        f"builder.STEP_TYPE_API_FNS={sorted(STEP_TYPE_API_FNS)}"
     )
 
 
 @pytest.mark.parametrize("step_type", sorted(STEP_TYPES))
-def test_to_api_kwargs_keys_match_api_fn_signature(
-    step_type: str,
-    valid_model_spec_file: Path,
-    valid_branch_config_file: Path,
-    valid_pytest_path: str,
-    valid_python_script: str,
-    valid_notebook_path: Path,
-) -> None:
-    """``to_api_kwargs()`` must return exactly the kwargs the matching API
-    function accepts, minus ``tool`` and ``is_resume`` (supplied by the builder).
+def test_validate_signature_matches_api_fn_signature(step_type: str) -> None:
+    """Each step class's ``validate`` classmethod must take exactly the kwargs
+    the matching API function accepts, minus ``tool`` and ``is_resume``
+    (supplied by the builder).
 
     Locks in the contract between each ``BaseStepConfig`` subclass and its
     ``get_*_step_tasks`` partner so a kwarg rename / addition / removal on
     either side fails at test time instead of at workflow-build time.
     """
-    step = _build_step_instance(
-        step_type,
-        valid_model_spec_file=valid_model_spec_file,
-        valid_branch_config_file=valid_branch_config_file,
-        valid_pytest_path=valid_pytest_path,
-        valid_python_script=valid_python_script,
-        valid_notebook_path=valid_notebook_path,
-    )
-    api_kwargs = step.to_api_kwargs()
-    sig_params = set(inspect.signature(STEP_TYPE_API_FNS[step_type]).parameters)
-    expected = sig_params - {"tool", "is_resume"}
-    assert set(api_kwargs) == expected
+    step_class = STEP_TYPES[step_type]
+    # ``validate`` lives on each concrete subclass with a typed signature, so
+    # mypy can't see it on ``type[BaseStepConfig]``.
+    validate_params = set(inspect.signature(step_class.validate).parameters)  # type: ignore[attr-defined]
+    api_params = set(inspect.signature(STEP_TYPE_API_FNS[step_type]).parameters)
+    assert validate_params == api_params - {"tool", "is_resume"}
