@@ -1,7 +1,7 @@
 """
-================
+=============
 Jobmon Client
-================
+=============
 
 Single point of contact for the Jobmon SDK. All Jobmon imports and SDK
 calls live in this module so that future changes to the Jobmon API surface
@@ -26,6 +26,7 @@ from jobmon.client.workflow import Workflow
 from jobmon.core.configuration import JobmonConfig
 
 __all__ = [
+    "JOBMON_STATUS_DONE",
     "Task",
     "TaskTemplate",
     "Tool",
@@ -33,9 +34,10 @@ __all__ = [
     "add_tasks",
     "add_upstream",
     "bind_workflow",
-    "count_done",
+    "count_completed_tasks",
     "create_task",
     "create_tasks",
+    "get_monitoring_url",
     "make_task_template",
     "make_tool",
     "make_workflow",
@@ -45,6 +47,8 @@ __all__ = [
 
 TOOL_NAME = "vivarium_cluster_tools"
 CLUSTER_NAME = "slurm"
+JOBMON_STATUS_DONE = "D"
+"""Jobmon's workflow / task ``final_status`` value for a successful completion."""
 
 
 def make_tool() -> Tool:
@@ -76,14 +80,51 @@ def make_task_template(
     return tool.get_task_template(**kwargs)
 
 
-def create_task(template: TaskTemplate, **kwargs: Any) -> Task:
-    """Create a single Jobmon ``Task`` from *template*."""
-    return template.create_task(**kwargs)
+def create_task(
+    template: TaskTemplate,
+    *,
+    name: str,
+    compute_resources: dict[str, Any],
+    env_prefix: str,
+    command: str,
+) -> Task:
+    """Create a single Jobmon ``Task`` for the workflow-command-step template.
+
+    The ``env_prefix`` and ``command`` kwargs match the template's
+    ``node_args``; see :func:`make_task_template` and the call site in
+    :func:`~vivarium_cluster_tools.psimulate.workflow_config.task_builders._create_single_command_task`.
+    """
+    return template.create_task(
+        name=name,
+        compute_resources=compute_resources,
+        env_prefix=env_prefix,
+        command=command,
+    )
 
 
-def create_tasks(template: TaskTemplate, **kwargs: Any) -> list[Task]:
-    """Batch-create Jobmon ``Task``\\s from *template*."""
-    return template.create_tasks(**kwargs)
+def create_tasks(
+    template: TaskTemplate,
+    *,
+    max_attempts: int,
+    task_id: list[str],
+    metadata_dir: str,
+    results_dir: str,
+    command: str,
+) -> list[Task]:
+    """Batch-create Jobmon ``Task``\\s for the simulation-step template.
+
+    ``task_id`` is the template's ``node_arg`` (one value per task);
+    ``metadata_dir`` / ``results_dir`` are ``task_args`` (shared across the
+    batch); ``command`` is the ``op_arg``. See
+    :func:`~vivarium_cluster_tools.psimulate.jobmon_config.workflow.get_task_list`.
+    """
+    return template.create_tasks(
+        max_attempts=max_attempts,
+        task_id=task_id,
+        metadata_dir=metadata_dir,
+        results_dir=results_dir,
+        command=command,
+    )
 
 
 def add_upstream(task: Task, upstream: Task) -> None:
@@ -116,15 +157,23 @@ def add_tasks(workflow: Workflow, tasks: list[Task]) -> None:
     workflow.add_tasks(tasks)
 
 
-def bind_workflow(workflow: Workflow) -> str:
-    """Bind *workflow* and return the Jobmon GUI monitoring URL.
+def bind_workflow(workflow: Workflow) -> None:
+    """Bind *workflow* to the Jobmon server.
 
-    Returns an empty string if no GUI URL is configured.
+    After binding, ``workflow.workflow_id`` is populated and the workflow
+    can be submitted via :func:`run_workflow`.
     """
     workflow.bind()
+
+
+def get_monitoring_url(workflow: Workflow) -> str | None:
+    """Return the Jobmon GUI URL for *workflow*, or ``None`` if unconfigured.
+
+    Requires *workflow* to have been bound (so ``workflow_id`` is set).
+    """
     gui_url = JobmonConfig().get("http", "gui_url")
     if not gui_url:
-        return ""
+        return None
     return f"{gui_url}/#/workflow/{workflow.workflow_id}"
 
 
@@ -144,6 +193,6 @@ def run_workflow(
     return status
 
 
-def count_done(workflow: Workflow) -> int:
-    """Count tasks in *workflow* whose ``final_status`` is ``"D"`` (done)."""
-    return sum(1 for t in workflow.tasks.values() if t.final_status == "D")
+def count_completed_tasks(workflow: Workflow) -> int:
+    """Count tasks in *workflow* whose ``final_status`` is :data:`JOBMON_STATUS_DONE`."""
+    return sum(1 for t in workflow.tasks.values() if t.final_status == JOBMON_STATUS_DONE)

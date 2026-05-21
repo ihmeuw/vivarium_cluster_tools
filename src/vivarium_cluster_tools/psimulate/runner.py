@@ -58,7 +58,7 @@ def _bind_and_run_workflow(
     output_root: Path,
     *,
     resume: bool = False,
-) -> tuple[str, str]:
+) -> tuple[str, str | None]:
     """Bind a Jobmon workflow, log the monitoring URL, and run it.
 
     Parameters
@@ -73,10 +73,11 @@ def _bind_and_run_workflow(
     Returns
     -------
         A ``(wf_status, monitoring_url)`` tuple.  *wf_status* is the
-        workflow status string from Jobmon (e.g. ``"D"`` for DONE).
-        *monitoring_url* is the Jobmon GUI URL (may be empty).
+        workflow status string from Jobmon (see :data:`client.JOBMON_STATUS_DONE`).
+        *monitoring_url* is the Jobmon GUI URL, or ``None`` if unconfigured.
     """
-    monitoring_url = client.bind_workflow(workflow)
+    client.bind_workflow(workflow)
+    monitoring_url = client.get_monitoring_url(workflow)
 
     logger.info(f"Submitting Jobmon workflow. Results will be written to {output_root}")
     if monitoring_url:
@@ -145,9 +146,10 @@ def workflow_main(
         results_dir=str(output_root),
     )
 
-    if wf_status != "D":
+    if wf_status != client.JOBMON_STATUS_DONE:
         raise RuntimeError(
-            f"Workflow finished with status '{wf_status}' (expected 'D' for DONE)."
+            f"Workflow finished with status '{wf_status}' "
+            f"(expected '{client.JOBMON_STATUS_DONE}' for DONE)."
         )
     logger.info(f"Workflow completed successfully. Results in {output_root}")
 
@@ -468,15 +470,16 @@ def main(
     try_run_vipin(output_paths)
 
     # Count task outcomes from Jobmon's in-memory task statuses
-    num_done_total = client.count_done(workflow)
+    num_done_total = client.count_completed_tasks(workflow)
     num_completed_this_run = num_done_total - num_jobs_completed
     num_jobs_attempted = len(job_parameters) - num_jobs_completed
     num_failed = num_jobs_attempted - num_completed_this_run
     num_successful = num_jobs_completed + num_completed_this_run
 
-    if wf_status != "D":
+    if wf_status != client.JOBMON_STATUS_DONE:
         logger.info(
-            f"Workflow finished with status '{wf_status}' (expected 'D' for DONE).",
+            f"Workflow finished with status '{wf_status}' "
+            f"(expected '{client.JOBMON_STATUS_DONE}' for DONE).",
         )
 
     # Emit warning if any jobs failed
