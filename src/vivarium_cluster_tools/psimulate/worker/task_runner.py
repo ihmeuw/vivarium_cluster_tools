@@ -132,16 +132,23 @@ def _run_simulation(args: argparse.Namespace) -> int:
 
 
 def _run_subprocess(inner_argv: list[str]) -> int:
-    """Spawn ``inner_argv`` as a child process with dual-stream logging.
+    """Spawn ``inner_argv`` as a child process and supervise it.
 
-    The child's stdout (with stderr merged in) is mirrored to ``sys.stdout``
-    in real time and buffered in a capped deque. On non-zero exit, the
-    buffered output is replayed to ``sys.stderr`` so the SLURM stderr file
-    (and the Jobmon GUI's "Task Instance stderr" pane) surfaces the failing
-    command's output.
+    Four things happen here:
 
-    The finally block guarantees the buffer is still replayed — and the child
-    is terminated, not orphaned — on parent-killed and exception paths.
+    1. **Mirror the child's output live.** Each line of stdout (stderr is
+       merged in) is written straight to our stdout so SLURM's stdout
+       file shows progress in real time.
+    2. **Keep a capped tail of that output** in ``buffered`` for the
+       replay step.
+    3. **Forward SIGTERM/SIGINT to the child.** SLURM's ``scancel`` and a
+       user ctrl-C land on the parent; without forwarding, the parent's
+       default-handler death would orphan the child and we'd never see a
+       real exit code.
+    4. **On any exit path, clean up and replay.** The ``finally`` block
+       reaps the child (SIGTERM, then SIGKILL after a grace period) and,
+       on non-zero exit, writes the buffered tail to stderr so failures
+       surface in the SLURM stderr file and the Jobmon GUI.
     """
     logger.info(f"Running subprocess: {' '.join(inner_argv)}")
     buffered: deque[str] = deque(maxlen=BUFFER_MAXLEN)
