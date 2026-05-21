@@ -130,13 +130,13 @@ class TestWorkflowConfigValidation:
         data = make_workflow_dict()
         del data["workflow"][field]
         yaml_path = write_workflow_yaml(tmp_path, data)
-        with pytest.raises(KeyError, match=field):
+        with pytest.raises(ValueError, match=field):
             load_workflow_config(yaml_path)
 
     def test_rejects_empty_steps(self, tmp_path: Path) -> None:
         data = make_workflow_dict(steps=[])
         yaml_path = write_workflow_yaml(tmp_path, data)
-        with pytest.raises(KeyError, match="steps"):
+        with pytest.raises(ValueError, match="steps"):
             load_workflow_config(yaml_path)
 
     def test_rejects_duplicate_step_names(self, tmp_path: Path) -> None:
@@ -154,7 +154,7 @@ class TestWorkflowConfigValidation:
         data = make_workflow_dict(steps=steps)
         yaml_path = write_workflow_yaml(tmp_path, data)
         with pytest.raises(
-            ValueError, match="command-based steps require a top-level 'command' field"
+            ValueError, match=r"Step 'no_cmd': missing required field 'command'"
         ):
             load_workflow_config(yaml_path)
 
@@ -162,13 +162,31 @@ class TestWorkflowConfigValidation:
         steps = [{"name": "no_resources", "command": "echo hello"}]
         data = make_workflow_dict(steps=steps)
         yaml_path = write_workflow_yaml(tmp_path, data)
-        with pytest.raises(KeyError, match="resources"):
+        with pytest.raises(
+            ValueError, match=r"Step 'no_resources': missing required field 'resources'"
+        ):
+            load_workflow_config(yaml_path)
+
+    def test_rejects_step_without_memory_gb(self, tmp_path: Path) -> None:
+        steps = [{"name": "no_mem", "command": "echo hello", "resources": {}}]
+        data = make_workflow_dict(steps=steps)
+        yaml_path = write_workflow_yaml(tmp_path, data)
+        with pytest.raises(
+            ValueError, match=r"Step 'no_mem': missing required 'memory_gb' in 'resources'"
+        ):
+            load_workflow_config(yaml_path)
+
+    def test_rejects_step_without_name(self, tmp_path: Path) -> None:
+        steps = [{"command": "echo hello", "resources": {"memory_gb": 4}}]
+        data = make_workflow_dict(steps=steps)
+        yaml_path = write_workflow_yaml(tmp_path, data)
+        with pytest.raises(ValueError, match=r"Step: missing required field 'name'"):
             load_workflow_config(yaml_path)
 
     def test_rejects_missing_workflow_key(self, tmp_path: Path) -> None:
         yaml_path = tmp_path / "workflow.yaml"
         yaml_path.write_text("not_workflow:\n  name: oops\n")
-        with pytest.raises(KeyError, match="workflow"):
+        with pytest.raises(ValueError, match="workflow"):
             load_workflow_config(yaml_path)
 
     def test_rejects_command_with_mismatched_type(self, tmp_path: Path) -> None:
@@ -216,7 +234,7 @@ class TestWorkflowConfigValidation:
         data = make_workflow_dict(steps=steps)
         yaml_path = write_workflow_yaml(tmp_path, data)
         with pytest.raises(
-            ValueError, match="command-based steps require a top-level 'command' field"
+            ValueError, match=r"Step 'bad_step': missing required field 'command'"
         ):
             load_workflow_config(yaml_path)
 
@@ -499,6 +517,52 @@ class TestSimulationStep:
             },
         }
         with pytest.raises(ValueError, match="unsupported args"):
+            parse_simulation_step_from_yaml(
+                step_dict,
+                output_directory=Path("/tmp/results"),
+                project="proj_simscience",
+                queue="all.q",
+            )
+
+    def test_parse_rejects_missing_args_block(self) -> None:
+        step_dict = {
+            "name": "sim",
+            "type": "simulation",
+            "resources": {"memory_gb": 5, "runtime": "03:00:00"},
+        }
+        with pytest.raises(ValueError, match=r"Step 'sim': missing required field 'args'"):
+            parse_simulation_step_from_yaml(
+                step_dict,
+                output_directory=Path("/tmp/results"),
+                project="proj_simscience",
+                queue="all.q",
+            )
+
+    @pytest.mark.parametrize(
+        "missing_field",
+        ["model_specification", "branch_configuration"],
+    )
+    def test_parse_rejects_missing_required_arg(
+        self,
+        valid_model_spec_file: Path,
+        valid_branch_config_file: Path,
+        missing_field: str,
+    ) -> None:
+        args = {
+            "model_specification": str(valid_model_spec_file),
+            "branch_configuration": str(valid_branch_config_file),
+        }
+        del args[missing_field]
+        step_dict = {
+            "name": "sim",
+            "type": "simulation",
+            "resources": {"memory_gb": 5, "runtime": "03:00:00"},
+            "args": args,
+        }
+        with pytest.raises(
+            ValueError,
+            match=rf"Step 'sim': missing required '{missing_field}' in 'args'",
+        ):
             parse_simulation_step_from_yaml(
                 step_dict,
                 output_directory=Path("/tmp/results"),
@@ -1042,7 +1106,7 @@ class TestPythonStep:
     def test_parse_rejects_missing_args_key(self) -> None:
         step_dict = make_python_step_dict()
         del step_dict["args"]
-        with pytest.raises(KeyError, match="args"):
+        with pytest.raises(ValueError, match="args"):
             parse_python_step_from_yaml(
                 step_dict,
                 output_directory=Path("/tmp/results"),
@@ -1155,6 +1219,33 @@ class TestNotebookStep:
             args={"path": str(valid_notebook_path), "bogus": "nope"},
         )
         with pytest.raises(ValueError, match="unsupported args"):
+            parse_notebook_step_from_yaml(
+                step_dict,
+                output_directory=Path("/tmp/results"),
+                project="proj_simscience",
+                queue="all.q",
+            )
+
+    def test_parse_rejects_missing_args_block(self) -> None:
+        step_dict = make_notebook_step_dict()
+        del step_dict["args"]
+        with pytest.raises(
+            ValueError, match=r"Step 'run_notebook': missing required field 'args'"
+        ):
+            parse_notebook_step_from_yaml(
+                step_dict,
+                output_directory=Path("/tmp/results"),
+                project="proj_simscience",
+                queue="all.q",
+            )
+
+    def test_parse_rejects_missing_path(self) -> None:
+        step_dict = make_notebook_step_dict(
+            args={"output_path": "/tmp/results/out.ipynb"},
+        )
+        with pytest.raises(
+            ValueError, match=r"Step 'run_notebook': missing required 'path' in 'args'"
+        ):
             parse_notebook_step_from_yaml(
                 step_dict,
                 output_directory=Path("/tmp/results"),

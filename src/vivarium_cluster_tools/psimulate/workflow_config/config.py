@@ -220,7 +220,7 @@ class WorkflowConfig:
 
         Raises
         ------
-        KeyError
+        ValueError
             If the file does not contain a top-level workflow key, if required workflow-level
             fields are missing, or if the workflow 'steps' list is empty.
 
@@ -233,19 +233,21 @@ class WorkflowConfig:
             raw = yaml.safe_load(f)
 
         if not isinstance(raw, dict) or "workflow" not in raw:
-            raise KeyError("Workflow configuration must contain a top-level 'workflow' key.")
+            raise ValueError(
+                "Workflow configuration: missing required top-level 'workflow' key."
+            )
 
         workflow: dict[str, Any] = raw["workflow"]
 
         # Check required top-level fields
         for field_name in REQUIRED_WORKFLOW_FIELDS:
             if field_name not in workflow:
-                raise KeyError(
-                    f"Workflow configuration is missing required field '{field_name}'."
+                raise ValueError(
+                    f"Workflow configuration: missing required field '{field_name}'."
                 )
 
         raw_steps = workflow["steps"]
         if not raw_steps:
-            raise KeyError("Workflow 'steps' must not be empty.")
+            raise ValueError("Workflow configuration: 'steps' list must not be empty.")
 
         return workflow
