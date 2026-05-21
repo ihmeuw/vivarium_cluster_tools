@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import copy
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, cast
 
 from vivarium_cluster_tools.psimulate.workflow_config.config import (
     DEFAULT_BACKUP_FREQ_SECONDS,
@@ -38,6 +38,46 @@ _SIMULATION_SUPPORTED_ARGS: set[str] = {
 _PYTEST_SUPPORTED_ARGS: set[str] = {"path", "k", "runslow"}
 _PYTHON_SUPPORTED_ARGS: set[str] = {"path", "positional_args", "keyword_args"}
 _NOTEBOOK_SUPPORTED_ARGS: set[str] = {"path", "parameters", "output_path", "cwd"}
+
+
+def _parse_common_step_fields(
+    data: dict[str, Any],
+    *,
+    project: str,
+    queue: str,
+) -> tuple[str, ResourceConfig]:
+    """Validate and extract the fields required by every step type.
+
+    Checks that the step has a ``name``, a ``resources`` block, and that the
+    block contains ``memory_gb``. Returns the step name and the constructed
+    :class:`ResourceConfig`.
+    """
+    if "name" not in data:
+        raise ValueError("Step: missing required field 'name'.")
+    step_name = data["name"]
+    if "resources" not in data:
+        raise ValueError(f"Step '{step_name}': missing required field 'resources'.")
+    resources_data = data["resources"]
+    if "memory_gb" not in resources_data:
+        raise ValueError(f"Step '{step_name}': missing required 'memory_gb' in 'resources'.")
+    resources = ResourceConfig.from_dict(
+        resources_data, workflow_project=project, workflow_queue=queue
+    )
+    return step_name, resources
+
+
+def _require_args_block(data: dict[str, Any], step_name: str) -> dict[str, Any]:
+    """Return ``data['args']`` or raise ValueError when the block is missing."""
+    if "args" not in data:
+        raise ValueError(f"Step '{step_name}': missing required field 'args'.")
+    return cast(dict[str, Any], data["args"])
+
+
+def _require_arg(args: dict[str, Any], field: str, step_name: str) -> Any:
+    """Return ``args[field]`` or raise ValueError when the field is missing."""
+    if field not in args:
+        raise ValueError(f"Step '{step_name}': missing required '{field}' in 'args'.")
+    return args[field]
 
 
 def resolve_step_type(step_dict: dict[str, Any]) -> str:
@@ -90,12 +130,10 @@ def parse_command_step_from_yaml(
               runtime: "02:00:00"
               cores: 2
     """
-    step_name = data.get("name", "<unnamed>")
+    step_name, resources = _parse_common_step_fields(data, project=project, queue=queue)
     _check_supported_args(data.get("args", {}), step_name, _COMMAND_SUPPORTED_ARGS)
     if "command" not in data:
-        raise ValueError(
-            f"Step '{step_name}': command-based steps require a top-level " "'command' field."
-        )
+        raise ValueError(f"Step '{step_name}': missing required field 'command'.")
     explicit_type = data.get("type")
     if explicit_type is not None and explicit_type != "command":
         raise ValueError(
@@ -104,10 +142,8 @@ def parse_command_step_from_yaml(
             "must be omitted or set to 'command'."
         )
     return {
-        "name": data["name"],
-        "resources": ResourceConfig.from_dict(
-            data["resources"], workflow_project=project, workflow_queue=queue
-        ),
+        "name": step_name,
+        "resources": resources,
         "command": data["command"],
         "output_directory": output_directory,
         "environment": data.get("environment"),
@@ -144,18 +180,19 @@ def parse_simulation_step_from_yaml(
               backup_freq: 1800
               sim_verbosity: 1
     """
-    args = data.get("args", {}) or {}
-    _check_supported_args(args, data.get("name", "<unnamed>"), _SIMULATION_SUPPORTED_ARGS)
+    step_name, resources = _parse_common_step_fields(data, project=project, queue=queue)
+    args = _require_args_block(data, step_name)
+    _check_supported_args(args, step_name, _SIMULATION_SUPPORTED_ARGS)
+    model_specification = _require_arg(args, "model_specification", step_name)
+    branch_configuration = _require_arg(args, "branch_configuration", step_name)
 
     kwargs: dict[str, Any] = {
-        "name": data["name"],
-        "resources": ResourceConfig.from_dict(
-            data["resources"], workflow_project=project, workflow_queue=queue
-        ),
+        "name": step_name,
+        "resources": resources,
         "output_directory": output_directory,
         "environment": data.get("environment"),
-        "model_specification": Path(args["model_specification"]).resolve(),
-        "branch_configuration": Path(args["branch_configuration"]).resolve(),
+        "model_specification": Path(model_specification).resolve(),
+        "branch_configuration": Path(branch_configuration).resolve(),
     }
     if "artifact_path" in args:
         kwargs["artifact_path"] = Path(args["artifact_path"]).resolve()
@@ -209,14 +246,13 @@ def parse_pytest_step_from_yaml(
                 - tests/unit
                 - tests/integration
     """
+    step_name, resources = _parse_common_step_fields(data, project=project, queue=queue)
     args = data.get("args", {}) or {}
-    _check_supported_args(args, data.get("name", "<unnamed>"), _PYTEST_SUPPORTED_ARGS)
+    _check_supported_args(args, step_name, _PYTEST_SUPPORTED_ARGS)
 
     kwargs: dict[str, Any] = {
-        "name": data["name"],
-        "resources": ResourceConfig.from_dict(
-            data["resources"], workflow_project=project, workflow_queue=queue
-        ),
+        "name": step_name,
+        "resources": resources,
         "output_directory": output_directory,
     }
     if "environment" in data:
@@ -267,19 +303,16 @@ def parse_python_step_from_yaml(
                 verbose: true
                 num_workers: 4
     """
-    args = copy.deepcopy(data["args"])
-    step_name = data.get("name", "<unnamed>")
+    step_name, resources = _parse_common_step_fields(data, project=project, queue=queue)
+    args = copy.deepcopy(_require_args_block(data, step_name))
     _check_supported_args(args, step_name, _PYTHON_SUPPORTED_ARGS)
-    if "path" not in args:
-        raise ValueError(f"Step '{step_name}': python type requires 'path' in args.")
+    path = _require_arg(args, "path", step_name)
     kwargs: dict[str, Any] = {
-        "name": data["name"],
-        "resources": ResourceConfig.from_dict(
-            data["resources"], workflow_project=project, workflow_queue=queue
-        ),
+        "name": step_name,
+        "resources": resources,
         "output_directory": output_directory,
         "environment": data.get("environment"),
-        "path": str(Path(args["path"]).resolve()),
+        "path": str(Path(path).resolve()),
     }
     if "positional_args" in args:
         kwargs["positional_args"] = args["positional_args"]
@@ -320,21 +353,18 @@ def parse_notebook_step_from_yaml(
                 year: 2020
                 verbose: true
     """
-    args = copy.deepcopy(data["args"])
-    step_name = data.get("name", "<unnamed>")
+    step_name, resources = _parse_common_step_fields(data, project=project, queue=queue)
+    args = copy.deepcopy(_require_args_block(data, step_name))
     _check_supported_args(args, step_name, _NOTEBOOK_SUPPORTED_ARGS)
-
-    if "output_path" not in args:
-        raise ValueError(f"Step '{step_name}': notebook type requires 'output_path' in args.")
+    path = _require_arg(args, "path", step_name)
+    output_path = _require_arg(args, "output_path", step_name)
 
     kwargs: dict[str, Any] = {
-        "name": data["name"],
-        "resources": ResourceConfig.from_dict(
-            data["resources"], workflow_project=project, workflow_queue=queue
-        ),
+        "name": step_name,
+        "resources": resources,
         "output_directory": output_directory,
-        "path": Path(args["path"]).resolve(),
-        "output_path": Path(args["output_path"]).resolve(),
+        "path": Path(path).resolve(),
+        "output_path": Path(output_path).resolve(),
     }
     if "environment" in data:
         kwargs["environment"] = data["environment"]
@@ -582,7 +612,7 @@ def load_workflow_config(
         If ``project``, ``queue``, or ``output_directory`` cannot be resolved
         from either the YAML file or CLI arguments.
     """
-    workflow = WorkflowConfig._parse_yaml_file(path)
+    workflow = WorkflowConfig.parse_yaml_file(path)
 
     resolved_project = project or workflow.get("project")
     resolved_queue = queue or workflow.get("queue")

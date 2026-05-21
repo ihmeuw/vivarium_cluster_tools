@@ -142,7 +142,18 @@ def build_pytest_step_tasks(
     is_resume: bool = False,
 ) -> list[Task]:
     """Create a single Jobmon Task running ``pytest`` with the given filters."""
-    command = _build_pytest_command(path=path, k=k, runslow=runslow, cores=resources.cores)
+    parts = ["pytest"]
+    if path:
+        if isinstance(path, list):
+            parts.extend(shlex.quote(p) for p in path)
+        else:
+            parts.append(shlex.quote(path))
+    if k:
+        parts.append(f"-k {shlex.quote(k)}")
+    if runslow:
+        parts.append("--runslow")
+    if resources.cores > 1:
+        parts.append(f"--numprocesses {resources.cores}")
     return [
         _create_single_command_task(
             tool,
@@ -150,7 +161,7 @@ def build_pytest_step_tasks(
             resources=resources,
             output_directory=output_directory,
             env_prefix=env_prefix,
-            command=command,
+            command=" ".join(parts),
         )
     ]
 
@@ -169,12 +180,22 @@ def build_python_step_tasks(
     build_timestamp: str,
     is_resume: bool = False,
 ) -> list[Task]:
-    """Create a single Jobmon Task running a Python script."""
-    command = _build_python_command(
-        path=path,
-        positional_args=positional_args,
-        keyword_args=keyword_args,
-    )
+    """Create a single Jobmon Task running a Python script.
+
+    Positional arguments are appended first (in the order provided), followed
+    by keyword arguments (sorted alphabetically by key).
+    """
+    parts = ["python", shlex.quote(path)]
+    for value in positional_args or []:
+        parts.append(shlex.quote(str(value)))
+    for key in sorted(keyword_args or {}):
+        value = (keyword_args or {})[key]
+        if value is True or value is None:
+            parts.append(f"--{key}")
+        elif value is False:
+            continue
+        else:
+            parts.append(f"--{key} {shlex.quote(str(value))}")
     return [
         _create_single_command_task(
             tool,
@@ -182,7 +203,7 @@ def build_python_step_tasks(
             resources=resources,
             output_directory=output_directory,
             env_prefix=env_prefix,
-            command=command,
+            command=" ".join(parts),
         )
     ]
 
@@ -203,12 +224,24 @@ def build_notebook_step_tasks(
     is_resume: bool = False,
 ) -> list[Task]:
     """Create a single Jobmon Task running ``papermill`` on a notebook."""
-    command = _build_notebook_command(
-        path=path,
-        output_path=output_path,
-        parameters=parameters or {},
-        cwd=cwd,
-    )
+    effective_cwd = cwd if cwd is not None else path.parent
+    params = parameters or {}
+    parts = [
+        f"mkdir -p {shlex.quote(str(output_path.parent))}",
+        "&&",
+        "papermill",
+        shlex.quote(str(path)),
+        shlex.quote(str(output_path)),
+        f"-k {_NOTEBOOK_DEFAULT_KERNEL}",
+    ]
+    for key in sorted(params):
+        value = params[key]
+        if isinstance(value, bool) or value is None:
+            yaml_value = "true" if value is True else "false" if value is False else "null"
+            parts.append(f"-y {shlex.quote(f'{key}: {yaml_value}')}")
+        else:
+            parts.append(f"-p {key} {shlex.quote(str(value))}")
+    parts.append(f"--cwd {shlex.quote(str(effective_cwd))}")
     return [
         _create_single_command_task(
             tool,
@@ -216,7 +249,7 @@ def build_notebook_step_tasks(
             resources=resources,
             output_directory=output_directory,
             env_prefix=env_prefix,
-            command=command,
+            command=" ".join(parts),
         )
     ]
 
@@ -255,77 +288,3 @@ def _create_single_command_task(
         env_prefix=env_prefix,
         command=wrap_for_subprocess(command),
     )
-
-
-def _build_pytest_command(
-    *,
-    path: str | list[str] | None,
-    k: str | None,
-    runslow: bool,
-    cores: int,
-) -> str:
-    parts = ["pytest"]
-    if path:
-        if isinstance(path, list):
-            parts.extend(shlex.quote(p) for p in path)
-        else:
-            parts.append(shlex.quote(path))
-    if k:
-        parts.append(f"-k {shlex.quote(k)}")
-    if runslow:
-        parts.append("--runslow")
-    if cores > 1:
-        parts.append(f"--numprocesses {cores}")
-    return " ".join(parts)
-
-
-def _build_python_command(
-    *,
-    path: str,
-    positional_args: list[Any] | None,
-    keyword_args: dict[str, Any] | None,
-) -> str:
-    """Build the python command string from the script path and args.
-
-    Positional arguments are appended first (in the order provided), followed
-    by keyword arguments (sorted alphabetically by key).
-    """
-    parts = ["python", shlex.quote(path)]
-    for value in positional_args or []:
-        parts.append(shlex.quote(str(value)))
-    for key in sorted(keyword_args or {}):
-        value = (keyword_args or {})[key]
-        if value is True or value is None:
-            parts.append(f"--{key}")
-        elif value is False:
-            continue
-        else:
-            parts.append(f"--{key} {shlex.quote(str(value))}")
-    return " ".join(parts)
-
-
-def _build_notebook_command(
-    *,
-    path: Path,
-    output_path: Path,
-    parameters: dict[str, Any],
-    cwd: Path | None,
-) -> str:
-    effective_cwd = cwd if cwd is not None else path.parent
-    parts = [
-        f"mkdir -p {shlex.quote(str(output_path.parent))}",
-        "&&",
-        "papermill",
-        shlex.quote(str(path)),
-        shlex.quote(str(output_path)),
-        f"-k {_NOTEBOOK_DEFAULT_KERNEL}",
-    ]
-    for key in sorted(parameters):
-        value = parameters[key]
-        if isinstance(value, bool) or value is None:
-            yaml_value = "true" if value is True else "false" if value is False else "null"
-            parts.append(f"-y {shlex.quote(f'{key}: {yaml_value}')}")
-        else:
-            parts.append(f"-p {key} {shlex.quote(str(value))}")
-    parts.append(f"--cwd {shlex.quote(str(effective_cwd))}")
-    return " ".join(parts)
