@@ -582,7 +582,7 @@ def load_workflow_config(
         If ``project``, ``queue``, or ``output_directory`` cannot be resolved
         from either the YAML file or CLI arguments.
     """
-    workflow = WorkflowConfig._parse_yaml_file(path)
+    workflow = WorkflowConfig.parse_yaml_file(path)
 
     resolved_project = project or workflow.get("project")
     resolved_queue = queue or workflow.get("queue")

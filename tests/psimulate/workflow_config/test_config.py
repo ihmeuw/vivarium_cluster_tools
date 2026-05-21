@@ -36,10 +36,10 @@ from vivarium_cluster_tools.psimulate.workflow_config.parsing import (
     serialize_simulation_step_to_yaml,
 )
 from vivarium_cluster_tools.psimulate.workflow_config.task_builders import (
-    _build_notebook_command,
-    _build_pytest_command,
-    _build_python_command,
     build_command_step_tasks,
+    build_notebook_step_tasks,
+    build_pytest_step_tasks,
+    build_python_step_tasks,
     build_simulation_step_tasks,
 )
 from vivarium_cluster_tools.psimulate.workflow_config.validation import (
@@ -348,6 +348,23 @@ class TestResourceConfigValidation:
 
 def _common_resources() -> ResourceConfig:
     return ResourceConfig(memory_gb=4, project="proj_simscience", queue="all.q")
+
+
+def _captured_command(builder: Any, /, **builder_kwargs: Any) -> str:
+    """Invoke a ``build_*_step_tasks`` builder with a mocked Tool and return the command kwarg.
+
+    Used by tests that previously asserted on private command-string helpers.
+    """
+    mock_tool = MagicMock()
+    mock_template = MagicMock()
+    mock_tool.get_task_template.return_value = mock_template
+    builder(
+        tool=mock_tool,
+        env_prefix="/path/to/envs/my_env",
+        build_timestamp="2026_04_24_10_00_00",
+        **builder_kwargs,
+    )
+    return mock_template.create_task.call_args.kwargs["command"]
 
 
 class TestCommandStep:
@@ -769,38 +786,61 @@ class TestPytestStep:
         assert result["args"] == {"path": valid_pytest_path}
 
     def test_build_command_full(self, valid_pytest_path: str) -> None:
-        command = _build_pytest_command(
+        command = _captured_command(
+            build_pytest_step_tasks,
+            name="tests",
+            resources=ResourceConfig(
+                memory_gb=4, project="proj_simscience", queue="all.q", cores=4
+            ),
+            output_directory=Path("/tmp/results"),
             path=valid_pytest_path,
             k="test_foo or test_bar",
             runslow=True,
-            cores=4,
         )
         assert command == (
             f"pytest {valid_pytest_path} -k 'test_foo or test_bar' --runslow --numprocesses 4"
         )
 
     def test_build_command_path_only(self, valid_pytest_path: str) -> None:
-        assert (
-            _build_pytest_command(path=valid_pytest_path, k=None, runslow=False, cores=1)
-            == f"pytest {valid_pytest_path}"
+        command = _captured_command(
+            build_pytest_step_tasks,
+            name="tests",
+            resources=_common_resources(),
+            output_directory=Path("/tmp/results"),
+            path=valid_pytest_path,
         )
+        assert command == f"pytest {valid_pytest_path}"
 
     def test_build_command_k_only(self) -> None:
-        assert (
-            _build_pytest_command(path=None, k="test_specific", runslow=False, cores=1)
-            == "pytest -k test_specific"
+        command = _captured_command(
+            build_pytest_step_tasks,
+            name="tests",
+            resources=_common_resources(),
+            output_directory=Path("/tmp/results"),
+            path=None,
+            k="test_specific",
         )
+        assert command == "pytest -k test_specific"
 
     def test_build_command_single_core_omits_numprocesses(self) -> None:
-        assert "--numprocesses" not in _build_pytest_command(
-            path="tests/", k=None, runslow=False, cores=1
+        command = _captured_command(
+            build_pytest_step_tasks,
+            name="tests",
+            resources=_common_resources(),
+            output_directory=Path("/tmp/results"),
+            path="tests/",
         )
+        assert "--numprocesses" not in command
 
     def test_build_command_multiple_paths(self, valid_pytest_paths: list[str]) -> None:
-        assert (
-            _build_pytest_command(path=valid_pytest_paths, k=None, runslow=False, cores=1)
-            == f"pytest {valid_pytest_paths[0]} {valid_pytest_paths[1]}"
+        command = _captured_command(
+            build_pytest_step_tasks,
+            name="tests",
+            resources=_common_resources(),
+            output_directory=Path("/tmp/results"),
+            path=valid_pytest_paths,
         )
+        assert command == f"pytest {valid_pytest_paths[0]} {valid_pytest_paths[1]}"
 
     def test_serialize_multiple_paths(self, valid_pytest_paths: list[str]) -> None:
         result = serialize_pytest_step_to_yaml(
@@ -958,7 +998,11 @@ class TestPythonStep:
     def test_build_command(
         self, valid_python_script: str, args: dict[str, Any], expected_command: str
     ) -> None:
-        command = _build_python_command(
+        command = _captured_command(
+            build_python_step_tasks,
+            name="run_script",
+            resources=_common_resources(),
+            output_directory=Path("/tmp/results"),
             path=valid_python_script,
             positional_args=args.get("positional_args"),
             keyword_args=args.get("keyword_args"),
@@ -1179,7 +1223,11 @@ class TestNotebookStep:
     ) -> None:
         base = self._base_kwargs(valid_notebook_path)
         output_path: Path = base["output_path"]
-        command = _build_notebook_command(
+        command = _captured_command(
+            build_notebook_step_tasks,
+            name="run_notebook",
+            resources=_common_resources(),
+            output_directory=Path("/tmp/results"),
             path=base["path"],
             output_path=output_path,
             parameters=field_overrides.get("parameters") or {},

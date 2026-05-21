@@ -208,7 +208,7 @@ class WorkflowConfig:
             )
 
     @staticmethod
-    def _parse_yaml_file(path: Path) -> dict[str, Any]:
+    def parse_yaml_file(path: Path) -> dict[str, Any]:
         """Read and perform basic structural validation on a workflow YAML file.
 
         Returns the ``workflow`` dict from inside the top-level key.
