@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import copy
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, cast
 
 from vivarium_cluster_tools.psimulate.workflow_config.config import (
     DEFAULT_BACKUP_FREQ_SECONDS,
@@ -70,7 +70,7 @@ def _require_args_block(data: dict[str, Any], step_name: str) -> dict[str, Any]:
     """Return ``data['args']`` or raise ValueError when the block is missing."""
     if "args" not in data:
         raise ValueError(f"Step '{step_name}': missing required field 'args'.")
-    return data["args"]
+    return cast(dict[str, Any], data["args"])
 
 
 def _require_arg(args: dict[str, Any], field: str, step_name: str) -> Any:

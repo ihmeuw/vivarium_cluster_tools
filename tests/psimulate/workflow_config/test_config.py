@@ -382,7 +382,8 @@ def _captured_command(builder: Any, /, **builder_kwargs: Any) -> str:
         build_timestamp="2026_04_24_10_00_00",
         **builder_kwargs,
     )
-    return mock_template.create_task.call_args.kwargs["command"]
+    command: str = mock_template.create_task.call_args.kwargs["command"]
+    return command
 
 
 class TestCommandStep:
