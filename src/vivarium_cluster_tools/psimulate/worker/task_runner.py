@@ -28,6 +28,7 @@ import subprocess
 import sys
 from collections import deque
 from pathlib import Path
+from typing import IO, cast
 
 from loguru import logger
 
@@ -169,8 +170,8 @@ def _run_subprocess(inner_argv: list[str]) -> int:
     prev_term = signal.signal(signal.SIGTERM, _forward_signal)
     prev_int = signal.signal(signal.SIGINT, _forward_signal)
     try:
-        assert proc.stdout is not None
-        for line in proc.stdout:
+        stdout = cast(IO[str], proc.stdout)
+        for line in stdout:
             sys.stdout.write(line)
             sys.stdout.flush()
             buffered.append(line)
