@@ -16,7 +16,7 @@ from pathlib import Path
 
 from loguru import logger
 
-from vivarium_cluster_tools.psimulate import TASK_RUNNER_MODULE
+from vivarium_cluster_tools.psimulate import TASK_RUNNER_MODULE, wrap_for_subprocess
 from vivarium_cluster_tools.psimulate.cluster.interface import NativeSpecification
 from vivarium_cluster_tools.psimulate.jobmon_config import client
 from vivarium_cluster_tools.psimulate.jobmon_config.client import Task, Tool, Workflow
@@ -69,6 +69,7 @@ def get_task_list(
     max_attempts: int = 3,
     env_prefix: str | None = None,
     template_name: str = "psimulate",
+    wrap_command: bool = False,
 ) -> list[Task]:
     """Create Jobmon tasks for a list of job parameters.
 
@@ -103,6 +104,14 @@ def get_task_list(
         Name to register the Jobmon ``TaskTemplate`` under. Must be unique
         per Tool/Workflow; callers that build multiple simulation step
         groups in a single workflow must pass a distinct value per group.
+    wrap_command
+        If ``True``, prepend
+        :func:`~vivarium_cluster_tools.psimulate.wrap_for_subprocess` to
+        the worker command so the child runs through ``task_runner``'s
+        ``subprocess`` mode (stdout mirrored, stderr replayed on failure).
+        Workflow simulation steps pass ``True``; ``psimulate run``
+        (and ``restart`` / ``expand`` / ``load_test``) leave it ``False``
+        so the simulation runs in-process.
 
     Returns
     -------
@@ -115,6 +124,8 @@ def get_task_list(
         "--results-dir {results_dir} "
         "--command {command}"
     )
+    if wrap_command:
+        worker_command = wrap_for_subprocess(worker_command)
     if env_prefix is not None:
         worker_command = f"PATH={env_prefix}/bin:$PATH {worker_command}"
 

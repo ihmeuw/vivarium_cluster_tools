@@ -1,34 +1,23 @@
 """
-========================
+==================
 Jobmon Task Runner
-========================
+==================
 
-Single CLI entry point for Jobmon worker tasks. Two execution modes,
-dispatched by the first positional argument:
+CLI entry point for Jobmon worker tasks. Dispatches on the first positional
+argument:
 
-* ``simulation`` — load a task's metadata JSON, run the appropriate work
-  horse in-process, and write its results. Used by simulation steps and
-  the legacy ``psimulate run``/``restart``/``expand``/``load_test`` paths.
+* ``simulation`` — load the task's metadata JSON and run the work horse
+  in-process. Invoked directly by ``psimulate run`` / ``restart`` /
+  ``expand`` / ``load_test``; workflow simulation steps invoke it nested
+  inside ``subprocess`` (below).
+* ``subprocess`` — spawn the following argv as a child, mirror its stdout
+  live, and replay the captured tail to stderr on non-zero exit so failures
+  surface in the SLURM stderr file and the Jobmon GUI. Used by every
+  workflow step type via
+  :func:`~vivarium_cluster_tools.psimulate.wrap_for_subprocess`.
 
-* ``subprocess`` — spawn the argv following ``subprocess`` as a child
-  process, mirror its stdout in real time, and replay the captured output
-  to stderr on non-zero exit so the SLURM stderr file (and the Jobmon GUI)
-  surface the failing command's output. Used by typed steps (pytest,
-  python, notebook, command) via ``BaseStepConfig._wrap_for_logging``.
-
-Both modes share ``_configure_dual_sink`` so INFO+ logs land in stdout
+Both modes call ``_configure_dual_sink`` so INFO+ logs land in stdout
 (workflow log file) and WARNING+ logs land in stderr (Jobmon GUI).
-
-Usage::
-
-    python -m vivarium_cluster_tools.psimulate.worker.task_runner simulation \\
-        --metadata-dir /path/to/metadata \\
-        --task-id <task_id> \\
-        --results-dir /path/to/results \\
-        --command run
-
-    python -m vivarium_cluster_tools.psimulate.worker.task_runner subprocess \\
-        pytest tests/ -k some_filter
 
 """
 
@@ -39,6 +28,7 @@ import subprocess
 import sys
 from collections import deque
 from pathlib import Path
+from typing import IO, cast
 
 from loguru import logger
 
@@ -143,16 +133,23 @@ def _run_simulation(args: argparse.Namespace) -> int:
 
 
 def _run_subprocess(inner_argv: list[str]) -> int:
-    """Spawn ``inner_argv`` as a child process with dual-stream logging.
+    """Spawn ``inner_argv`` as a child process and supervise it.
 
-    The child's stdout (with stderr merged in) is mirrored to ``sys.stdout``
-    in real time and buffered in a capped deque. On non-zero exit, the
-    buffered output is replayed to ``sys.stderr`` so the SLURM stderr file
-    (and the Jobmon GUI's "Task Instance stderr" pane) surfaces the failing
-    command's output.
+    Four things happen here:
 
-    The finally block guarantees the buffer is still replayed — and the child
-    is terminated, not orphaned — on parent-killed and exception paths.
+    1. **Mirror the child's output live.** Each line of stdout (stderr is
+       merged in) is written straight to our stdout so SLURM's stdout
+       file shows progress in real time.
+    2. **Keep a capped tail of that output** in ``buffered`` for the
+       replay step.
+    3. **Forward SIGTERM/SIGINT to the child.** SLURM's ``scancel`` and a
+       user ctrl-C land on the parent; without forwarding, the parent's
+       default-handler death would orphan the child and we'd never see a
+       real exit code.
+    4. **On any exit path, clean up and replay.** The ``finally`` block
+       reaps the child (SIGTERM, then SIGKILL after a grace period) and,
+       on non-zero exit, writes the buffered tail to stderr so failures
+       surface in the SLURM stderr file and the Jobmon GUI.
     """
     logger.info(f"Running subprocess: {' '.join(inner_argv)}")
     buffered: deque[str] = deque(maxlen=BUFFER_MAXLEN)
@@ -173,8 +170,8 @@ def _run_subprocess(inner_argv: list[str]) -> int:
     prev_term = signal.signal(signal.SIGTERM, _forward_signal)
     prev_int = signal.signal(signal.SIGINT, _forward_signal)
     try:
-        assert proc.stdout is not None
-        for line in proc.stdout:
+        stdout = cast(IO[str], proc.stdout)
+        for line in stdout:
             sys.stdout.write(line)
             sys.stdout.flush()
             buffered.append(line)

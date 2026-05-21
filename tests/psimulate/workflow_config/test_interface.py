@@ -11,16 +11,7 @@ import pytest
 from pytest_mock import MockerFixture
 
 from vivarium_cluster_tools.psimulate.workflow_config.builder import STEP_TYPE_API_FNS
-from vivarium_cluster_tools.psimulate.workflow_config.config import (
-    STEP_TYPES,
-    BaseStepConfig,
-    CommandStepConfig,
-    NotebookStepConfig,
-    PytestStepConfig,
-    PythonStepConfig,
-    ResourceConfig,
-    SimulationStepConfig,
-)
+from vivarium_cluster_tools.psimulate.workflow_config.config import ResourceConfig
 from vivarium_cluster_tools.psimulate.workflow_config.interface import (
     get_command_step_tasks,
     get_notebook_step_tasks,
@@ -28,10 +19,18 @@ from vivarium_cluster_tools.psimulate.workflow_config.interface import (
     get_python_step_tasks,
     get_simulation_step_tasks,
 )
+from vivarium_cluster_tools.psimulate.workflow_config.parsing import STEP_TYPE_YAML_PARSERS
 from vivarium_cluster_tools.psimulate.workflow_config.utilities import (
     BUILD_TIMESTAMP_FILENAME,
     get_or_create_build_timestamp,
     resolve_step_env_prefix,
+)
+from vivarium_cluster_tools.psimulate.workflow_config.validation import (
+    validate_command_step,
+    validate_notebook_step,
+    validate_pytest_step,
+    validate_python_step,
+    validate_simulation_step,
 )
 
 
@@ -44,24 +43,28 @@ _BUILD_TIMESTAMP = "2026_05_18_10_00_00"
 _TASKS = ["task-sentinel"]
 
 
-@pytest.fixture()
-def patch_get_tasks(mocker: MockerFixture) -> dict[type[BaseStepConfig], MagicMock]:
-    """Patch ``get_tasks`` on every step config class so API tests don't
-    invoke real Jobmon task construction.
+_BUILDER_PATHS: dict[str, str] = {
+    "command": "build_command_step_tasks",
+    "simulation": "build_simulation_step_tasks",
+    "pytest": "build_pytest_step_tasks",
+    "python": "build_python_step_tasks",
+    "notebook": "build_notebook_step_tasks",
+}
 
-    Returns a mapping from step class to its patched ``get_tasks`` mock so
-    individual tests can inspect call args.
+
+@pytest.fixture()
+def patch_task_builders(mocker: MockerFixture) -> dict[str, MagicMock]:
+    """Patch each ``build_<type>_step_tasks`` at its interface.py import site.
+
+    Returns a mapping from step_type to the patched builder mock so
+    individual tests can assert on the call.
     """
-    classes: list[type[BaseStepConfig]] = [
-        CommandStepConfig,
-        SimulationStepConfig,
-        PytestStepConfig,
-        PythonStepConfig,
-        NotebookStepConfig,
-    ]
     return {
-        cls: mocker.patch.object(cls, "get_tasks", autospec=True, return_value=_TASKS)
-        for cls in classes
+        step_type: mocker.patch(
+            f"vivarium_cluster_tools.psimulate.workflow_config.interface.{builder_name}",
+            return_value=_TASKS,
+        )
+        for step_type, builder_name in _BUILDER_PATHS.items()
     }
 
 
@@ -78,44 +81,26 @@ def patch_resolve_env_prefix(mocker: MockerFixture) -> MagicMock:
 @pytest.fixture()
 def patch_build_timestamp(mocker: MockerFixture) -> MagicMock:
     """Stub the build-timestamp helper so API tests don't touch the
-    filesystem and can assert on the timestamp passed to ``get_tasks``."""
+    filesystem and can assert on the timestamp passed to the builder."""
     return mocker.patch(
         "vivarium_cluster_tools.psimulate.workflow_config.interface.get_or_create_build_timestamp",
         return_value=_BUILD_TIMESTAMP,
     )
 
 
-def _assert_runtime_call(
-    mock: MagicMock,
-    expected_self_type: type[BaseStepConfig],
-    *,
-    expected_env_prefix: str,
-    expected_is_resume: bool = False,
-) -> Any:
-    """Assert ``get_tasks`` was called once with the standard runtime args.
-
-    Returns the step instance ``get_tasks`` was bound to so callers can
-    assert on the constructed step's fields.
-    """
+def _builder_kwargs(mock: MagicMock) -> dict[str, Any]:
+    """Return the kwargs passed to a patched builder on its single call."""
     mock.assert_called_once()
-    args, kwargs = mock.call_args
-    step_instance = args[0]
-    assert isinstance(step_instance, expected_self_type)
-    assert args[1:] == (_TOOL,)
-    assert kwargs == {
-        "env_prefix": expected_env_prefix,
-        "build_timestamp": _BUILD_TIMESTAMP,
-        "is_resume": expected_is_resume,
-    }
-    return step_instance
+    _, kwargs = mock.call_args
+    return dict(kwargs)
 
 
 def test_get_command_step_returns_tasks(
-    patch_get_tasks: dict[type[BaseStepConfig], MagicMock],
+    patch_task_builders: dict[str, MagicMock],
     patch_resolve_env_prefix: MagicMock,
     patch_build_timestamp: MagicMock,
 ) -> None:
-    """API constructs a CommandStepConfig and returns the tasks from get_tasks."""
+    """API validates kwargs and forwards them to ``build_command_step_tasks``."""
     output_directory = Path("/tmp/results")
     tasks = get_command_step_tasks(
         name="cmd",
@@ -127,25 +112,25 @@ def test_get_command_step_returns_tasks(
     )
     assert tasks is _TASKS
     patch_build_timestamp.assert_called_once_with(output_directory)
-    step = _assert_runtime_call(
-        patch_get_tasks[CommandStepConfig],
-        CommandStepConfig,
-        expected_env_prefix="/envs/my_env",
-    )
-    assert step.name == "cmd"
-    assert step.command == "echo hi"
-    assert step.environment == "my_env"
+    kwargs = _builder_kwargs(patch_task_builders["command"])
+    assert kwargs["name"] == "cmd"
+    assert kwargs["command"] == "echo hi"
+    assert kwargs["environment"] == "my_env"
+    assert kwargs["env_prefix"] == "/envs/my_env"
+    assert kwargs["build_timestamp"] == _BUILD_TIMESTAMP
+    assert kwargs["is_resume"] is False
+    assert kwargs["tool"] is _TOOL
 
 
 def test_get_simulation_step_returns_tasks(
-    patch_get_tasks: dict[type[BaseStepConfig], MagicMock],
+    patch_task_builders: dict[str, MagicMock],
     patch_resolve_env_prefix: MagicMock,
     patch_build_timestamp: MagicMock,
     valid_model_spec_file: Path,
     valid_branch_config_file: Path,
     valid_artifact_file: Path,
 ) -> None:
-    """API constructs a SimulationStepConfig and returns the tasks from get_tasks."""
+    """API validates kwargs and forwards them to ``build_simulation_step_tasks``."""
     output_directory = Path("/tmp/results")
     tasks = get_simulation_step_tasks(
         name="sim",
@@ -162,27 +147,25 @@ def test_get_simulation_step_returns_tasks(
     )
     assert tasks is _TASKS
     patch_build_timestamp.assert_called_once_with(output_directory)
-    step = _assert_runtime_call(
-        patch_get_tasks[SimulationStepConfig],
-        SimulationStepConfig,
-        expected_env_prefix="/envs/sim_env",
-        expected_is_resume=True,
-    )
-    assert step.model_specification == valid_model_spec_file
-    assert step.branch_configuration == valid_branch_config_file
-    assert step.artifact_path == valid_artifact_file
-    assert step.backup_freq == 600.0
-    assert step.sim_verbosity == 2
-    assert step.environment == "sim_env"
+    kwargs = _builder_kwargs(patch_task_builders["simulation"])
+    assert kwargs["name"] == "sim"
+    assert kwargs["model_specification"] == valid_model_spec_file
+    assert kwargs["branch_configuration"] == valid_branch_config_file
+    assert kwargs["artifact_path"] == valid_artifact_file
+    assert kwargs["backup_freq"] == 600.0
+    assert kwargs["sim_verbosity"] == 2
+    assert kwargs["environment"] == "sim_env"
+    assert kwargs["env_prefix"] == "/envs/sim_env"
+    assert kwargs["is_resume"] is True
 
 
 def test_get_pytest_step_returns_tasks(
-    patch_get_tasks: dict[type[BaseStepConfig], MagicMock],
+    patch_task_builders: dict[str, MagicMock],
     patch_resolve_env_prefix: MagicMock,
     patch_build_timestamp: MagicMock,
     valid_pytest_path: str,
 ) -> None:
-    """API constructs a PytestStepConfig and returns the tasks from get_tasks."""
+    """API validates kwargs and forwards them to ``build_pytest_step_tasks``."""
     tasks = get_pytest_step_tasks(
         name="tests",
         resources=_resources(),
@@ -194,27 +177,20 @@ def test_get_pytest_step_returns_tasks(
         tool=_TOOL,
     )
     assert tasks is _TASKS
-    step = _assert_runtime_call(
-        patch_get_tasks[PytestStepConfig],
-        PytestStepConfig,
-        expected_env_prefix="/envs/test_env",
-    )
-    assert step.path == valid_pytest_path
-    assert step.k == "test_foo"
-    assert step.runslow is True
+    kwargs = _builder_kwargs(patch_task_builders["pytest"])
+    assert kwargs["path"] == valid_pytest_path
+    assert kwargs["k"] == "test_foo"
+    assert kwargs["runslow"] is True
+    assert kwargs["env_prefix"] == "/envs/test_env"
 
 
 def test_get_python_step_returns_tasks(
-    patch_get_tasks: dict[type[BaseStepConfig], MagicMock],
+    patch_task_builders: dict[str, MagicMock],
     patch_resolve_env_prefix: MagicMock,
     patch_build_timestamp: MagicMock,
     valid_python_script: str,
 ) -> None:
-    """API constructs a PythonStepConfig and returns the tasks from get_tasks.
-
-    path/positional_args/keyword_args are bundled into the dataclass's
-    ``args`` dict.
-    """
+    """API validates kwargs and forwards them to ``build_python_step_tasks``."""
     tasks = get_python_step_tasks(
         name="script",
         resources=_resources(),
@@ -226,23 +202,20 @@ def test_get_python_step_returns_tasks(
         tool=_TOOL,
     )
     assert tasks is _TASKS
-    step = _assert_runtime_call(
-        patch_get_tasks[PythonStepConfig],
-        PythonStepConfig,
-        expected_env_prefix="/envs/py_env",
-    )
-    assert step.args["path"] == valid_python_script
-    assert step.args["positional_args"] == ["foo", 42]
-    assert step.args["keyword_args"] == {"verbose": True, "out_dir": "/tmp/out"}
+    kwargs = _builder_kwargs(patch_task_builders["python"])
+    assert kwargs["path"] == valid_python_script
+    assert kwargs["positional_args"] == ["foo", 42]
+    assert kwargs["keyword_args"] == {"verbose": True, "out_dir": "/tmp/out"}
+    assert kwargs["env_prefix"] == "/envs/py_env"
 
 
 def test_get_notebook_step_returns_tasks(
-    patch_get_tasks: dict[type[BaseStepConfig], MagicMock],
+    patch_task_builders: dict[str, MagicMock],
     patch_resolve_env_prefix: MagicMock,
     patch_build_timestamp: MagicMock,
     valid_notebook_path: Path,
 ) -> None:
-    """API constructs a NotebookStepConfig and returns the tasks from get_tasks."""
+    """API validates kwargs and forwards them to ``build_notebook_step_tasks``."""
     tasks = get_notebook_step_tasks(
         name="nb",
         resources=_resources(),
@@ -255,19 +228,16 @@ def test_get_notebook_step_returns_tasks(
         tool=_TOOL,
     )
     assert tasks is _TASKS
-    step = _assert_runtime_call(
-        patch_get_tasks[NotebookStepConfig],
-        NotebookStepConfig,
-        expected_env_prefix="/envs/nb_env",
-    )
-    assert step.path == valid_notebook_path
-    assert step.output_path == Path("/tmp/results/out.ipynb")
-    assert step.parameters == {"year": 2020, "verbose": True}
-    assert step.cwd == valid_notebook_path.parent
+    kwargs = _builder_kwargs(patch_task_builders["notebook"])
+    assert kwargs["path"] == valid_notebook_path
+    assert kwargs["output_path"] == Path("/tmp/results/out.ipynb")
+    assert kwargs["parameters"] == {"year": 2020, "verbose": True}
+    assert kwargs["cwd"] == valid_notebook_path.parent
+    assert kwargs["env_prefix"] == "/envs/nb_env"
 
 
 def test_step_env_falls_back_to_conda_default_env(
-    patch_get_tasks: dict[type[BaseStepConfig], MagicMock],
+    patch_task_builders: dict[str, MagicMock],
     patch_resolve_env_prefix: MagicMock,
     patch_build_timestamp: MagicMock,
     monkeypatch: pytest.MonkeyPatch,
@@ -282,19 +252,16 @@ def test_step_env_falls_back_to_conda_default_env(
         output_directory=Path("/tmp/results"),
         tool=_TOOL,
     )
-    _assert_runtime_call(
-        patch_get_tasks[CommandStepConfig],
-        CommandStepConfig,
-        expected_env_prefix="/envs/runner_env",
-    )
+    kwargs = _builder_kwargs(patch_task_builders["command"])
+    assert kwargs["env_prefix"] == "/envs/runner_env"
 
 
 @pytest.mark.parametrize(
     "api_fn, extra_kwargs, expected_error",
     [
-        # Empty command -> CommandStepConfig.validate raises ValueError.
+        # Empty command -> validate_command_step raises ValueError.
         (get_command_step_tasks, {"command": ""}, ValueError),
-        # Nonexistent paths -> SimulationStepConfig.validate raises FileNotFoundError.
+        # Nonexistent paths -> validate_simulation_step raises FileNotFoundError.
         (
             get_simulation_step_tasks,
             {
@@ -303,11 +270,11 @@ def test_step_env_falls_back_to_conda_default_env(
             },
             FileNotFoundError,
         ),
-        # Neither path nor k -> PytestStepConfig.validate raises ValueError.
+        # Neither path nor k -> validate_pytest_step raises ValueError.
         (get_pytest_step_tasks, {}, ValueError),
-        # Nonexistent script -> PythonStepConfig.validate raises FileNotFoundError.
+        # Nonexistent script -> validate_python_step raises FileNotFoundError.
         (get_python_step_tasks, {"path": "/nonexistent/script.py"}, FileNotFoundError),
-        # Bad notebook extension -> NotebookStepConfig.validate raises ValueError.
+        # Bad notebook extension -> validate_notebook_step raises ValueError.
         (
             get_notebook_step_tasks,
             {
@@ -324,8 +291,8 @@ def test_validation_propagates_through_api(
     extra_kwargs: dict[str, Any],
     expected_error: type[Exception],
 ) -> None:
-    """Each API function calls ``cls.validate(**kwargs)`` before constructing,
-    so bad kwargs raise without ever reaching ``get_tasks``."""
+    """Each API function calls ``validate_<type>_step(**kwargs)`` before
+    dispatching, so bad kwargs raise without ever reaching the builder."""
     common: dict[str, Any] = {
         "name": "bad",
         "resources": _resources(),
@@ -347,45 +314,34 @@ class TestResolveStepEnvPrefix:
             side_effect=lambda env: f"/envs/{env}",
         )
 
-    @staticmethod
-    def _step(environment: str | None) -> CommandStepConfig:
-        return CommandStepConfig(
-            name="s",
-            resources=_resources(),
-            command="echo hi",
-            output_directory=Path("/tmp/results"),
-            environment=environment,
-        )
-
     def test_step_environment_takes_priority(self) -> None:
-        step = self._step(environment="step_env")
         assert (
-            resolve_step_env_prefix(step, default_environment="workflow_env")
+            resolve_step_env_prefix(
+                name="s", environment="step_env", default_environment="workflow_env"
+            )
             == "/envs/step_env"
         )
 
     def test_default_environment_used_when_step_unset(self) -> None:
-        step = self._step(environment=None)
         assert (
-            resolve_step_env_prefix(step, default_environment="workflow_env")
+            resolve_step_env_prefix(
+                name="s", environment=None, default_environment="workflow_env"
+            )
             == "/envs/workflow_env"
         )
 
     def test_conda_default_env_fallback(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("CONDA_DEFAULT_ENV", "conda_env")
-        step = self._step(environment=None)
-        assert resolve_step_env_prefix(step) == "/envs/conda_env"
+        assert resolve_step_env_prefix(name="s", environment=None) == "/envs/conda_env"
 
     def test_rejects_base_environment(self) -> None:
-        step = self._step(environment="base")
         with pytest.raises(ValueError, match="non-base conda environment is required"):
-            resolve_step_env_prefix(step)
+            resolve_step_env_prefix(name="s", environment="base")
 
     def test_raises_when_nothing_resolves(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv("CONDA_DEFAULT_ENV", raising=False)
-        step = self._step(environment=None)
         with pytest.raises(ValueError, match="non-base conda environment is required"):
-            resolve_step_env_prefix(step)
+            resolve_step_env_prefix(name="s", environment=None)
 
 
 class TestGetOrCreateBuildTimestamp:
@@ -406,32 +362,40 @@ class TestGetOrCreateBuildTimestamp:
 
 
 def test_step_type_registries_match() -> None:
-    """``STEP_TYPES`` and ``STEP_TYPE_API_FNS`` must have identical keysets.
+    """``STEP_TYPE_API_FNS`` and ``STEP_TYPE_YAML_PARSERS`` must have identical keysets.
 
     Catches keyset drift between the two registries: adding a step type to
     one without the other would otherwise produce a runtime error at
     workflow-build time.
     """
-    assert STEP_TYPE_API_FNS.keys() == STEP_TYPES.keys(), (
+    assert STEP_TYPE_API_FNS.keys() == STEP_TYPE_YAML_PARSERS.keys(), (
         "Step-type registries disagree: "
-        f"config.STEP_TYPES={sorted(STEP_TYPES)} vs "
+        f"parsing.STEP_TYPE_YAML_PARSERS={sorted(STEP_TYPE_YAML_PARSERS)} vs "
         f"builder.STEP_TYPE_API_FNS={sorted(STEP_TYPE_API_FNS)}"
     )
 
 
-@pytest.mark.parametrize("step_type", sorted(STEP_TYPES))
-def test_validate_signature_matches_api_fn_signature(step_type: str) -> None:
-    """Each step class's ``validate`` classmethod must take exactly the kwargs
-    the matching API function accepts, minus ``tool`` and ``is_resume``
-    (supplied by the builder).
+_VALIDATORS: dict[str, Callable[..., None]] = {
+    "command": validate_command_step,
+    "simulation": validate_simulation_step,
+    "pytest": validate_pytest_step,
+    "python": validate_python_step,
+    "notebook": validate_notebook_step,
+}
 
-    Locks in the contract between each ``BaseStepConfig`` subclass and its
+
+@pytest.mark.parametrize("step_type", sorted(STEP_TYPE_API_FNS))
+def test_validate_signature_matches_api_fn_signature(step_type: str) -> None:
+    """Each per-type validator must take exactly the kwargs the matching API
+    function accepts, minus ``tool`` and ``is_resume`` (supplied by the
+    builder).
+
+    Locks in the contract between each validator and its
     ``get_*_step_tasks`` partner so a kwarg rename / addition / removal on
     either side fails at test time instead of at workflow-build time.
     """
-    step_class = STEP_TYPES[step_type]
-    # ``validate`` lives on each concrete subclass with a typed signature, so
-    # mypy can't see it on ``type[BaseStepConfig]``.
-    validate_params = set(inspect.signature(step_class.validate).parameters)  # type: ignore[attr-defined]
-    api_params = set(inspect.signature(STEP_TYPE_API_FNS[step_type]).parameters)
+    validator = _VALIDATORS[step_type]
+    api_fn = STEP_TYPE_API_FNS[step_type]
+    validate_params = set(inspect.signature(validator).parameters)
+    api_params = set(inspect.signature(api_fn).parameters)
     assert validate_params == api_params - {"tool", "is_resume"}
