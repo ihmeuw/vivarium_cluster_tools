@@ -44,8 +44,8 @@ from vivarium_cluster_tools.psimulate.workflow_config.builder import (
     build_workflow_from_config,
 )
 from vivarium_cluster_tools.psimulate.workflow_config.config import WorkflowConfig
-from vivarium_cluster_tools.psimulate.workflow_config.parsing import (
-    workflow_config_to_yaml_dict,
+from vivarium_cluster_tools.psimulate.workflow_config.serialization import (
+    workflow_config_to_dict,
 )
 from vivarium_cluster_tools.psimulate.workflow_config.utilities import WORKFLOW_ARGS_FILENAME
 from vivarium_cluster_tools.vipin.perf_report import report_performance
@@ -231,7 +231,7 @@ def write_workflow_configuration(output_root: Path, workflow_config: WorkflowCon
     workflow_config
         The parsed and validated workflow configuration.
     """
-    config: dict[str, Any] = {"workflow": workflow_config_to_yaml_dict(workflow_config)}
+    config: dict[str, Any] = {"workflow": workflow_config_to_dict(workflow_config)}
     config_file = output_root / "configuration.yaml"
     config_file.write_text(yaml.dump(config, default_flow_style=False, sort_keys=False))
     logger.info(f"Run configuration written to {config_file}")

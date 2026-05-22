@@ -3,31 +3,30 @@
 Workflow Step Parsing
 =====================
 
-YAML <-> API kwargs translation for workflow steps. Each step type has a
-parser (raw YAML dict -> API kwargs) and a serializer (API kwargs -> YAML
-dict). Parsers do YAML-shape validation (required fields, unsupported
-``args`` keys, ``command``/``type`` conflicts) inline.
+YAML -> API kwargs translation for workflow steps. Each step type has a
+parser that turns the raw YAML dict into the kwargs of its matching
+interface API function. Parsers do YAML-shape validation (required
+fields, unsupported ``args`` keys, ``command``/``type`` conflicts) inline.
 
-Also exposes workflow-level entry points: :func:`parse_step_from_yaml`,
-:func:`load_workflow_config`, :func:`workflow_config_to_yaml_dict`.
+Also exposes workflow-level entry points: :func:`parse_step_from_yaml`
+and :func:`load_workflow_config`. ParsedStep -> YAML dict serialization
+lives in
+:mod:`vivarium_cluster_tools.psimulate.workflow_config.serialization`.
 
 """
 
 from __future__ import annotations
 
-import copy
 from pathlib import Path
 from typing import Any, Callable, cast
 
 from vivarium_cluster_tools.psimulate.workflow_config.config import (
-    DEFAULT_BACKUP_FREQ_SECONDS,
     DEFAULT_MAX_ATTEMPTS,
     ParsedStep,
     ResourceConfig,
     WorkflowConfig,
 )
 
-_COMMAND_SUPPORTED_ARGS: set[str] | None = None
 _SIMULATION_SUPPORTED_ARGS: set[str] = {
     "model_specification",
     "branch_configuration",
@@ -66,18 +65,17 @@ def _parse_common_step_fields(
     return step_name, resources
 
 
-def _require_args_block(data: dict[str, Any], step_name: str) -> dict[str, Any]:
-    """Return ``data['args']`` or raise ValueError when the block is missing."""
+def _get_required_args(
+    data: dict[str, Any], step_name: str, required_fields: tuple[str, ...]
+) -> dict[str, Any]:
+    """Return ``data['args']`` after asserting the block and all ``required_fields`` are present."""
     if "args" not in data:
         raise ValueError(f"Step '{step_name}': missing required field 'args'.")
-    return cast(dict[str, Any], data["args"])
-
-
-def _require_arg(args: dict[str, Any], field: str, step_name: str) -> Any:
-    """Return ``args[field]`` or raise ValueError when the field is missing."""
-    if field not in args:
-        raise ValueError(f"Step '{step_name}': missing required '{field}' in 'args'.")
-    return args[field]
+    args = cast(dict[str, Any], data["args"])
+    for field in required_fields:
+        if field not in args:
+            raise ValueError(f"Step '{step_name}': missing required '{field}' in 'args'.")
+    return args
 
 
 def resolve_step_type(step_dict: dict[str, Any]) -> str:
@@ -85,18 +83,24 @@ def resolve_step_type(step_dict: dict[str, Any]) -> str:
 
     Dispatch rules:
 
-    - A top-level ``command`` field always resolves to ``"command"``;
-      :func:`parse_command_step_from_yaml` enforces the rest of the
-      command-step schema (including any conflicting ``type``).
+    - A top-level ``command`` field always resolves to ``"bash"``;
+      :func:`parse_bash_step_from_yaml` enforces the rest of the
+      bash-step schema (including any conflicting ``type``).
     - Otherwise, an explicit ``type`` is used.
-    - Otherwise, ``"command"`` is the default, so the command-step parser
-      can raise a focused error about the missing ``command`` field.
+    - A step with neither ``command`` nor ``type`` is rejected.
     """
     if "command" in step_dict:
-        return "command"
-    step_type: str = step_dict.get("type", "command")
+        return "bash"
+    if "name" not in step_dict:
+        raise ValueError("Step: missing required field 'name'.")
+    step_name = step_dict["name"]
+    if "type" not in step_dict:
+        raise ValueError(
+            f"Step '{step_name}': must specify either a 'command' field or a "
+            f"'type' field. Supported types: {sorted(STEP_TYPE_YAML_PARSERS)}."
+        )
+    step_type: str = step_dict["type"]
     if step_type not in STEP_TYPE_YAML_PARSERS:
-        step_name = step_dict.get("name", "<unnamed>")
         raise ValueError(
             f"Step '{step_name}': unsupported type '{step_type}'. "
             f"Must be one of: {sorted(STEP_TYPE_YAML_PARSERS)}."
@@ -104,17 +108,17 @@ def resolve_step_type(step_dict: dict[str, Any]) -> str:
     return step_type
 
 
-def parse_command_step_from_yaml(
+def parse_bash_step_from_yaml(
     data: dict[str, Any],
     output_directory: Path,
     *,
     project: str,
     queue: str,
 ) -> dict[str, Any]:
-    """Parse a raw command-step YAML dict into API kwargs.
+    """Parse a raw bash-step YAML dict into API kwargs.
 
-    The YAML form for a command step requires a top-level ``command`` field.
-    The optional ``type`` field, when present, must be ``"command"``. No
+    The YAML form for a bash step requires a top-level ``command`` field.
+    The optional ``type`` field, when present, must be ``"bash"``. No
     ``args:`` block is accepted.
 
     Examples
@@ -131,15 +135,16 @@ def parse_command_step_from_yaml(
               cores: 2
     """
     step_name, resources = _parse_common_step_fields(data, project=project, queue=queue)
-    _check_supported_args(data.get("args", {}), step_name, _COMMAND_SUPPORTED_ARGS)
+    if "args" in data:
+        raise ValueError(f"Step '{step_name}': bash steps do not support an 'args' block.")
     if "command" not in data:
         raise ValueError(f"Step '{step_name}': missing required field 'command'.")
-    explicit_type = data.get("type")
-    if explicit_type is not None and explicit_type != "command":
+    explicit_type = data.get("type", "bash")
+    if explicit_type != "bash":
         raise ValueError(
             f"Step '{step_name}': cannot specify both 'command' and "
             f"'type: {explicit_type}'. When 'command' is set, 'type' "
-            "must be omitted or set to 'command'."
+            "must be omitted or set to 'bash'."
         )
     return {
         "name": step_name,
@@ -159,10 +164,6 @@ def parse_simulation_step_from_yaml(
 ) -> dict[str, Any]:
     """Parse a raw simulation-step YAML dict into API kwargs.
 
-    Required ``args`` keys: ``model_specification``, ``branch_configuration``.
-    Optional ``args`` keys: ``artifact_path``, ``backup_freq``,
-    ``sim_verbosity``.
-
     Examples
     --------
     YAML configuration::
@@ -181,18 +182,18 @@ def parse_simulation_step_from_yaml(
               sim_verbosity: 1
     """
     step_name, resources = _parse_common_step_fields(data, project=project, queue=queue)
-    args = _require_args_block(data, step_name)
+    args = _get_required_args(
+        data, step_name, ("model_specification", "branch_configuration")
+    )
     _check_supported_args(args, step_name, _SIMULATION_SUPPORTED_ARGS)
-    model_specification = _require_arg(args, "model_specification", step_name)
-    branch_configuration = _require_arg(args, "branch_configuration", step_name)
 
     kwargs: dict[str, Any] = {
         "name": step_name,
         "resources": resources,
         "output_directory": output_directory,
         "environment": data.get("environment"),
-        "model_specification": Path(model_specification).resolve(),
-        "branch_configuration": Path(branch_configuration).resolve(),
+        "model_specification": Path(args["model_specification"]).resolve(),
+        "branch_configuration": Path(args["branch_configuration"]).resolve(),
     }
     if "artifact_path" in args:
         kwargs["artifact_path"] = Path(args["artifact_path"]).resolve()
@@ -213,9 +214,7 @@ def parse_pytest_step_from_yaml(
     """Parse a raw pytest-step YAML dict into API kwargs.
 
     Optional ``args`` keys: ``path``, ``k``, ``runslow``. At least one of
-    ``path`` or ``k`` must be provided (enforced by
-    :func:`~vivarium_cluster_tools.psimulate.workflow_config.validation.validate_pytest_step`).
-    ``path`` may be a single string or a list of strings.
+    ``path`` or ``k`` must be provided. ``path`` may be a single string or a list of strings.
 
     Examples
     --------
@@ -304,15 +303,14 @@ def parse_python_step_from_yaml(
                 num_workers: 4
     """
     step_name, resources = _parse_common_step_fields(data, project=project, queue=queue)
-    args = copy.deepcopy(_require_args_block(data, step_name))
+    args = _get_required_args(data, step_name, ("path",))
     _check_supported_args(args, step_name, _PYTHON_SUPPORTED_ARGS)
-    path = _require_arg(args, "path", step_name)
     kwargs: dict[str, Any] = {
         "name": step_name,
         "resources": resources,
         "output_directory": output_directory,
         "environment": data.get("environment"),
-        "path": str(Path(path).resolve()),
+        "path": str(Path(args["path"]).resolve()),
     }
     if "positional_args" in args:
         kwargs["positional_args"] = args["positional_args"]
@@ -354,17 +352,15 @@ def parse_notebook_step_from_yaml(
                 verbose: true
     """
     step_name, resources = _parse_common_step_fields(data, project=project, queue=queue)
-    args = copy.deepcopy(_require_args_block(data, step_name))
+    args = _get_required_args(data, step_name, ("path", "output_path"))
     _check_supported_args(args, step_name, _NOTEBOOK_SUPPORTED_ARGS)
-    path = _require_arg(args, "path", step_name)
-    output_path = _require_arg(args, "output_path", step_name)
 
     kwargs: dict[str, Any] = {
         "name": step_name,
         "resources": resources,
         "output_directory": output_directory,
-        "path": Path(path).resolve(),
-        "output_path": Path(output_path).resolve(),
+        "path": Path(args["path"]).resolve(),
+        "output_path": Path(args["output_path"]).resolve(),
     }
     if "environment" in data:
         kwargs["environment"] = data["environment"]
@@ -375,159 +371,8 @@ def parse_notebook_step_from_yaml(
     return kwargs
 
 
-def serialize_command_step_to_yaml(
-    *,
-    name: str,
-    resources: ResourceConfig,
-    command: str,
-    output_directory: Path,
-    environment: str | None = None,
-) -> dict[str, Any]:
-    """Serialize command-step kwargs to a YAML-ready dict."""
-    result: dict[str, Any] = {
-        "name": name,
-        "command": command,
-        "resources": resources.to_dict(),
-    }
-    if environment is not None:
-        result["environment"] = environment
-    return result
-
-
-def serialize_simulation_step_to_yaml(
-    *,
-    name: str,
-    resources: ResourceConfig,
-    output_directory: Path,
-    model_specification: Path,
-    branch_configuration: Path,
-    environment: str | None = None,
-    artifact_path: Path | None = None,
-    backup_freq: float | None = DEFAULT_BACKUP_FREQ_SECONDS,
-    sim_verbosity: int = 0,
-) -> dict[str, Any]:
-    """Serialize simulation-step kwargs to a YAML-ready dict."""
-    result: dict[str, Any] = {
-        "name": name,
-        "type": "simulation",
-        "resources": resources.to_dict(),
-    }
-    if environment is not None:
-        result["environment"] = environment
-
-    args: dict[str, Any] = {
-        "model_specification": str(model_specification),
-        "branch_configuration": str(branch_configuration),
-    }
-    if artifact_path is not None:
-        args["artifact_path"] = str(artifact_path)
-    if backup_freq != DEFAULT_BACKUP_FREQ_SECONDS:
-        args["backup_freq"] = backup_freq
-    if sim_verbosity != 0:
-        args["sim_verbosity"] = sim_verbosity
-
-    result["args"] = args
-    return result
-
-
-def serialize_pytest_step_to_yaml(
-    *,
-    name: str,
-    resources: ResourceConfig,
-    output_directory: Path,
-    environment: str | None = None,
-    path: str | list[str] | None = None,
-    k: str | None = None,
-    runslow: bool = False,
-) -> dict[str, Any]:
-    """Serialize pytest-step kwargs to a YAML-ready dict."""
-    result: dict[str, Any] = {
-        "name": name,
-        "type": "pytest",
-        "resources": resources.to_dict(),
-    }
-    if environment is not None:
-        result["environment"] = environment
-
-    args: dict[str, Any] = {}
-    if path is not None:
-        args["path"] = path
-    if k is not None:
-        args["k"] = k
-    if runslow:
-        args["runslow"] = True
-
-    result["args"] = args
-    return result
-
-
-def serialize_python_step_to_yaml(
-    *,
-    name: str,
-    resources: ResourceConfig,
-    output_directory: Path,
-    path: str,
-    environment: str | None = None,
-    positional_args: list[Any] | None = None,
-    keyword_args: dict[str, Any] | None = None,
-) -> dict[str, Any]:
-    """Serialize python-step kwargs to a YAML-ready dict."""
-    result: dict[str, Any] = {
-        "name": name,
-        "type": "python",
-        "resources": resources.to_dict(),
-    }
-    if environment is not None:
-        result["environment"] = environment
-
-    args: dict[str, Any] = {"path": path}
-    if positional_args is not None:
-        args["positional_args"] = copy.deepcopy(positional_args)
-    if keyword_args is not None:
-        args["keyword_args"] = copy.deepcopy(keyword_args)
-    result["args"] = args
-    return result
-
-
-def serialize_notebook_step_to_yaml(
-    *,
-    name: str,
-    resources: ResourceConfig,
-    output_directory: Path,
-    path: Path,
-    output_path: Path,
-    environment: str | None = None,
-    parameters: dict[str, Any] | None = None,
-    cwd: Path | None = None,
-) -> dict[str, Any]:
-    """Serialize notebook-step kwargs to a YAML-ready dict."""
-    result: dict[str, Any] = {
-        "name": name,
-        "type": "notebook",
-        "resources": resources.to_dict(),
-    }
-    if environment is not None:
-        result["environment"] = environment
-
-    args: dict[str, Any] = {
-        "path": str(path),
-        "output_path": str(output_path),
-    }
-    if parameters:
-        args["parameters"] = copy.deepcopy(parameters)
-    if cwd is not None:
-        args["cwd"] = str(cwd)
-
-    result["args"] = args
-    return result
-
-
-def _check_supported_args(
-    args: dict[str, Any], step_name: str, supported: set[str] | None
-) -> None:
+def _check_supported_args(args: dict[str, Any], step_name: str, supported: set[str]) -> None:
     """Raise ValueError if args contains keys not in ``supported``."""
-    if supported is None:
-        return
     unsupported = set(args) - supported
     if unsupported:
         raise ValueError(
@@ -537,22 +382,13 @@ def _check_supported_args(
 
 
 STEP_TYPE_YAML_PARSERS: dict[str, Callable[..., dict[str, Any]]] = {
-    "command": parse_command_step_from_yaml,
+    "bash": parse_bash_step_from_yaml,
     "simulation": parse_simulation_step_from_yaml,
     "pytest": parse_pytest_step_from_yaml,
     "python": parse_python_step_from_yaml,
     "notebook": parse_notebook_step_from_yaml,
 }
 """Maps each YAML ``step_type`` to its YAML -> API kwargs parser."""
-
-STEP_TYPE_YAML_SERIALIZERS: dict[str, Callable[..., dict[str, Any]]] = {
-    "command": serialize_command_step_to_yaml,
-    "simulation": serialize_simulation_step_to_yaml,
-    "pytest": serialize_pytest_step_to_yaml,
-    "python": serialize_python_step_to_yaml,
-    "notebook": serialize_notebook_step_to_yaml,
-}
-"""Maps each YAML ``step_type`` to its API kwargs -> YAML dict serializer."""
 
 
 def parse_step_from_yaml(
@@ -655,20 +491,3 @@ def load_workflow_config(
         steps=steps,
         max_attempts=max_attempts or workflow.get("max_attempts", DEFAULT_MAX_ATTEMPTS),
     )
-
-
-def workflow_config_to_yaml_dict(config: WorkflowConfig) -> dict[str, Any]:
-    """Serialize a :class:`~vivarium_cluster_tools.psimulate.workflow_config.config.WorkflowConfig` to a dict suitable for YAML output."""
-    result: dict[str, Any] = {
-        "name": config.name,
-        "project": config.project,
-        "queue": config.queue,
-        "output_directory": str(config.output_directory),
-        "max_attempts": config.max_attempts,
-    }
-    if config.default_environment is not None:
-        result["default_environment"] = config.default_environment
-    result["steps"] = [
-        STEP_TYPE_YAML_SERIALIZERS[step.step_type](**step.api_kwargs) for step in config.steps
-    ]
-    return result

@@ -166,7 +166,7 @@ class ParsedStep:
     """
 
     step_type: str
-    """One of "command", "simulation", "pytest", "python", "notebook"."""
+    """One of "bash", "simulation", "pytest", "python", "notebook"."""
     name: str
     """The step's unique name within the workflow."""
     api_kwargs: dict[str, Any]
