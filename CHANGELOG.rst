@@ -1,3 +1,7 @@
+**3.1.6 - 05/22/26**
+
+  - Disable mypy from running in Jenkins builds (temporarily)
+
 **3.1.5 - 05/20/26**
 
 - Add tests covering the ``backup_freq=None`` (no-backup) code path

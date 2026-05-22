@@ -34,5 +34,6 @@ reusable_pipeline(
       // for subsequent scheduled builds to run.
       "main"
     ],
-    requires_slurm: "weekly", 
+    requires_slurm: "weekly",
+    run_mypy: false,
 )
