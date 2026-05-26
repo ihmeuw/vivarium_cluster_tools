@@ -110,6 +110,7 @@ def create_tasks(
     metadata_dir: str,
     results_dir: str,
     command: str,
+    resource_scales: dict[str, float] | None = None,
 ) -> list[Task]:
     """Batch-create Jobmon ``Task``\\s for the simulation-step template.
 
@@ -117,14 +118,18 @@ def create_tasks(
     ``metadata_dir`` / ``results_dir`` are ``task_args`` (shared across the
     batch); ``command`` is the ``op_arg``. See
     :func:`~vivarium_cluster_tools.psimulate.jobmon_config.workflow.get_task_list`.
+
     """
-    return template.create_tasks(
-        max_attempts=max_attempts,
-        task_id=task_id,
-        metadata_dir=metadata_dir,
-        results_dir=results_dir,
-        command=command,
-    )
+    kwargs: dict[str, Any] = {
+        "max_attempts": max_attempts,
+        "task_id": task_id,
+        "metadata_dir": metadata_dir,
+        "results_dir": results_dir,
+        "command": command,
+    }
+    if resource_scales is not None:
+        kwargs["resource_scales"] = resource_scales
+    return template.create_tasks(**kwargs)
 
 
 def add_upstream(task: Task, upstream: Task) -> None:
