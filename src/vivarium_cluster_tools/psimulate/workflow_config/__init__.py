@@ -15,7 +15,7 @@ from vivarium_cluster_tools.psimulate.workflow_config.config import (
     ResourceConfig,
     WorkflowConfig,
 )
-from vivarium_cluster_tools.psimulate.workflow_config.parsing import (
-    load_workflow_config,
-    workflow_config_to_yaml_dict,
+from vivarium_cluster_tools.psimulate.workflow_config.parsing import load_workflow_config
+from vivarium_cluster_tools.psimulate.workflow_config.serialization import (
+    workflow_config_to_dict,
 )

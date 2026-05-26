@@ -18,7 +18,7 @@ from vivarium_cluster_tools.psimulate.workflow_config.config import (
 )
 
 
-def _command_parsed_step(
+def _bash_parsed_step(
     *,
     name: str,
     resources: ResourceConfig,
@@ -26,7 +26,7 @@ def _command_parsed_step(
     output_directory: Path,
     environment: str | None = None,
 ) -> ParsedStep:
-    """Build a ``ParsedStep`` carrying a command step's API kwargs."""
+    """Build a ``ParsedStep`` carrying a bash step's API kwargs."""
     api_kwargs = {
         "name": name,
         "resources": resources,
@@ -35,7 +35,7 @@ def _command_parsed_step(
         "environment": environment,
     }
     return ParsedStep(
-        step_type="command",
+        step_type="bash",
         name=name,
         api_kwargs=api_kwargs,
     )
@@ -43,7 +43,7 @@ def _command_parsed_step(
 
 @pytest.fixture()
 def three_step_config() -> WorkflowConfig:
-    """A ``WorkflowConfig`` with three sequential raw-command steps."""
+    """A ``WorkflowConfig`` with three sequential bash steps."""
     return WorkflowConfig(
         name="test_workflow",
         project="proj_simscience",
@@ -51,7 +51,7 @@ def three_step_config() -> WorkflowConfig:
         output_directory=Path("/tmp/results"),
         default_environment=None,
         steps=[
-            _command_parsed_step(
+            _bash_parsed_step(
                 name=f"step{i}",
                 resources=ResourceConfig(
                     memory_gb=1, project="proj_simscience", queue="all.q"
@@ -108,7 +108,7 @@ def _make_single_step_config(
     default_environment: str | None = None,
     step_environment: str | None = None,
 ) -> WorkflowConfig:
-    """Build a WorkflowConfig with one command ParsedStep for simple tests."""
+    """Build a WorkflowConfig with one bash ParsedStep for simple tests."""
     return WorkflowConfig(
         name="test",
         project="proj_simscience",
@@ -116,7 +116,7 @@ def _make_single_step_config(
         output_directory=Path("/tmp/results"),
         default_environment=default_environment,
         steps=[
-            _command_parsed_step(
+            _bash_parsed_step(
                 name="s1",
                 resources=resources
                 or ResourceConfig(memory_gb=1, project="proj_simscience", queue="all.q"),
