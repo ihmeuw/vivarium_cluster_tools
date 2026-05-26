@@ -22,7 +22,8 @@ from vivarium_cluster_tools.psimulate.jobmon_config.workflow import resolve_env_
 from vivarium_cluster_tools.psimulate.workflow_config.config import ResourceConfig
 
 if TYPE_CHECKING:
-    from vivarium_cluster_tools.psimulate.jobmon_config.client import Task, Tool
+    from jobmon.client.api import Tool
+    from jobmon.client.task import Task
 
 BUILD_TIMESTAMP_FILENAME = ".build_timestamp"
 """File written to a step's output directory to persist the build timestamp

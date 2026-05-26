@@ -41,7 +41,8 @@ from vivarium_cluster_tools.psimulate.workflow_config.validation import (
 )
 
 if TYPE_CHECKING:
-    from vivarium_cluster_tools.psimulate.jobmon_config.client import Task, Tool
+    from jobmon.client.api import Tool
+    from jobmon.client.task import Task
 
 _NOTEBOOK_DEFAULT_KERNEL = "python3"
 """Jupyter kernel used for notebook execution. Not user-configurable."""

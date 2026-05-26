@@ -50,7 +50,7 @@ from vivarium_cluster_tools.psimulate.workflow_config.utilities import WORKFLOW_
 from vivarium_cluster_tools.vipin.perf_report import report_performance
 
 if TYPE_CHECKING:
-    from vivarium_cluster_tools.psimulate.jobmon_config.client import Workflow
+    from jobmon.client.workflow import Workflow
 
 
 def _bind_and_run_workflow(

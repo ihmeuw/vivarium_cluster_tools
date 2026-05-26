@@ -13,16 +13,21 @@ import json
 import os
 import subprocess
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from loguru import logger
 
 from vivarium_cluster_tools.psimulate import TASK_RUNNER_MODULE
 from vivarium_cluster_tools.psimulate.cluster.interface import NativeSpecification
 from vivarium_cluster_tools.psimulate.jobmon_config import client
-from vivarium_cluster_tools.psimulate.jobmon_config.client import Task, Tool, Workflow
 from vivarium_cluster_tools.psimulate.jobs import JobParameters
 from vivarium_cluster_tools.psimulate.paths import OutputPaths
 from vivarium_cluster_tools.psimulate.results.writing import write_metadata
+
+if TYPE_CHECKING:
+    from jobmon.client.api import Tool
+    from jobmon.client.task import Task
+    from jobmon.client.workflow import Workflow
 
 
 def resolve_env_prefix(env: str) -> str:

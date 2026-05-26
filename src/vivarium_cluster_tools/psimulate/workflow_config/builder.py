@@ -23,7 +23,8 @@ from vivarium_cluster_tools.psimulate.workflow_config.interface import (
 from vivarium_cluster_tools.psimulate.workflow_config.utilities import is_resume
 
 if TYPE_CHECKING:
-    from vivarium_cluster_tools.psimulate.jobmon_config.client import Task, Workflow
+    from jobmon.client.task import Task
+    from jobmon.client.workflow import Workflow
 
 
 STEP_TYPE_API_FNS: dict[str, Callable[..., list["Task"]]] = {
