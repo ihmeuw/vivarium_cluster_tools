@@ -16,7 +16,6 @@ from tests.psimulate.workflow_config.utilities import (
     make_workflow_dict,
     write_workflow_yaml,
 )
-from vivarium_cluster_tools.psimulate import TASK_RUNNER_MODULE
 from vivarium_cluster_tools.psimulate.workflow_config.config import (
     ParsedStep,
     ResourceConfig,
@@ -50,8 +49,6 @@ from vivarium_cluster_tools.psimulate.workflow_config.validation import (
     validate_pytest_step,
     validate_python_step,
 )
-
-_SUBPROCESS_WRAPPER_PREFIX = f"python -m {TASK_RUNNER_MODULE} subprocess "
 
 
 class TestWorkflowConfigFromYaml:
@@ -384,9 +381,7 @@ def _captured_command(api_fn: Any, /, **api_kwargs: Any) -> str:
     """Invoke a ``get_*_step_tasks`` API function with a mocked Tool and return the command kwarg.
 
     Stubs the conda env resolver so the API function can run without
-    invoking ``conda env list``, and strips the task-runner subprocess
-    wrapper prefix so callers can assert on the logical command. Wrapping
-    itself is exercised by ``test_build_command_task_creates_single_task``.
+    invoking ``conda env list``.
     """
     _utilities = "vivarium_cluster_tools.psimulate.workflow_config.utilities"
     with patch(f"{_utilities}.resolve_env_prefix", return_value="/path/to/envs/my_env"):
@@ -395,7 +390,7 @@ def _captured_command(api_fn: Any, /, **api_kwargs: Any) -> str:
         mock_tool.get_task_template.return_value = mock_template
         api_fn(tool=mock_tool, **api_kwargs)
     command: str = mock_template.create_task.call_args.kwargs["command"]
-    return command.removeprefix(_SUBPROCESS_WRAPPER_PREFIX)
+    return command
 
 
 class TestBashStep:
@@ -467,7 +462,7 @@ class TestBashStep:
                 "stderr": "/tmp/results",
             },
             env_prefix="/path/to/envs/my_env",
-            command=_SUBPROCESS_WRAPPER_PREFIX + "echo hello world",
+            command="echo hello world",
         )
 
     def test_build_command_task_includes_env_prefix_in_node_args(self) -> None:
@@ -739,7 +734,6 @@ class TestSimulationStep:
                 native_specification=resources.to_native_specification("sim_step"),
                 env_prefix="/envs/test_env",
                 template_name="psimulate_sim_step",
-                wrap_command=True,
             )
 
             # -- Assert: returns whatever get_task_list returns --

@@ -17,7 +17,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from vivarium_cluster_tools.psimulate import wrap_for_subprocess
 from vivarium_cluster_tools.psimulate.jobmon_config import client
 from vivarium_cluster_tools.psimulate.jobmon_config.workflow import resolve_env_prefix
 from vivarium_cluster_tools.psimulate.workflow_config.config import ResourceConfig
@@ -124,11 +123,11 @@ def get_single_command_task(
 ) -> list[Task]:
     """Return a one-element ``list[Task]`` for a step that runs a single command in a conda env.
 
-    The supplied ``command`` is wrapped with
-    :func:`~vivarium_cluster_tools.psimulate.wrap_for_subprocess` so the
-    child process's output is replayed to the SLURM stderr file on failure
-    (and thus surfaces in the Jobmon GUI). Workflow simulation steps go
-    through ``get_task_list`` instead and apply the same wrapping there.
+    The child inherits SLURM's stdout/stderr file descriptors via the
+    ``stdout`` / ``stderr`` keys on the compute resources dict
+    (configured by :meth:`NativeSpecification.to_jobmon_spec`), so its
+    output flows directly to the per-step log files that the Jobmon GUI
+    surfaces.
     """
     task_template = client.make_task_template(
         tool,
@@ -147,7 +146,7 @@ def get_single_command_task(
             name=name,
             compute_resources=compute_resources,
             env_prefix=env_prefix,
-            command=wrap_for_subprocess(command),
+            command=command,
         )
     ]
 
