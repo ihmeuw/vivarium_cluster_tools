@@ -3,32 +3,21 @@
 Jobmon Task Runner
 ==================
 
-CLI entry point for Jobmon worker tasks. Dispatches on the first positional
-argument:
+CLI entry point for Jobmon worker tasks. Loads the task's metadata JSON
+and runs the appropriate work horse in-process. Invoked by every
+psimulate command that submits simulations (``run`` / ``restart`` /
+``expand`` / ``load_test``) as well as workflow simulation steps.
 
-* ``simulation`` — load the task's metadata JSON and run the work horse
-  in-process. Invoked directly by ``psimulate run`` / ``restart`` /
-  ``expand`` / ``load_test``; workflow simulation steps invoke it nested
-  inside ``subprocess`` (below).
-* ``subprocess`` — spawn the following argv as a child, mirror its stdout
-  live, and replay the captured tail to stderr on non-zero exit so failures
-  surface in the SLURM stderr file and the Jobmon GUI. Used by every
-  workflow step type via
-  :func:`~vivarium_cluster_tools.psimulate.wrap_for_subprocess`.
-
-Both modes call ``_configure_dual_sink`` so INFO+ logs land in stdout
-(workflow log file) and WARNING+ logs land in stderr (Jobmon GUI).
+Logging is configured via ``_configure_dual_sink`` so loguru INFO+
+messages land in the SLURM stdout file and WARNING+ messages land in the
+SLURM stderr file (which the Jobmon GUI surfaces).
 
 """
 
 import argparse
 import json
-import signal
-import subprocess
 import sys
-from collections import deque
 from pathlib import Path
-from typing import IO, cast
 
 from loguru import logger
 
@@ -40,23 +29,13 @@ from vivarium_cluster_tools.psimulate.worker.load_test_work_horse import (
 )
 from vivarium_cluster_tools.psimulate.worker.vivarium_work_horse import work_horse
 
-BUFFER_MAXLEN: int = 10_000
-"""Maximum number of subprocess output lines retained for the failure replay.
-Exposed at module level so tests can monkeypatch a smaller cap."""
-
-CHILD_TERMINATE_GRACE_SECONDS: float = 15.0
-"""Seconds to wait for the child to exit after SIGTERM before SIGKILLing it.
-Sized as a sub-budget of SLURM's default 30s ``KillWait`` so the parent still
-has time to replay the buffer to stderr afterwards."""
-
 
 def _configure_dual_sink() -> None:
     """Route INFO+ to stdout and WARNING+ to stderr.
 
-    Called once at the top of each worker entry point so warnings and
-    errors land in the SLURM stderr file and the Jobmon GUI surfaces them.
     Removes loguru's default stderr handler first so INFO-level messages
-    don't end up duplicated on stderr.
+    don't end up duplicated on stderr. Warnings and errors thus land in
+    the SLURM stderr file and the Jobmon GUI surfaces them.
     """
     logger.remove()
     logger.add(sys.stdout, level="INFO")
@@ -64,44 +43,38 @@ def _configure_dual_sink() -> None:
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    """Parse argv for ``simulation`` mode."""
     parser = argparse.ArgumentParser(description="Run a single Jobmon worker task.")
-    subparsers = parser.add_subparsers(dest="mode", required=True)
-
-    sim = subparsers.add_parser(
-        "simulation",
-        help="Run a simulation work_horse in-process from a metadata JSON.",
-    )
-    sim.add_argument(
+    parser.add_argument(
         "--metadata-dir",
         type=Path,
         required=True,
         help="Directory containing task metadata JSON files.",
     )
-    sim.add_argument(
+    parser.add_argument(
         "--task-id",
         type=str,
         required=True,
         help="The deterministic task ID.",
     )
-    sim.add_argument(
+    parser.add_argument(
         "--results-dir",
         type=Path,
         required=True,
         help="Directory to write results to.",
     )
-    sim.add_argument(
+    parser.add_argument(
         "--command",
         type=str,
         required=True,
         help="The psimulate command (e.g. run, restart, expand, load_test).",
     )
-
     return parser.parse_args(argv)
 
 
-def _run_simulation(args: argparse.Namespace) -> int:
-    """Load the task's metadata JSON, dispatch to the work horse, write results."""
+def main(argv: list[str] | None = None) -> int:
+    _configure_dual_sink()
+    args = parse_args(argv)
+
     metadata_path = args.metadata_dir / f"{args.task_id}.json"
     logger.info(f"Loading task metadata from {metadata_path}")
     with open(metadata_path) as f:
@@ -130,82 +103,6 @@ def _run_simulation(args: argparse.Namespace) -> int:
     )
     logger.info(f"Task {task_id} results written successfully.")
     return 0
-
-
-def _run_subprocess(inner_argv: list[str]) -> int:
-    """Spawn ``inner_argv`` as a child process and supervise it.
-
-    Four things happen here:
-
-    1. **Mirror the child's output live.** Each line of stdout (stderr is
-       merged in) is written straight to our stdout so SLURM's stdout
-       file shows progress in real time.
-    2. **Keep a capped tail of that output** in ``buffered`` for the
-       replay step.
-    3. **Forward SIGTERM/SIGINT to the child.** SLURM's ``scancel`` and a
-       user ctrl-C land on the parent; without forwarding, the parent's
-       default-handler death would orphan the child and we'd never see a
-       real exit code.
-    4. **On any exit path, clean up and replay.** The ``finally`` block
-       reaps the child (SIGTERM, then SIGKILL after a grace period) and,
-       on non-zero exit, writes the buffered tail to stderr so failures
-       surface in the SLURM stderr file and the Jobmon GUI.
-    """
-    logger.info(f"Running subprocess: {' '.join(inner_argv)}")
-    buffered: deque[str] = deque(maxlen=BUFFER_MAXLEN)
-    proc = subprocess.Popen(
-        inner_argv,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        bufsize=1,
-        text=True,
-    )
-
-    def _forward_signal(signum: int, _frame: object) -> None:
-        try:
-            proc.send_signal(signum)
-        except ProcessLookupError:
-            pass
-
-    prev_term = signal.signal(signal.SIGTERM, _forward_signal)
-    prev_int = signal.signal(signal.SIGINT, _forward_signal)
-    try:
-        stdout = cast(IO[str], proc.stdout)
-        for line in stdout:
-            sys.stdout.write(line)
-            sys.stdout.flush()
-            buffered.append(line)
-        return proc.wait()
-    finally:
-        signal.signal(signal.SIGTERM, prev_term)
-        signal.signal(signal.SIGINT, prev_int)
-        if proc.poll() is None:
-            proc.terminate()
-            try:
-                proc.wait(timeout=CHILD_TERMINATE_GRACE_SECONDS)
-            except subprocess.TimeoutExpired:
-                proc.kill()
-                proc.wait()
-        if proc.returncode != 0:
-            logger.error(
-                f"Subprocess exited with code {proc.returncode}; "
-                "replaying output to stderr."
-            )
-            sys.stderr.writelines(buffered)
-            sys.stderr.flush()
-
-
-def main(argv: list[str] | None = None) -> int:
-    raw = list(sys.argv[1:] if argv is None else argv)
-    _configure_dual_sink()
-
-    if raw and raw[0] == "subprocess":
-        inner_argv = raw[1:]
-        if not inner_argv:
-            raise ValueError("subprocess mode requires argv to execute.")
-        return _run_subprocess(inner_argv)
-
-    return _run_simulation(parse_args(raw))
 
 
 if __name__ == "__main__":
