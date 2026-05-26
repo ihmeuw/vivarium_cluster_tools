@@ -22,26 +22,28 @@ from vivarium_cluster_tools.psimulate.workflow_config.config import (
     ResourceConfig,
     WorkflowConfig,
 )
+from vivarium_cluster_tools.psimulate.workflow_config.interface import (
+    get_bash_step_tasks,
+    get_notebook_step_tasks,
+    get_pytest_step_tasks,
+    get_python_step_tasks,
+    get_simulation_step_tasks,
+)
 from vivarium_cluster_tools.psimulate.workflow_config.parsing import (
     load_workflow_config,
-    parse_command_step_from_yaml,
+    parse_bash_step_from_yaml,
     parse_notebook_step_from_yaml,
     parse_pytest_step_from_yaml,
     parse_python_step_from_yaml,
     parse_simulation_step_from_yaml,
     parse_step_from_yaml,
-    serialize_command_step_to_yaml,
+)
+from vivarium_cluster_tools.psimulate.workflow_config.serialization import (
+    serialize_bash_step_to_yaml,
     serialize_notebook_step_to_yaml,
     serialize_pytest_step_to_yaml,
     serialize_python_step_to_yaml,
     serialize_simulation_step_to_yaml,
-)
-from vivarium_cluster_tools.psimulate.workflow_config.task_builders import (
-    build_command_step_tasks,
-    build_notebook_step_tasks,
-    build_pytest_step_tasks,
-    build_python_step_tasks,
-    build_simulation_step_tasks,
 )
 from vivarium_cluster_tools.psimulate.workflow_config.validation import (
     validate_notebook_step,
@@ -83,12 +85,12 @@ class TestWorkflowConfigFromYaml:
         ],
         ids=["structured_command", "raw_command"],
     )
-    def test_parses_command_steps(
+    def test_parses_bash_steps(
         self, valid_workflow_yaml: Path, index: int, expected_command: str
     ) -> None:
         config = load_workflow_config(valid_workflow_yaml)
         step = config.steps[index]
-        assert step.step_type == "command"
+        assert step.step_type == "bash"
         assert step.api_kwargs["command"] == expected_command
 
     def test_parses_step_resources(self, valid_workflow_yaml: Path) -> None:
@@ -152,12 +154,13 @@ class TestWorkflowConfigValidation:
         with pytest.raises(ValueError, match="unique"):
             load_workflow_config(yaml_path)
 
-    def test_rejects_step_without_command(self, tmp_path: Path) -> None:
+    def test_rejects_step_without_command_or_type(self, tmp_path: Path) -> None:
         steps = [{"name": "no_cmd", "resources": {"memory_gb": 4}}]
         data = make_workflow_dict(steps=steps)
         yaml_path = write_workflow_yaml(tmp_path, data)
         with pytest.raises(
-            ValueError, match=r"Step 'no_cmd': missing required field 'command'"
+            ValueError,
+            match=r"Step 'no_cmd': must specify either a 'command' field or a 'type' field",
         ):
             load_workflow_config(yaml_path)
 
@@ -193,7 +196,7 @@ class TestWorkflowConfigValidation:
             load_workflow_config(yaml_path)
 
     def test_rejects_command_with_mismatched_type(self, tmp_path: Path) -> None:
-        """When ``command`` is set, ``type`` must be omitted or ``"command"``;
+        """When ``command`` is set, ``type`` must be omitted or ``"bash"``;
         any other ``type`` value is rejected."""
         steps = [
             {
@@ -208,12 +211,12 @@ class TestWorkflowConfigValidation:
         with pytest.raises(ValueError, match="cannot specify both 'command' and 'type"):
             load_workflow_config(yaml_path)
 
-    def test_accepts_command_with_explicit_type_command(self, tmp_path: Path) -> None:
-        """``type: command`` paired with a top-level ``command`` is accepted."""
+    def test_accepts_command_with_explicit_type_bash(self, tmp_path: Path) -> None:
+        """``type: bash`` paired with a top-level ``command`` is accepted."""
         steps = [
             {
                 "name": "explicit",
-                "type": "command",
+                "type": "bash",
                 "command": "echo hello",
                 "resources": {"memory_gb": 4},
             }
@@ -221,16 +224,16 @@ class TestWorkflowConfigValidation:
         data = make_workflow_dict(steps=steps)
         yaml_path = write_workflow_yaml(tmp_path, data)
         config = load_workflow_config(yaml_path)
-        assert config.steps[0].step_type == "command"
+        assert config.steps[0].step_type == "bash"
         assert config.steps[0].api_kwargs["command"] == "echo hello"
 
-    def test_rejects_type_command_without_command_field(self, tmp_path: Path) -> None:
-        """``type: command`` alone is rejected; a top-level ``command`` field
-        is still required for command steps."""
+    def test_rejects_type_bash_without_command_field(self, tmp_path: Path) -> None:
+        """``type: bash`` alone is rejected; a top-level ``command`` field
+        is still required for bash steps."""
         steps = [
             {
                 "name": "bad_step",
-                "type": "command",
+                "type": "bash",
                 "resources": {"memory_gb": 4},
             }
         ]
@@ -243,7 +246,7 @@ class TestWorkflowConfigValidation:
 
     def test_rejects_unsupported_step_type(self, tmp_path: Path) -> None:
         """An unknown ``type`` value raises; the error message lists every
-        valid step type, including ``command``."""
+        valid step type, including ``bash``."""
         steps = [
             {
                 "name": "bad_step",
@@ -255,7 +258,7 @@ class TestWorkflowConfigValidation:
         yaml_path = write_workflow_yaml(tmp_path, data)
         with pytest.raises(ValueError, match="unsupported type 'not_a_type'") as excinfo:
             load_workflow_config(yaml_path)
-        assert "command" in str(excinfo.value)
+        assert "bash" in str(excinfo.value)
 
 
 class TestWorkflowConfigFromYamlWithCliOverrides:
@@ -371,36 +374,42 @@ def _common_resources() -> ResourceConfig:
     return ResourceConfig(memory_gb=4, project="proj_simscience", queue="all.q")
 
 
-def _captured_command(builder: Any, /, **builder_kwargs: Any) -> str:
-    """Invoke a ``build_*_step_tasks`` builder with a mocked Tool and return the command kwarg.
+def _parsed_step(step_type: str, **api_kwargs: Any) -> ParsedStep:
+    """Build a ``ParsedStep`` from a step type and the API kwargs that
+    drive its serializer. ``name`` is read from ``api_kwargs``."""
+    return ParsedStep(step_type=step_type, name=api_kwargs["name"], api_kwargs=api_kwargs)
 
-    Strips the task-runner subprocess wrapper prefix so callers can assert on
-    the logical command. Wrapping is exercised separately in
-    :meth:`TestCommandStep.test_command_task_is_wrapped_with_runner`.
+
+def _captured_command(api_fn: Any, /, **api_kwargs: Any) -> str:
+    """Invoke a ``get_*_step_tasks`` API function with a mocked Tool and return the command kwarg.
+
+    Stubs the conda env resolver so the API function can run without
+    invoking ``conda env list``, and strips the task-runner subprocess
+    wrapper prefix so callers can assert on the logical command. Wrapping
+    itself is exercised by ``test_build_command_task_creates_single_task``.
     """
-    mock_tool = MagicMock()
-    mock_template = MagicMock()
-    mock_tool.get_task_template.return_value = mock_template
-    builder(
-        tool=mock_tool,
-        env_prefix="/path/to/envs/my_env",
-        build_timestamp="2026_04_24_10_00_00",
-        **builder_kwargs,
-    )
+    _utilities = "vivarium_cluster_tools.psimulate.workflow_config.utilities"
+    with patch(f"{_utilities}.resolve_env_prefix", return_value="/path/to/envs/my_env"):
+        mock_tool = MagicMock()
+        mock_template = MagicMock()
+        mock_tool.get_task_template.return_value = mock_template
+        api_fn(tool=mock_tool, **api_kwargs)
     command: str = mock_template.create_task.call_args.kwargs["command"]
     return command.removeprefix(_SUBPROCESS_WRAPPER_PREFIX)
 
 
-class TestCommandStep:
-    """Tests for the command step type (parsing, serialization, task building)."""
+class TestBashStep:
+    """Tests for the bash step type (parsing, serialization, task building)."""
 
     def test_serialize(self) -> None:
-        result = serialize_command_step_to_yaml(
-            name="test_step",
-            resources=_common_resources(),
-            command="echo test",
-            output_directory=Path("/tmp/results"),
-            environment="my_env",
+        result = serialize_bash_step_to_yaml(
+            _parsed_step(
+                "bash",
+                name="test_step",
+                resources=_common_resources(),
+                command="echo test",
+                environment="my_env",
+            )
         )
         assert result == {
             "name": "test_step",
@@ -416,7 +425,7 @@ class TestCommandStep:
 
     def test_parse(self) -> None:
         step_dict = make_step_dict(name="cmd", command="echo hi")
-        kwargs = parse_command_step_from_yaml(
+        kwargs = parse_bash_step_from_yaml(
             step_dict,
             output_directory=Path("/tmp/results"),
             project="proj_simscience",
@@ -427,22 +436,23 @@ class TestCommandStep:
         assert kwargs["resources"].memory_gb == 4
 
     def test_build_command_task_creates_single_task(self) -> None:
-        """build_command_step_tasks wires the command into a single Jobmon task."""
+        """get_bash_step_tasks wires the command into a single Jobmon task."""
+        _utilities = "vivarium_cluster_tools.psimulate.workflow_config.utilities"
         mock_tool = MagicMock()
         mock_template = MagicMock()
         mock_task = MagicMock()
         mock_tool.get_task_template.return_value = mock_template
         mock_template.create_task.return_value = mock_task
 
-        tasks = build_command_step_tasks(
-            name="test_step",
-            resources=_common_resources(),
-            command="echo hello world",
-            output_directory=Path("/tmp/results"),
-            tool=mock_tool,
-            env_prefix="/path/to/envs/my_env",
-            build_timestamp="2026_04_24_10_00_00",
-        )
+        with patch(f"{_utilities}.resolve_env_prefix", return_value="/path/to/envs/my_env"):
+            tasks = get_bash_step_tasks(
+                name="test_step",
+                resources=_common_resources(),
+                command="echo hello world",
+                output_directory=Path("/tmp/results"),
+                environment="my_env",
+                tool=mock_tool,
+            )
 
         assert tasks == [mock_task]
         mock_template.create_task.assert_called_once_with(
@@ -460,40 +470,20 @@ class TestCommandStep:
             command=_SUBPROCESS_WRAPPER_PREFIX + "echo hello world",
         )
 
-    def test_command_task_is_wrapped_with_runner(self) -> None:
-        """The raw command is wrapped with the ``task_runner subprocess`` prefix
-        so the child process's output replays to SLURM stderr on failure."""
-        mock_tool = MagicMock()
-        mock_template = MagicMock()
-        mock_tool.get_task_template.return_value = mock_template
-
-        build_command_step_tasks(
-            name="raw",
-            resources=_common_resources(),
-            command="echo hello world",
-            output_directory=Path("/tmp/results"),
-            tool=mock_tool,
-            env_prefix="/env",
-            build_timestamp="2026_04_24_10_00_00",
-        )
-
-        cmd = mock_template.create_task.call_args.kwargs["command"]
-        assert _SUBPROCESS_WRAPPER_PREFIX in cmd
-        assert "echo hello world" in cmd
-
     def test_build_command_task_includes_env_prefix_in_node_args(self) -> None:
         """env_prefix must be a node_arg so two steps with the same command
         but different envs produce distinct Jobmon task hashes."""
+        _utilities = "vivarium_cluster_tools.psimulate.workflow_config.utilities"
         mock_tool = MagicMock()
-        build_command_step_tasks(
-            name="test_step",
-            resources=_common_resources(),
-            command="echo hello world",
-            output_directory=Path("/tmp/results"),
-            tool=mock_tool,
-            env_prefix="/path/to/envs/my_env",
-            build_timestamp="2026_04_24_10_00_00",
-        )
+        with patch(f"{_utilities}.resolve_env_prefix", return_value="/path/to/envs/my_env"):
+            get_bash_step_tasks(
+                name="test_step",
+                resources=_common_resources(),
+                command="echo hello world",
+                output_directory=Path("/tmp/results"),
+                environment="my_env",
+                tool=mock_tool,
+            )
 
         template_kwargs = mock_tool.get_task_template.call_args.kwargs
         assert "env_prefix" in template_kwargs["node_args"]
@@ -604,18 +594,20 @@ class TestSimulationStep:
         valid_artifact_file: Path,
     ) -> None:
         result = serialize_simulation_step_to_yaml(
-            name="sim",
-            resources=ResourceConfig(
-                memory_gb=5,
-                runtime="03:00:00",
-                hardware=["r650"],
-                project="proj_simscience",
-                queue="all.q",
-            ),
-            output_directory=Path("/tmp/results"),
-            model_specification=valid_model_spec_file,
-            branch_configuration=valid_branch_config_file,
-            artifact_path=valid_artifact_file,
+            _parsed_step(
+                "simulation",
+                name="sim",
+                resources=ResourceConfig(
+                    memory_gb=5,
+                    runtime="03:00:00",
+                    hardware=["r650"],
+                    project="proj_simscience",
+                    queue="all.q",
+                ),
+                model_specification=valid_model_spec_file,
+                branch_configuration=valid_branch_config_file,
+                artifact_path=valid_artifact_file,
+            )
         )
         assert result["type"] == "simulation"
         assert result["name"] == "sim"
@@ -630,11 +622,15 @@ class TestSimulationStep:
         valid_branch_config_file: Path,
     ) -> None:
         result = serialize_simulation_step_to_yaml(
-            name="sim",
-            resources=ResourceConfig(memory_gb=5, project="proj_simscience", queue="all.q"),
-            output_directory=Path("/tmp/results"),
-            model_specification=valid_model_spec_file,
-            branch_configuration=valid_branch_config_file,
+            _parsed_step(
+                "simulation",
+                name="sim",
+                resources=ResourceConfig(
+                    memory_gb=5, project="proj_simscience", queue="all.q"
+                ),
+                model_specification=valid_model_spec_file,
+                branch_configuration=valid_branch_config_file,
+            )
         )
         assert "artifact_path" not in result["args"]
         assert "hardware" not in result["resources"]
@@ -645,13 +641,21 @@ class TestSimulationStep:
         valid_branch_config_file: Path,
         valid_artifact_file: Path,
     ) -> None:
-        """Verify build_simulation_step_tasks passes the right arguments through the pipeline."""
-        _tb = "vivarium_cluster_tools.psimulate.workflow_config.task_builders"
+        """Verify get_simulation_step_tasks passes the right arguments through the pipeline."""
+        _utilities = "vivarium_cluster_tools.psimulate.workflow_config.utilities"
+        _interface = "vivarium_cluster_tools.psimulate.workflow_config.interface"
         with (
-            patch(f"{_tb}.OutputPaths") as mock_output_paths_cls,
-            patch(f"{_tb}.branches.Keyspace") as mock_keyspace_cls,
-            patch(f"{_tb}.build_job_parameters_from_keyspace") as mock_build_job_params,
-            patch(f"{_tb}.get_task_list") as mock_get_task_list,
+            patch(f"{_utilities}.resolve_env_prefix", return_value="/envs/test_env"),
+            patch(
+                f"{_interface}.get_or_create_build_timestamp",
+                return_value="2026_04_24_10_00_00",
+            ),
+            patch(f"{_interface}.OutputPaths") as mock_output_paths_cls,
+            patch(f"{_interface}.branches.Keyspace") as mock_keyspace_cls,
+            patch(
+                f"{_interface}.build_job_parameters_from_keyspace"
+            ) as mock_build_job_params,
+            patch(f"{_interface}.get_task_list") as mock_get_task_list,
         ):
             # -- Arrange --
             mock_output_paths = MagicMock()
@@ -680,10 +684,9 @@ class TestSimulationStep:
             )
 
             mock_tool = MagicMock()
-            build_ts = "2026_04_24_10_00_00"
 
             # -- Act --
-            result = build_simulation_step_tasks(
+            result = get_simulation_step_tasks(
                 name="sim_step",
                 resources=resources,
                 output_directory=Path("/tmp/results"),
@@ -692,9 +695,8 @@ class TestSimulationStep:
                 artifact_path=valid_artifact_file,
                 backup_freq=300,
                 sim_verbosity=1,
+                environment="test_env",
                 tool=mock_tool,
-                env_prefix="/envs/test_env",
-                build_timestamp=build_ts,
             )
 
             # -- Assert: OutputPaths created correctly --
@@ -703,7 +705,7 @@ class TestSimulationStep:
                 input_artifact_path=valid_artifact_file,
                 result_directory=Path("/tmp/results"),
                 input_model_spec_path=valid_model_spec_file,
-                launch_time=build_ts,
+                launch_time="2026_04_24_10_00_00",
                 is_resume=False,
             )
             mock_output_paths.touch.assert_called_once()
@@ -750,12 +752,17 @@ class TestSimulationStep:
     ) -> None:
         """Two simulation steps in one workflow must register distinct
         Jobmon TaskTemplates so their ``create_tasks`` calls don't collide."""
-        _tb = "vivarium_cluster_tools.psimulate.workflow_config.task_builders"
+        _utilities = "vivarium_cluster_tools.psimulate.workflow_config.utilities"
+        _interface = "vivarium_cluster_tools.psimulate.workflow_config.interface"
         _wf = "vivarium_cluster_tools.psimulate.jobmon_config.workflow"
         with (
-            patch(f"{_tb}.OutputPaths") as mock_output_paths_cls,
-            patch(f"{_tb}.branches.Keyspace") as mock_keyspace_cls,
-            patch(f"{_tb}.build_job_parameters_from_keyspace") as mock_build_job_params,
+            patch(f"{_utilities}.resolve_env_prefix", return_value="/envs/test_env"),
+            patch(f"{_interface}.get_or_create_build_timestamp", return_value="ts"),
+            patch(f"{_interface}.OutputPaths") as mock_output_paths_cls,
+            patch(f"{_interface}.branches.Keyspace") as mock_keyspace_cls,
+            patch(
+                f"{_interface}.build_job_parameters_from_keyspace"
+            ) as mock_build_job_params,
             patch(f"{_wf}.write_metadata"),
         ):
             mock_output_paths = MagicMock()
@@ -778,15 +785,14 @@ class TestSimulationStep:
 
             mock_tool = MagicMock()
             for step_name in ("run_sim_ethiopia", "run_sim_nigeria"):
-                build_simulation_step_tasks(
+                get_simulation_step_tasks(
                     name=step_name,
                     resources=resources,
                     output_directory=Path("/tmp/results"),
                     model_specification=valid_model_spec_file,
                     branch_configuration=valid_branch_config_file,
+                    environment="test_env",
                     tool=mock_tool,
-                    env_prefix="/envs/test_env",
-                    build_timestamp="ts",
                 )
 
             template_names = [
@@ -808,30 +814,7 @@ class TestPytestStep:
             validate_pytest_step(
                 name="tests",
                 resources=_common_resources(),
-                output_directory=Path("/tmp/results"),
             )
-
-    def test_build_task_command_is_wrapped_with_runner(self, valid_pytest_path: str) -> None:
-        """build_pytest_step_tasks wraps the pytest command with the
-        ``task_runner subprocess`` prefix so failing-test output appears in
-        the SLURM stderr file."""
-        mock_tool = MagicMock()
-        mock_template = MagicMock()
-        mock_tool.get_task_template.return_value = mock_template
-
-        build_pytest_step_tasks(
-            name="run_tests",
-            resources=_common_resources(),
-            output_directory=Path("/tmp/results"),
-            path=valid_pytest_path,
-            tool=mock_tool,
-            env_prefix="/env",
-            build_timestamp="2026_04_24_10_00_00",
-        )
-
-        cmd = mock_template.create_task.call_args.kwargs["command"]
-        assert _SUBPROCESS_WRAPPER_PREFIX in cmd
-        assert "pytest" in cmd  # inner command preserved
 
     def test_parse(self, valid_pytest_path: str) -> None:
         step_dict = make_pytest_step_dict(
@@ -864,14 +847,16 @@ class TestPytestStep:
 
     def test_serialize(self, valid_pytest_path: str) -> None:
         result = serialize_pytest_step_to_yaml(
-            name="tests",
-            resources=ResourceConfig(
-                memory_gb=8, project="proj_simscience", queue="all.q", cores=4
-            ),
-            output_directory=Path("/tmp/results"),
-            path=valid_pytest_path,
-            k="test_foo",
-            runslow=True,
+            _parsed_step(
+                "pytest",
+                name="tests",
+                resources=ResourceConfig(
+                    memory_gb=8, project="proj_simscience", queue="all.q", cores=4
+                ),
+                path=valid_pytest_path,
+                k="test_foo",
+                runslow=True,
+            )
         )
         assert result == {
             "name": "tests",
@@ -892,16 +877,18 @@ class TestPytestStep:
 
     def test_serialize_omits_unset_optional_fields(self, valid_pytest_path: str) -> None:
         result = serialize_pytest_step_to_yaml(
-            name="tests",
-            resources=_common_resources(),
-            output_directory=Path("/tmp/results"),
-            path=valid_pytest_path,
+            _parsed_step(
+                "pytest",
+                name="tests",
+                resources=_common_resources(),
+                path=valid_pytest_path,
+            )
         )
         assert result["args"] == {"path": valid_pytest_path}
 
     def test_build_command_full(self, valid_pytest_path: str) -> None:
         command = _captured_command(
-            build_pytest_step_tasks,
+            get_pytest_step_tasks,
             name="tests",
             resources=ResourceConfig(
                 memory_gb=4, project="proj_simscience", queue="all.q", cores=4
@@ -917,7 +904,7 @@ class TestPytestStep:
 
     def test_build_command_path_only(self, valid_pytest_path: str) -> None:
         command = _captured_command(
-            build_pytest_step_tasks,
+            get_pytest_step_tasks,
             name="tests",
             resources=_common_resources(),
             output_directory=Path("/tmp/results"),
@@ -927,7 +914,7 @@ class TestPytestStep:
 
     def test_build_command_k_only(self) -> None:
         command = _captured_command(
-            build_pytest_step_tasks,
+            get_pytest_step_tasks,
             name="tests",
             resources=_common_resources(),
             output_directory=Path("/tmp/results"),
@@ -938,7 +925,7 @@ class TestPytestStep:
 
     def test_build_command_single_core_omits_numprocesses(self) -> None:
         command = _captured_command(
-            build_pytest_step_tasks,
+            get_pytest_step_tasks,
             name="tests",
             resources=_common_resources(),
             output_directory=Path("/tmp/results"),
@@ -948,7 +935,7 @@ class TestPytestStep:
 
     def test_build_command_multiple_paths(self, valid_pytest_paths: list[str]) -> None:
         command = _captured_command(
-            build_pytest_step_tasks,
+            get_pytest_step_tasks,
             name="tests",
             resources=_common_resources(),
             output_directory=Path("/tmp/results"),
@@ -958,10 +945,12 @@ class TestPytestStep:
 
     def test_serialize_multiple_paths(self, valid_pytest_paths: list[str]) -> None:
         result = serialize_pytest_step_to_yaml(
-            name="tests",
-            resources=_common_resources(),
-            output_directory=Path("/tmp/results"),
-            path=valid_pytest_paths,
+            _parsed_step(
+                "pytest",
+                name="tests",
+                resources=_common_resources(),
+                path=valid_pytest_paths,
+            )
         )
         assert result["args"] == {"path": valid_pytest_paths}
 
@@ -1031,7 +1020,6 @@ class TestPythonStep:
         kwargs: dict[str, Any] = {
             "name": "bad",
             "resources": _common_resources(),
-            "output_directory": Path("/tmp/results"),
             "path": extra_args.pop("path", valid_python_script),
             **extra_args,
         }
@@ -1043,7 +1031,6 @@ class TestPythonStep:
             validate_python_step(
                 name="bad",
                 resources=_common_resources(),
-                output_directory=Path("/tmp/results"),
                 path="",
             )
 
@@ -1113,7 +1100,7 @@ class TestPythonStep:
         self, valid_python_script: str, args: dict[str, Any], expected_command: str
     ) -> None:
         command = _captured_command(
-            build_python_step_tasks,
+            get_python_step_tasks,
             name="run_script",
             resources=_common_resources(),
             output_directory=Path("/tmp/results"),
@@ -1169,7 +1156,6 @@ class TestPythonStep:
             validate_python_step(
                 name="bad",
                 resources=_common_resources(),
-                output_directory=Path("/tmp/results"),
                 path=valid_python_script,
                 positional_args=[None],
             )
@@ -1178,12 +1164,11 @@ class TestPythonStep:
         original_kwargs: dict[str, Any] = {
             "name": "run_script",
             "resources": _common_resources(),
-            "output_directory": Path("/tmp/results"),
             "path": valid_python_script,
             "positional_args": ["/mnt/data"],
             "keyword_args": {"verbose": True},
         }
-        serialized = serialize_python_step_to_yaml(**original_kwargs)
+        serialized = serialize_python_step_to_yaml(_parsed_step("python", **original_kwargs))
         restored = parse_python_step_from_yaml(
             serialized,
             output_directory=Path("/tmp/results"),
@@ -1216,7 +1201,6 @@ class TestNotebookStep:
         return {
             "name": "run_notebook",
             "resources": _common_resources(),
-            "output_directory": Path("/tmp/results"),
             "path": valid_notebook_path,
             "output_path": Path("/tmp/results/run_notebook.ipynb"),
         }
@@ -1266,7 +1250,11 @@ class TestNotebookStep:
 
     def test_parse_rejects_unsupported_args(self, valid_notebook_path: Path) -> None:
         step_dict = make_notebook_step_dict(
-            args={"path": str(valid_notebook_path), "bogus": "nope"},
+            args={
+                "path": str(valid_notebook_path),
+                "output_path": "out.ipynb",
+                "bogus": "nope",
+            },
         )
         with pytest.raises(ValueError, match="unsupported args"):
             parse_notebook_step_from_yaml(
@@ -1365,7 +1353,7 @@ class TestNotebookStep:
         base = self._base_kwargs(valid_notebook_path)
         output_path: Path = base["output_path"]
         command = _captured_command(
-            build_notebook_step_tasks,
+            get_notebook_step_tasks,
             name="run_notebook",
             resources=_common_resources(),
             output_directory=Path("/tmp/results"),
@@ -1384,18 +1372,20 @@ class TestNotebookStep:
 
     def test_serialize(self, valid_notebook_path: Path) -> None:
         result = serialize_notebook_step_to_yaml(
-            name="run_notebook",
-            resources=ResourceConfig(
-                memory_gb=8,
-                runtime="02:00:00",
-                project="proj_simscience",
-                queue="all.q",
-            ),
-            output_directory=Path("/tmp/results"),
-            path=valid_notebook_path,
-            output_path=Path("/tmp/results/executed/run_notebook.ipynb"),
-            parameters={"year": 2020, "verbose": True},
-            cwd=Path("/tmp/notebooks"),
+            _parsed_step(
+                "notebook",
+                name="run_notebook",
+                resources=ResourceConfig(
+                    memory_gb=8,
+                    runtime="02:00:00",
+                    project="proj_simscience",
+                    queue="all.q",
+                ),
+                path=valid_notebook_path,
+                output_path=Path("/tmp/results/executed/run_notebook.ipynb"),
+                parameters={"year": 2020, "verbose": True},
+                cwd=Path("/tmp/notebooks"),
+            )
         )
         assert result["name"] == "run_notebook"
         assert result["type"] == "notebook"
@@ -1410,12 +1400,13 @@ class TestNotebookStep:
         original_kwargs: dict[str, Any] = {
             "name": "run_notebook",
             "resources": _common_resources(),
-            "output_directory": Path("/tmp/results"),
             "path": valid_notebook_path,
             "output_path": Path("/tmp/results/run_notebook.ipynb"),
             "parameters": {"year": 2020},
         }
-        serialized = serialize_notebook_step_to_yaml(**original_kwargs)
+        serialized = serialize_notebook_step_to_yaml(
+            _parsed_step("notebook", **original_kwargs)
+        )
         restored = parse_notebook_step_from_yaml(
             serialized,
             output_directory=Path("/tmp/results"),
@@ -1473,7 +1464,6 @@ class TestParsedStepValidatesPathExistence:
             validate_python_step(
                 name="bad",
                 resources=_common_resources(),
-                output_directory=Path("/tmp/results"),
                 path="/nonexistent/script.py",
             )
 
@@ -1481,7 +1471,7 @@ class TestParsedStepValidatesPathExistence:
 class TestParseStepFromYaml:
     """Verify parse_step_from_yaml dispatches per step type."""
 
-    def test_command_step(self) -> None:
+    def test_bash_step(self) -> None:
         raw = make_step_dict(name="cmd", command="echo hi")
         step = parse_step_from_yaml(
             raw,
@@ -1489,6 +1479,6 @@ class TestParseStepFromYaml:
             project="proj_simscience",
             queue="all.q",
         )
-        assert step.step_type == "command"
+        assert step.step_type == "bash"
         assert step.name == "cmd"
         assert step.api_kwargs["command"] == "echo hi"

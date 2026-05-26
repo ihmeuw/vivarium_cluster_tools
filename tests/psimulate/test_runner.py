@@ -397,7 +397,7 @@ def test_write_configuration_workflow_command(tmp_path: Path) -> None:
         default_environment=None,
         steps=[
             ParsedStep(
-                step_type="command",
+                step_type="bash",
                 name=step_kwargs["name"],
                 api_kwargs=step_kwargs,
             )

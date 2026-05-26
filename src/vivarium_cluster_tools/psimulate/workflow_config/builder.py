@@ -15,7 +15,7 @@ from jobmon.client.api import Tool
 
 from vivarium_cluster_tools.psimulate.workflow_config.config import WorkflowConfig
 from vivarium_cluster_tools.psimulate.workflow_config.interface import (
-    get_command_step_tasks,
+    get_bash_step_tasks,
     get_notebook_step_tasks,
     get_pytest_step_tasks,
     get_python_step_tasks,
@@ -29,7 +29,7 @@ if TYPE_CHECKING:
 
 
 STEP_TYPE_API_FNS: dict[str, Callable[..., list["Task"]]] = {
-    "command": get_command_step_tasks,
+    "bash": get_bash_step_tasks,
     "simulation": get_simulation_step_tasks,
     "pytest": get_pytest_step_tasks,
     "python": get_python_step_tasks,
