@@ -114,11 +114,34 @@ def create_tasks(
 ) -> list[Task]:
     """Batch-create Jobmon ``Task``\\s for the simulation-step template.
 
-    ``task_id`` is the template's ``node_arg`` (one value per task);
-    ``metadata_dir`` / ``results_dir`` are ``task_args`` (shared across the
-    batch); ``command`` is the ``op_arg``. See
-    :func:`~vivarium_cluster_tools.psimulate.jobmon_config.workflow.get_task_list`.
+    Parameters
+    ----------
+    template
+        The Jobmon ``TaskTemplate`` returned by :func:`make_task_template`.
+    max_attempts
+        Maximum number of times Jobmon will attempt each task before giving up.
+    task_id
+        The template's ``node_arg`` — one value per task. The length of
+        this list determines how many tasks are created.
+    metadata_dir
+        The template's ``task_arg`` for the metadata directory (shared
+        across the batch).
+    results_dir
+        The template's ``task_arg`` for the results directory (shared
+        across the batch).
+    command
+        The template's ``op_arg`` for the psimulate subcommand
+        (``run`` / ``restart`` / ``expand`` / ``load_test``).
+    resource_scales
+        Optional per-resource retry scaling forwarded to Jobmon. When
+        ``None`` (the default), the kwarg is omitted from the
+        ``template.create_tasks`` call so Jobmon falls back to its
+        built-in default of ``{"memory": 0.5, "runtime": 0.5}`` (+50%
+        on each retry).
 
+    Returns
+    -------
+        A list of Jobmon ``Task``\\s for the batch, one per ``task_id``.
     """
     kwargs: dict[str, Any] = {
         "max_attempts": max_attempts,

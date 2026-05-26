@@ -165,22 +165,14 @@ def _simulation_resource_scales(
 ) -> dict[str, float] | None:
     """Per-task retry scaling for simulation tasks.
 
-    When backups are enabled (``backup_freq is not None``), the worker
-    resumes from the most-recent backup pickle (see
-    :func:`~vivarium_cluster_tools.psimulate.worker.vivarium_work_horse.get_backup`),
-    so a retry needs less runtime than the original allocation — we ask
-    Jobmon for half. With backups disabled the retry restarts from
-    scratch and Jobmon's default escalation applies.
-
-    All jobs in ``job_parameters_list`` share one ``BackupConfiguration``
-    (both callers build it once and apply it across the keyspace), so the
-    first element is representative of the whole batch.
+    Jobmon's scale formula is ``ceil(orig * (1 + scale))``. Supplying any
+    ``resource_scales`` dict suppresses Jobmon's full default, so memory
+    is restated at ``0.5`` to preserve its default +50% retry growth;
+    runtime is set to ``-0.5`` to shrink the retry's request to half
+    because the worker resumes from backup.
     """
     if job_parameters_list[0].backup_configuration["backup_freq"] is None:
         return None
-    # Jobmon's scale formula is ceil(orig * (1 + scale)): +0.5 grows
-    # memory by 50% on retry (matching Jobmon's default behavior),
-    # -0.5 shrinks runtime by 50%.
     return {"memory": 0.5, "runtime": -0.5}
 
 
