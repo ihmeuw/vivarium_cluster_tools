@@ -176,13 +176,12 @@ def _simulation_resource_scales(
     (both callers build it once and apply it across the keyspace), so the
     first element is representative of the whole batch.
     """
-    backups_enabled = job_parameters_list[0].backup_configuration["backup_freq"] is not None
-    if backups_enabled:
-        # Jobmon's scale formula is ceil(orig * (1 + scale)): +0.5 grows
-        # memory by 50% on retry (matching Jobmon's default behavior),
-        # -0.5 shrinks runtime by 50%.
-        return {"memory": 0.5, "runtime": -0.5}
-    return None
+    if job_parameters_list[0].backup_configuration["backup_freq"] is None:
+        return None
+    # Jobmon's scale formula is ceil(orig * (1 + scale)): +0.5 grows
+    # memory by 50% on retry (matching Jobmon's default behavior),
+    # -0.5 shrinks runtime by 50%.
+    return {"memory": 0.5, "runtime": -0.5}
 
 
 def build_workflow(
