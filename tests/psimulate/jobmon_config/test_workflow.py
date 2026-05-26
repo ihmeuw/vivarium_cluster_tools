@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, call, patch
 
 import pytest
@@ -12,10 +12,7 @@ from pytest_mock import MockerFixture
 
 from tests.psimulate.conftest import make_job_parameters
 from vivarium_cluster_tools.psimulate import TASK_RUNNER_MODULE
-from vivarium_cluster_tools.psimulate.jobmon_config.workflow import (
-    build_workflow,
-    get_task_list,
-)
+from vivarium_cluster_tools.psimulate.jobmon_config.workflow import build_workflow
 from vivarium_cluster_tools.psimulate.jobs import JobParameters
 from vivarium_cluster_tools.psimulate.paths import OutputPaths
 
@@ -138,7 +135,7 @@ class TestBuildWorkflow:
         assert kwargs["default_cluster_name"] == "slurm"
         assert kwargs["default_compute_resources"] == native_spec.to_jobmon_spec.return_value
 
-    def test_command_template_invokes_task_runner_in_simulation_mode(
+    def test_command_template_invokes_task_runner(
         self,
         mock_tool_cls: MagicMock,
         mock_write_metadata: MagicMock,
@@ -146,26 +143,17 @@ class TestBuildWorkflow:
         native_spec: MagicMock,
         two_jobs: list[JobParameters],
     ) -> None:
-        """The worker command template must invoke ``task_runner`` with the
-        ``simulation`` subcommand. Dropping the ``simulation`` token would
-        break every simulation task at runtime; this assertion is the
-        regression guard.
-
-        ``build_workflow`` is the psimulate CLI path (``run`` / ``restart``
-        / ``expand`` / ``load_test``), which calls ``get_task_list`` with
-        the default ``wrap_command=False`` and so leaves the simulation
-        running in-process — no ``subprocess`` watcher wraps the command.
+        """The worker command template invokes ``task_runner`` directly.
+        Stdout/stderr are routed to the SLURM log files via the compute
+        resources dict (see ``NativeSpecification.to_jobmon_spec``), so no
+        in-Python wrapper is needed.
         """
         self._call_build_workflow(
             mock_tool_cls, mock_write_metadata, output_paths, native_spec, two_jobs
         )
         kwargs = mock_tool_cls.return_value.get_task_template.call_args.kwargs
         command_template = kwargs["command_template"]
-        assert f"python -m {TASK_RUNNER_MODULE} simulation " in command_template
-        # psimulate CLI path must NOT be wrapped — that path runs
-        # task_runner in-process. The ``subprocess`` wrapper is reserved
-        # for workflow steps (see test_get_task_list_wraps_when_requested).
-        assert "subprocess" not in command_template
+        assert f"python -m {TASK_RUNNER_MODULE} " in command_template
 
     def test_write_metadata_called_per_job(
         self,
@@ -216,79 +204,3 @@ class TestBuildWorkflow:
 
         expected_tasks = task_template.create_tasks.return_value
         workflow.add_tasks.assert_called_once_with(expected_tasks)
-
-
-class TestGetTaskListWrapping:
-    """Verify the ``wrap_command`` toggle on ``get_task_list``."""
-
-    @staticmethod
-    def _call_get_task_list(
-        mock_tool: MagicMock,
-        output_paths: OutputPaths,
-        native_spec: MagicMock,
-        jobs: list[JobParameters],
-        *,
-        wrap_command: bool,
-    ) -> None:
-        get_task_list(
-            tool=mock_tool,
-            command="run",
-            job_parameters_list=jobs,
-            metadata_dir=output_paths.metadata_dir,
-            results_dir=output_paths.results_dir,
-            worker_logging_root=output_paths.worker_logging_root,
-            native_specification=native_spec,
-            wrap_command=wrap_command,
-        )
-
-    def test_default_does_not_wrap(
-        self,
-        mock_tool_cls: MagicMock,
-        mock_write_metadata: MagicMock,
-        output_paths: OutputPaths,
-        native_spec: MagicMock,
-        two_jobs: list[JobParameters],
-    ) -> None:
-        """psimulate CLI callers leave ``wrap_command=False`` and run the
-        simulation worker directly — no ``subprocess`` watcher."""
-        self._call_get_task_list(
-            mock_tool_cls.return_value,
-            output_paths,
-            native_spec,
-            two_jobs,
-            wrap_command=False,
-        )
-        command_template = mock_tool_cls.return_value.get_task_template.call_args.kwargs[
-            "command_template"
-        ]
-        assert "subprocess" not in command_template
-        assert f"python -m {TASK_RUNNER_MODULE} simulation " in command_template
-
-    def test_wrap_command_true_wraps_with_subprocess(
-        self,
-        mock_tool_cls: MagicMock,
-        mock_write_metadata: MagicMock,
-        output_paths: OutputPaths,
-        native_spec: MagicMock,
-        two_jobs: list[JobParameters],
-    ) -> None:
-        """Workflow simulation steps pass ``wrap_command=True`` so the
-        simulation worker runs as a child of the ``subprocess`` watcher,
-        sharing the failure-replay behavior of the other workflow step
-        types."""
-        self._call_get_task_list(
-            mock_tool_cls.return_value,
-            output_paths,
-            native_spec,
-            two_jobs,
-            wrap_command=True,
-        )
-        command_template = mock_tool_cls.return_value.get_task_template.call_args.kwargs[
-            "command_template"
-        ]
-        # Outer watcher wraps the inner simulation invocation, in that order.
-        wrapper = f"python -m {TASK_RUNNER_MODULE} subprocess "
-        inner = f"python -m {TASK_RUNNER_MODULE} simulation "
-        assert wrapper in command_template
-        assert inner in command_template
-        assert command_template.index(wrapper) < command_template.index(inner)

@@ -202,7 +202,6 @@ def get_simulation_step_tasks(
         native_specification=resources.to_native_specification(name),
         env_prefix=resolve_step_env_prefix(name=name, environment=environment),
         template_name=f"psimulate_{name}",
-        wrap_command=True,
     )
 
 
