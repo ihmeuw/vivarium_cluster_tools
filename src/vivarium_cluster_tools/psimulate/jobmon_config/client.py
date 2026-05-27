@@ -27,9 +27,7 @@ from jobmon.client.workflow import Workflow
 from jobmon.core.configuration import JobmonConfig
 from loguru import logger
 
-from vivarium_cluster_tools.psimulate.cluster.interface import (
-    get_workflow_timeout_seconds,
-)
+from vivarium_cluster_tools.psimulate.cluster.interface import get_workflow_timeout_seconds
 
 __all__ = [
     "JOBMON_STATUS_DONE",
