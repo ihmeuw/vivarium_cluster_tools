@@ -123,11 +123,13 @@ def get_single_command_task(
 ) -> list[Task]:
     """Return a one-element ``list[Task]`` for a step that runs a single command in a conda env.
 
-    The child inherits SLURM's stdout/stderr file descriptors via the
-    ``stdout`` / ``stderr`` keys on the compute resources dict
-    (configured by :meth:`NativeSpecification.to_jobmon_spec`), so its
-    output flows directly to the per-step log files that the Jobmon GUI
-    surfaces.
+    The command's merged stdout+stderr is captured and printed to stdout
+    on every run, and additionally replayed to stderr on non-zero exit.
+    This makes failure output reliably visible in the Jobmon GUI's stderr
+    pane regardless of which stream the underlying tool writes failures
+    to (e.g. pytest writes failure reports to stdout), mirroring the
+    simulation worker's loguru dual-sink semantics for opaque external
+    commands.
     """
     task_template = tool.get_task_template(
         template_name="workflow_command_step",
@@ -140,12 +142,17 @@ def get_single_command_task(
     compute_resources = resources.to_native_specification(name).to_jobmon_spec(
         worker_logging_root=output_directory,
     )
+    wrapped_command = (
+        f'LOG=$(mktemp); {command} > "$LOG" 2>&1; RC=$?; '
+        f'cat "$LOG"; [ "$RC" -ne 0 ] && cat "$LOG" >&2; '
+        f'rm -f "$LOG"; exit "$RC"'
+    )
     return [
         task_template.create_task(
             name=name,
             compute_resources=compute_resources,
             env_prefix=env_prefix,
-            command=command,
+            command=wrapped_command,
         )
     ]
 
