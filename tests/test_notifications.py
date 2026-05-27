@@ -12,7 +12,7 @@ BOT_TOKEN = "xoxb-test-token"
 MONITORING_URL = "https://jobmon.example.com/#/workflow/123"
 RESULTS_DIR = "/tmp/results"
 WORKFLOW_NAME = "my_pipeline"
-COMMAND_LABEL = "psimulate workflow"
+COMMAND_LABEL = "dagger run"
 
 SLACK_API = "https://slack.com/api"
 

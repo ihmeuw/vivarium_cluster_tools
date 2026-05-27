@@ -1,11 +1,8 @@
 **3.2.0 - TBD/TBD/TBD**
 
-- Implement serial workflows via "psimulate workflow" command
+- Implement serial workflows via the "dagger run" command
 - Add facade to interact with Jobmon SDK
-<<<<<<< HEAD
 - Reduce simulation task runtime resource during restart with backups
-=======
->>>>>>> epic/phase-3-automated-validation
 
 **3.1.4 - 05/18/26**
 
