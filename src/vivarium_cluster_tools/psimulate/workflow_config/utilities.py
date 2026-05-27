@@ -121,16 +121,7 @@ def get_single_command_task(
     env_prefix: str,
     command: str,
 ) -> list[Task]:
-    """Return a one-element ``list[Task]`` for a step that runs a single command in a conda env.
-
-    The command's merged stdout+stderr is captured and printed to stdout
-    on every run, and additionally replayed to stderr on non-zero exit.
-    This makes failure output reliably visible in the Jobmon GUI's stderr
-    pane regardless of which stream the underlying tool writes failures
-    to (e.g. pytest writes failure reports to stdout), mirroring the
-    simulation worker's loguru dual-sink semantics for opaque external
-    commands.
-    """
+    """Return a one-element ``list[Task]`` for a step that runs a single command in a conda env."""
     task_template = tool.get_task_template(
         template_name="workflow_command_step",
         command_template="PATH={env_prefix}/bin:$PATH {command}",
