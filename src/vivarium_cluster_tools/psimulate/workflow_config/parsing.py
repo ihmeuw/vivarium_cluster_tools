@@ -418,38 +418,46 @@ def parse_step_from_yaml(
 def load_workflow_config(
     path: Path,
     *,
+    name: str | None = None,
     project: str | None = None,
     queue: str | None = None,
     output_directory: Path | None = None,
+    default_environment: str | None = None,
     max_attempts: int | None = None,
 ) -> WorkflowConfig:
     """Load a WorkflowConfig from YAML, merging CLI overrides.
 
     CLI arguments take precedence over values in the YAML file. Validates
-    that ``project``, ``queue``, and ``output_directory`` are provided by
-    at least one source.
+    that ``name``, ``project``, ``queue``, and ``output_directory`` are
+    provided by at least one source.
 
     Parameters
     ----------
     path
         Path to the workflow YAML configuration file.
+    name
+        CLI override for the workflow name.
     project
         CLI override for the project field.
     queue
         CLI override for the queue field.
     output_directory
         CLI override for the output directory.
+    default_environment
+        CLI override for the default_environment field. ``None`` from the
+        CLI falls back to the YAML value (which itself may be absent).
     max_attempts
         CLI override for the maximum number of Jobmon task attempts.
 
     Raises
     ------
     ValueError
-        If ``project``, ``queue``, or ``output_directory`` cannot be resolved
-        from either the YAML file or CLI arguments.
+        If ``name``, ``project``, ``queue``, or ``output_directory`` cannot
+        be resolved from either the YAML file or CLI arguments.
     """
     workflow = WorkflowConfig.parse_yaml_file(path)
 
+    resolved_name = name or workflow.get("name")
     resolved_project = project or workflow.get("project")
     resolved_queue = queue or workflow.get("queue")
     resolved_output_directory = output_directory or (
@@ -458,6 +466,10 @@ def load_workflow_config(
         else None
     )
 
+    if not resolved_name:
+        raise ValueError(
+            "Workflow name is required. Provide it in the config file or via --name/-n."
+        )
     if not resolved_project:
         raise ValueError(
             "Project is required. Provide it in the config file or via --project/-P."
@@ -483,11 +495,11 @@ def load_workflow_config(
     ]
 
     return WorkflowConfig(
-        name=workflow["name"],
+        name=resolved_name,
         project=resolved_project,
         queue=resolved_queue,
         output_directory=resolved_output_directory,
-        default_environment=workflow.get("default_environment"),
+        default_environment=default_environment or workflow.get("default_environment"),
         steps=steps,
         max_attempts=max_attempts or workflow.get("max_attempts", DEFAULT_MAX_ATTEMPTS),
     )

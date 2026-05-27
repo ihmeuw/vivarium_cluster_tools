@@ -26,7 +26,13 @@ from vivarium_cluster_tools.psimulate.cluster.validation import (
     validate_runtime_and_queue,
 )
 
-REQUIRED_WORKFLOW_FIELDS = {"name", "steps"}
+REQUIRED_WORKFLOW_FIELDS = {"steps"}
+"""Top-level workflow fields that must appear in the YAML file.
+
+``name``, ``project``, ``queue``, and ``output_directory`` are each
+required overall but may be provided via either the YAML or a CLI
+override; their presence is validated by :func:`load_workflow_config`
+rather than by :meth:`WorkflowConfig.parse_yaml_file`."""
 
 DEFAULT_MAX_ATTEMPTS = 2
 

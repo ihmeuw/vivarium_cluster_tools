@@ -264,6 +264,7 @@ class TestWorkflowConfigFromYamlWithCliOverrides:
     @pytest.mark.parametrize(
         "field, value",
         [
+            ("name", "renamed_pipeline"),
             ("project", "proj_simscience_prod"),
             ("queue", "long.q"),
             ("output_directory", Path("/cli/output")),
@@ -277,7 +278,7 @@ class TestWorkflowConfigFromYamlWithCliOverrides:
         )
         assert getattr(config, field) == value
 
-    @pytest.mark.parametrize("field", ["project", "queue", "output_directory"])
+    @pytest.mark.parametrize("field", ["name", "project", "queue", "output_directory"])
     def test_rejects_missing_field_everywhere(self, tmp_path: Path, field: str) -> None:
         data = make_workflow_dict()
         del data["workflow"][field]
@@ -290,6 +291,7 @@ class TestWorkflowConfigFromYamlWithCliOverrides:
     @pytest.mark.parametrize(
         "field, cli_value",
         [
+            ("name", "from_cli"),
             ("project", "proj_simscience"),
             ("queue", "long.q"),
             ("output_directory", Path("/from/cli")),
@@ -304,6 +306,27 @@ class TestWorkflowConfigFromYamlWithCliOverrides:
         kwargs: dict[str, str | Path | None] = {field: cli_value}
         config = load_workflow_config(yaml_path, **kwargs)  # type: ignore[arg-type]
         assert getattr(config, field) == cli_value
+
+    def test_default_environment_cli_overrides_yaml(self, tmp_path: Path) -> None:
+        """A CLI ``default_environment`` wins over the YAML value."""
+        data = make_workflow_dict(default_environment="from_yaml")
+        yaml_path = write_workflow_yaml(tmp_path, data)
+        config = load_workflow_config(yaml_path, default_environment="from_cli")
+        assert config.default_environment == "from_cli"
+
+    def test_default_environment_from_yaml_when_cli_absent(self, tmp_path: Path) -> None:
+        """When no CLI override is given, the YAML value flows through."""
+        data = make_workflow_dict(default_environment="yaml_env")
+        yaml_path = write_workflow_yaml(tmp_path, data)
+        config = load_workflow_config(yaml_path)
+        assert config.default_environment == "yaml_env"
+
+    def test_default_environment_none_when_absent_from_both(self, tmp_path: Path) -> None:
+        """``default_environment`` is nullable; absence from both sources is fine."""
+        data = make_workflow_dict()
+        yaml_path = write_workflow_yaml(tmp_path, data)
+        config = load_workflow_config(yaml_path)
+        assert config.default_environment is None
 
 
 class TestResourceConfigValidation:
