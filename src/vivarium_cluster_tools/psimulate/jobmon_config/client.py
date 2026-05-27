@@ -17,6 +17,7 @@ cannot drift between call sites.
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from jobmon.client.api import Tool
@@ -24,6 +25,11 @@ from jobmon.client.task import Task
 from jobmon.client.task_template import TaskTemplate
 from jobmon.client.workflow import Workflow
 from jobmon.core.configuration import JobmonConfig
+from loguru import logger
+
+from vivarium_cluster_tools.psimulate.cluster.interface import (
+    get_workflow_timeout_seconds,
+)
 
 __all__ = [
     "JOBMON_STATUS_DONE",
@@ -33,6 +39,7 @@ __all__ = [
     "Workflow",
     "add_tasks",
     "add_upstream",
+    "bind_and_run_workflow",
     "bind_workflow",
     "count_completed_tasks",
     "create_task",
@@ -224,3 +231,51 @@ def run_workflow(
 def count_completed_tasks(workflow: Workflow) -> int:
     """Count tasks in *workflow* whose ``final_status`` is :data:`JOBMON_STATUS_DONE`."""
     return sum(1 for t in workflow.tasks.values() if t.final_status == JOBMON_STATUS_DONE)
+
+
+def bind_and_run_workflow(
+    workflow: Workflow,
+    output_root: Path,
+    *,
+    resume: bool = False,
+) -> tuple[str, str | None]:
+    """Bind a Jobmon workflow, log the monitoring URL, and run it.
+
+    Combines :func:`bind_workflow`, :func:`get_monitoring_url`, and
+    :func:`run_workflow` into the bind→log→run sequence both the
+    simulation and standalone-workflow runners share.
+
+    The workflow timeout is matched to the remaining time on the SLURM
+    runner node (via
+    :func:`~vivarium_cluster_tools.psimulate.cluster.interface.get_workflow_timeout_seconds`)
+    so Jobmon doesn't outlive or underuse the allocation.
+
+    Parameters
+    ----------
+    workflow
+        The Jobmon workflow to submit.
+    output_root
+        Output directory to mention in log messages.
+    resume
+        Whether to resume a previously started workflow.
+
+    Returns
+    -------
+        A ``(wf_status, monitoring_url)`` tuple. *wf_status* is the
+        workflow status string from Jobmon (see
+        :data:`JOBMON_STATUS_DONE`). *monitoring_url* is the Jobmon GUI
+        URL, or ``None`` if unconfigured.
+    """
+    bind_workflow(workflow)
+    monitoring_url = get_monitoring_url(workflow)
+
+    logger.info(f"Submitting Jobmon workflow. Results will be written to {output_root}")
+    if monitoring_url:
+        logger.info(f"Monitor progress at: {monitoring_url}")
+
+    wf_status = run_workflow(
+        workflow,
+        resume=resume,
+        seconds_until_timeout=get_workflow_timeout_seconds(),
+    )
+    return wf_status, monitoring_url

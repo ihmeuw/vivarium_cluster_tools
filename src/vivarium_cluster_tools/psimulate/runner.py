@@ -14,7 +14,7 @@ import os
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import pandas as pd
 import yaml
@@ -48,50 +48,6 @@ from vivarium_cluster_tools.psimulate.workflow_config.serialization import (
 )
 from vivarium_cluster_tools.psimulate.workflow_config.utilities import WORKFLOW_ARGS_FILENAME
 from vivarium_cluster_tools.vipin.perf_report import report_performance
-
-if TYPE_CHECKING:
-    from jobmon.client.workflow import Workflow
-
-
-def _bind_and_run_workflow(
-    workflow: Workflow,
-    output_root: Path,
-    *,
-    resume: bool = False,
-) -> tuple[str, str | None]:
-    """Bind a Jobmon workflow, log the monitoring URL, and run it.
-
-    Parameters
-    ----------
-    workflow
-        The Jobmon workflow to submit.
-    output_root
-        Output directory to mention in log messages.
-    resume
-        Whether to resume a previously started workflow.
-
-    Returns
-    -------
-        A ``(wf_status, monitoring_url)`` tuple.  *wf_status* is the
-        workflow status string from Jobmon (see :data:`client.JOBMON_STATUS_DONE`).
-        *monitoring_url* is the Jobmon GUI URL, or ``None`` if unconfigured.
-    """
-    client.bind_workflow(workflow)
-    monitoring_url = client.get_monitoring_url(workflow)
-
-    logger.info(f"Submitting Jobmon workflow. Results will be written to {output_root}")
-    if monitoring_url:
-        logger.info(f"Monitor progress at: {monitoring_url}")
-
-    # Match the workflow timeout to the remaining time on the SLURM runner
-    # node so jobmon doesn't outlive (or underuse) the allocation.
-    wf_status = client.run_workflow(
-        workflow,
-        resume=resume,
-        seconds_until_timeout=cluster.get_workflow_timeout_seconds(),
-    )
-    return wf_status, monitoring_url
-
 
 def workflow_main(
     workflow_config: WorkflowConfig,
@@ -137,7 +93,7 @@ def workflow_main(
     # Persist workflow_args before running so --resume can find it
     workflow_args_path.write_text(workflow_args)
 
-    wf_status, monitoring_url = _bind_and_run_workflow(workflow, output_root, resume=resume)
+    wf_status, monitoring_url = client.bind_and_run_workflow(workflow, output_root, resume=resume)
 
     send_slack_notification(
         workflow_name=workflow_config.name,
@@ -456,7 +412,7 @@ def main(
         max_attempts=max_attempts,
     )
 
-    wf_status, monitoring_url = _bind_and_run_workflow(
+    wf_status, monitoring_url = client.bind_and_run_workflow(
         workflow, output_paths.root, resume=restart
     )
 
