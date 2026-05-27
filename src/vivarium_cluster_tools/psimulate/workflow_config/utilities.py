@@ -141,13 +141,18 @@ def get_single_command_task(
     compute_resources = resources.to_native_specification(name).to_jobmon_spec(
         worker_logging_root=output_directory,
     )
+    wrapped_command = (
+        f'LOG=$(mktemp); {command} > "$LOG" 2>&1; RC=$?; '
+        f'cat "$LOG"; [ "$RC" -ne 0 ] && cat "$LOG" >&2; '
+        f'rm -f "$LOG"; exit "$RC"'
+    )
     return [
         client.create_task(
             task_template,
             name=name,
             compute_resources=compute_resources,
             env_prefix=env_prefix,
-            command=command,
+            command=wrapped_command,
         )
     ]
 
