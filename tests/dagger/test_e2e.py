@@ -1,5 +1,5 @@
 """
-End-to-end tests for ``psimulate workflow``.
+End-to-end tests for ``dagger run``.
 
 These tests run against a real SLURM cluster and exercise the full workflow
 pipeline: YAML config parsing, Jobmon workflow construction, SLURM submission,
@@ -167,13 +167,13 @@ def _write_workflow_config(
     return config_path
 
 
-def _run_psimulate(args: list[str]) -> subprocess.CompletedProcess[str]:
-    """Run a psimulate CLI command as a subprocess."""
-    return subprocess.run(["psimulate", *args], capture_output=True, text=True)
+def _run_dagger(args: list[str]) -> subprocess.CompletedProcess[str]:
+    """Run a dagger CLI command as a subprocess."""
+    return subprocess.run(["dagger", *args], capture_output=True, text=True)
 
 
-class TestPsimulateWorkflow:
-    """E2E tests for ``psimulate workflow``."""
+class TestDaggerRun:
+    """E2E tests for ``dagger run``."""
 
     def test_three_step_workflow(self, shared_tmp_path: Path, slurm_project: str) -> None:
         """Run a 3-step workflow and verify all steps execute in order.
@@ -192,10 +192,10 @@ class TestPsimulateWorkflow:
             shared_tmp_path, output_dir, scripts, slurm_project
         )
 
-        proc = _run_psimulate(
+        proc = _run_dagger(
             [
-                "workflow",
-                "-c",
+                "run",
+                "--config",
                 str(config_path),
                 "-P",
                 slurm_project,
@@ -204,7 +204,7 @@ class TestPsimulateWorkflow:
             ]
         )
         assert proc.returncode == 0, (
-            f"psimulate workflow failed.\n" f"STDOUT:\n{proc.stdout}\nSTDERR:\n{proc.stderr}"
+            f"dagger run failed.\n" f"STDOUT:\n{proc.stdout}\nSTDERR:\n{proc.stderr}"
         )
 
         # Verify all 3 step marker files were created
@@ -273,10 +273,10 @@ class TestPsimulateWorkflow:
         config_path = shared_tmp_path / "workflow_config.yaml"
         config_path.write_text(yaml.dump(config))
 
-        proc = _run_psimulate(
+        proc = _run_dagger(
             [
-                "workflow",
-                "-c",
+                "run",
+                "--config",
                 str(config_path),
                 "-P",
                 slurm_project,
@@ -286,7 +286,7 @@ class TestPsimulateWorkflow:
         )
         assert (
             proc.returncode == 0
-        ), f"psimulate workflow failed.\nSTDOUT:\n{proc.stdout}\nSTDERR:\n{proc.stderr}"
+        ), f"dagger run failed.\nSTDOUT:\n{proc.stdout}\nSTDERR:\n{proc.stderr}"
 
         # Each location writes outputs under <output_dir>/<location>/<timestamp>/.
         # Verify both location directories exist under the output directory.
