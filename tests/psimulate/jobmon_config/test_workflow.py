@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, call, patch
 
 import pytest
@@ -18,10 +17,6 @@ from vivarium_cluster_tools.psimulate.jobmon_config.workflow import (
 )
 from vivarium_cluster_tools.psimulate.jobs import BackupConfiguration, JobParameters
 from vivarium_cluster_tools.psimulate.paths import OutputPaths
-
-if TYPE_CHECKING:
-    from jobmon.client.workflow import Workflow
-
 
 FROZEN_TIME = datetime(2025, 1, 1)
 
@@ -77,28 +72,6 @@ def two_jobs() -> list[JobParameters]:
 class TestBuildWorkflow:
     """Verify that ``build_workflow`` passes its arguments into the Jobmon API correctly."""
 
-    @staticmethod
-    def _call_build_workflow(
-        mock_tool_cls: MagicMock,
-        mock_write_metadata: MagicMock,
-        output_paths: OutputPaths,
-        native_spec: MagicMock,
-        job_parameters_list: list[JobParameters],
-        workflow_name: str = "test_workflow",
-        command: str = "run",
-        max_workers: int = 10,
-    ) -> Workflow:
-        """Import and call ``build_workflow`` with standard test args."""
-
-        return build_workflow(
-            workflow_name=workflow_name,
-            command=command,
-            job_parameters_list=job_parameters_list,
-            output_paths=output_paths,
-            native_specification=native_spec,
-            max_workers=max_workers,
-        )
-
     def test_tool_created_with_correct_name(
         self,
         mock_tool_cls: MagicMock,
@@ -108,8 +81,13 @@ class TestBuildWorkflow:
         two_jobs: list[JobParameters],
     ) -> None:
         """The Jobmon Tool is instantiated with the expected name."""
-        self._call_build_workflow(
-            mock_tool_cls, mock_write_metadata, output_paths, native_spec, two_jobs
+        build_workflow(
+            workflow_name="test_workflow",
+            command="run",
+            job_parameters_list=two_jobs,
+            output_paths=output_paths,
+            native_specification=native_spec,
+            max_workers=10,
         )
         mock_tool_cls.assert_called_once_with(name="vivarium_cluster_tools")
 
@@ -122,8 +100,13 @@ class TestBuildWorkflow:
         two_jobs: list[JobParameters],
     ) -> None:
         """``get_task_template`` receives the expected arguments."""
-        self._call_build_workflow(
-            mock_tool_cls, mock_write_metadata, output_paths, native_spec, two_jobs
+        build_workflow(
+            workflow_name="test_workflow",
+            command="run",
+            job_parameters_list=two_jobs,
+            output_paths=output_paths,
+            native_specification=native_spec,
+            max_workers=10,
         )
         tool_instance = mock_tool_cls.return_value
         tool_instance.get_task_template.assert_called_once()
@@ -151,8 +134,13 @@ class TestBuildWorkflow:
         resources dict (see ``NativeSpecification.to_jobmon_spec``), so no
         in-Python wrapper is needed.
         """
-        self._call_build_workflow(
-            mock_tool_cls, mock_write_metadata, output_paths, native_spec, two_jobs
+        build_workflow(
+            workflow_name="test_workflow",
+            command="run",
+            job_parameters_list=two_jobs,
+            output_paths=output_paths,
+            native_specification=native_spec,
+            max_workers=10,
         )
         kwargs = mock_tool_cls.return_value.get_task_template.call_args.kwargs
         command_template = kwargs["command_template"]
@@ -167,8 +155,13 @@ class TestBuildWorkflow:
         two_jobs: list[JobParameters],
     ) -> None:
         """``write_metadata`` is called once per job with the right args."""
-        self._call_build_workflow(
-            mock_tool_cls, mock_write_metadata, output_paths, native_spec, two_jobs
+        build_workflow(
+            workflow_name="test_workflow",
+            command="run",
+            job_parameters_list=two_jobs,
+            output_paths=output_paths,
+            native_specification=native_spec,
+            max_workers=10,
         )
         assert mock_write_metadata.call_count == len(two_jobs)
         mock_write_metadata.assert_has_calls(
@@ -190,8 +183,13 @@ class TestBuildWorkflow:
         two_jobs: list[JobParameters],
     ) -> None:
         """All created tasks are added to the workflow."""
-        self._call_build_workflow(
-            mock_tool_cls, mock_write_metadata, output_paths, native_spec, two_jobs
+        build_workflow(
+            workflow_name="test_workflow",
+            command="run",
+            job_parameters_list=two_jobs,
+            output_paths=output_paths,
+            native_specification=native_spec,
+            max_workers=10,
         )
         task_template = mock_tool_cls.return_value.get_task_template.return_value
         workflow = mock_tool_cls.return_value.create_workflow.return_value
