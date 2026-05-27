@@ -6,12 +6,13 @@ from unittest.mock import MagicMock, call, patch
 
 import pytest
 
-from vivarium_cluster_tools.psimulate.notifications import send_slack_notification
+from vivarium_cluster_tools.notifications import send_slack_notification
 
 BOT_TOKEN = "xoxb-test-token"
 MONITORING_URL = "https://jobmon.example.com/#/workflow/123"
 RESULTS_DIR = "/tmp/results"
 WORKFLOW_NAME = "my_pipeline"
+COMMAND_LABEL = "psimulate workflow"
 
 SLACK_API = "https://slack.com/api"
 
@@ -42,9 +43,11 @@ def test_no_token_skips_notification(monkeypatch: pytest.MonkeyPatch) -> None:
     """When PSIMULATE_SLACK_BOT_TOKEN is unset, no Slack API calls are made."""
     monkeypatch.delenv("PSIMULATE_SLACK_BOT_TOKEN", raising=False)
     with patch(
-        "vivarium_cluster_tools.psimulate.notifications.requests.post",
+        "vivarium_cluster_tools.notifications.requests.post",
     ) as mock_post:
-        send_slack_notification(workflow_name=WORKFLOW_NAME, status="D")
+        send_slack_notification(
+            workflow_name=WORKFLOW_NAME, status="D", command_label=COMMAND_LABEL
+        )
         mock_post.assert_not_called()
 
 
@@ -55,12 +58,13 @@ def test_notification_on_workflow_success(monkeypatch: pytest.MonkeyPatch) -> No
 
     mock_post = _mock_slack_responses()
     with patch(
-        "vivarium_cluster_tools.psimulate.notifications.requests.post",
+        "vivarium_cluster_tools.notifications.requests.post",
         mock_post,
     ):
         send_slack_notification(
             workflow_name=WORKFLOW_NAME,
             status="D",
+            command_label=COMMAND_LABEL,
             monitoring_url=MONITORING_URL,
             results_dir=RESULTS_DIR,
         )
@@ -88,6 +92,7 @@ def test_notification_on_workflow_success(monkeypatch: pytest.MonkeyPatch) -> No
         assert msg_json["channel"] == "D67890"
         assert "DONE" in msg_json["text"]
         assert WORKFLOW_NAME in msg_json["text"]
+        assert COMMAND_LABEL in msg_json["text"]
         assert MONITORING_URL in msg_json["text"]
         assert RESULTS_DIR in msg_json["text"]
 
@@ -99,12 +104,13 @@ def test_notification_on_workflow_failure(monkeypatch: pytest.MonkeyPatch) -> No
 
     mock_post = _mock_slack_responses()
     with patch(
-        "vivarium_cluster_tools.psimulate.notifications.requests.post",
+        "vivarium_cluster_tools.notifications.requests.post",
         mock_post,
     ):
         send_slack_notification(
             workflow_name=WORKFLOW_NAME,
             status="F",
+            command_label=COMMAND_LABEL,
             monitoring_url=MONITORING_URL,
             results_dir=RESULTS_DIR,
         )
@@ -132,5 +138,6 @@ def test_notification_on_workflow_failure(monkeypatch: pytest.MonkeyPatch) -> No
         assert msg_json["channel"] == "D67890"
         assert "ERROR" in msg_json["text"]
         assert WORKFLOW_NAME in msg_json["text"]
+        assert COMMAND_LABEL in msg_json["text"]
         assert MONITORING_URL in msg_json["text"]
         assert RESULTS_DIR in msg_json["text"]

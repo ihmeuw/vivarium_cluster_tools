@@ -22,6 +22,7 @@ from loguru import logger
 from vivarium.framework.utilities import collapse_nested_dict
 
 from vivarium_cluster_tools import logs
+from vivarium_cluster_tools.notifications import send_slack_notification
 from vivarium_cluster_tools.psimulate import (
     COMMANDS,
     branches,
@@ -33,7 +34,6 @@ from vivarium_cluster_tools.psimulate import (
 )
 from vivarium_cluster_tools.psimulate.jobmon_config import client
 from vivarium_cluster_tools.psimulate.jobmon_config.workflow import build_workflow
-from vivarium_cluster_tools.psimulate.notifications import send_slack_notification
 from vivarium_cluster_tools.psimulate.paths import OutputPaths
 from vivarium_cluster_tools.psimulate.performance_logger import (
     append_perf_data_to_central_logs,
@@ -142,6 +142,7 @@ def workflow_main(
     send_slack_notification(
         workflow_name=workflow_config.name,
         status=wf_status,
+        command_label="psimulate workflow",
         monitoring_url=monitoring_url,
         results_dir=str(output_root),
     )
@@ -462,6 +463,7 @@ def main(
     send_slack_notification(
         workflow_name=workflow_name,
         status=wf_status,
+        command_label=f"psimulate {command}",
         monitoring_url=monitoring_url,
         results_dir=str(output_paths.root),
     )

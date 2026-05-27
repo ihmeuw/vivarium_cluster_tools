@@ -1,4 +1,4 @@
-"""Slack notification support for psimulate workflows."""
+"""Slack notification support for parallel-workflow CLIs."""
 
 from __future__ import annotations
 
@@ -14,6 +14,7 @@ SLACK_TIMEOUT = 10  # seconds
 def send_slack_notification(
     workflow_name: str,
     status: str,
+    command_label: str,
     monitoring_url: str | None = None,
     results_dir: str | None = None,
 ) -> None:
@@ -30,6 +31,10 @@ def send_slack_notification(
         The name of the workflow to include in the message.
     status
         The workflow status, e.g. ``"D"`` for DONE or ``"E"`` for ERROR.
+    command_label
+        Short string identifying which CLI invocation triggered the
+        notification (e.g. ``"psimulate run"`` or ``"dagger run"``).
+        Rendered into the message header.
     monitoring_url
         Optional URL to the Jobmon monitoring page for this workflow.
     results_dir
@@ -75,8 +80,8 @@ def send_slack_notification(
 
         # Build the message
         status_text = "DONE" if status == "D" else "ERROR"
-        emoji = "\u2705" if status == "D" else "\u274c"
-        lines = [f"{emoji} psimulate workflow {status_text}: {workflow_name}"]
+        emoji = "✅" if status == "D" else "❌"
+        lines = [f"{emoji} {command_label} {status_text}: {workflow_name}"]
         if monitoring_url:
             lines.append(f"Monitor: {monitoring_url}")
         if results_dir:
