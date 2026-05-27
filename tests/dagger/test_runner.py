@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
-import pytest
 import yaml
 from click.testing import CliRunner
 
@@ -73,10 +72,9 @@ def test_write_workflow_configuration_writes_round_trippable_yaml(tmp_path: Path
     assert config["workflow"]["steps"][0]["command"] == "pytest tests/"
 
 
-@pytest.mark.skip(reason="dagger CLI lands in phase 5; will be re-enabled then")
 def test_workflow_configuration_includes_cli_overrides(tmp_path: Path) -> None:
     """CLI overrides are reflected in the written configuration.yaml."""
-    from vivarium_cluster_tools.dagger.cli import dagger  # noqa: F401 -- pulled by phase 5
+    from vivarium_cluster_tools.dagger.cli import dagger
 
     output_dir = tmp_path / "workflow_output"
     output_dir.mkdir()

@@ -89,6 +89,7 @@ if __name__ == "__main__":
         entry_points="""
             [console_scripts]
             psimulate=vivarium_cluster_tools.psimulate.cli:psimulate
+            dagger=vivarium_cluster_tools.dagger.cli:dagger
             vipin=vivarium_cluster_tools.vipin.cli:vipin
         """,
         install_requires=install_requires,
