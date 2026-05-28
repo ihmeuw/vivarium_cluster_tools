@@ -33,7 +33,7 @@ from vivarium_cluster_tools.dagger.workflow_config.validation import (
     validate_simulation_step,
 )
 from vivarium_cluster_tools.psimulate import COMMANDS, branches
-from vivarium_cluster_tools.psimulate.jobmon_config.workflow import get_task_list
+from vivarium_cluster_tools.psimulate.jobmon_workflow import get_task_list
 from vivarium_cluster_tools.psimulate.jobs import (
     BackupConfiguration,
     build_job_parameters_from_keyspace,

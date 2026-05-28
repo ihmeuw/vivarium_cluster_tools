@@ -19,8 +19,8 @@ from typing import Any
 
 import yaml
 
-from vivarium_cluster_tools.psimulate.cluster.interface import NativeSpecification
-from vivarium_cluster_tools.psimulate.cluster.validation import (
+from vivarium_cluster_tools.core.cluster.interface import NativeSpecification
+from vivarium_cluster_tools.core.cluster.validation import (
     validate_hardware,
     validate_project,
     validate_runtime_and_queue,
@@ -137,7 +137,7 @@ class ResourceConfig:
         return result
 
     def to_native_specification(self, job_name: str) -> NativeSpecification:
-        """Convert to a :class:`~vivarium_cluster_tools.psimulate.cluster.interface.NativeSpecification` for Jobmon task submission.
+        """Convert to a :class:`~vivarium_cluster_tools.core.cluster.interface.NativeSpecification` for Jobmon task submission.
 
         Parameters
         ----------

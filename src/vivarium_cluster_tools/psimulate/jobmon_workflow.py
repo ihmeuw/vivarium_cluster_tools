@@ -1,25 +1,24 @@
 """
-========================
-Jobmon Workflow Builder
-========================
+=========================
+psimulate Jobmon Workflow
+=========================
 
-Build and configure Jobmon workflows for psimulate runs.
+Build the Jobmon workflow for a psimulate ``run`` / ``restart`` / ``expand``
+/ ``load_test`` command: construct one Jobmon task per ``JobParameters``,
+register the task template, and wire them into a single workflow.
 
 """
 
 from __future__ import annotations
 
-import json
-import os
-import subprocess
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from loguru import logger
 
+from vivarium_cluster_tools.core.cluster.interface import NativeSpecification
+from vivarium_cluster_tools.core.jobmon import client
 from vivarium_cluster_tools.psimulate import TASK_RUNNER_MODULE
-from vivarium_cluster_tools.psimulate.cluster.interface import NativeSpecification
-from vivarium_cluster_tools.psimulate.jobmon_config import client
 from vivarium_cluster_tools.psimulate.jobs import JobParameters
 from vivarium_cluster_tools.psimulate.paths import OutputPaths
 from vivarium_cluster_tools.psimulate.results.writing import write_metadata
@@ -28,39 +27,6 @@ if TYPE_CHECKING:
     from jobmon.client.api import Tool
     from jobmon.client.task import Task
     from jobmon.client.workflow import Workflow
-
-
-def resolve_env_prefix(env: str) -> str:
-    """Resolve a conda env name to its absolute filesystem prefix.
-
-    Uses ``CONDA_PREFIX`` directly when *env* matches the active env. For
-    other env names, queries ``conda env list --json`` via ``CONDA_EXE``
-    to find the matching prefix.
-
-    """
-    if env == os.environ.get("CONDA_DEFAULT_ENV"):
-        env_prefix: str | None = os.environ["CONDA_PREFIX"]
-    else:
-        result = subprocess.run(
-            [os.environ["CONDA_EXE"], "env", "list", "--json"],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        env_prefix = next(
-            (
-                str(path)
-                for path in json.loads(result.stdout)["envs"]
-                if Path(path).name == env
-            ),
-            None,
-        )
-    if env_prefix is None:
-        raise RuntimeError(
-            f"Could not resolve conda env {env!r} to a filesystem prefix "
-            "via `conda env list`."
-        )
-    return env_prefix
 
 
 def get_task_list(

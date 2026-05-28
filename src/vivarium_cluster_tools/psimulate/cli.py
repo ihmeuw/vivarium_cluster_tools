@@ -18,10 +18,10 @@ import click
 from loguru import logger
 from vivarium.framework.utilities import handle_exceptions
 
-from vivarium_cluster_tools import cli_tools, logs
-from vivarium_cluster_tools.cli_tools import Decorator
-from vivarium_cluster_tools.psimulate import COMMANDS, cluster, paths, results, runner
-from vivarium_cluster_tools.psimulate.jobmon_config import with_max_attempts, with_max_workers
+from vivarium_cluster_tools.core import cli_tools, cluster, logs
+from vivarium_cluster_tools.core.cli_tools import Decorator
+from vivarium_cluster_tools.core.jobmon import with_max_attempts, with_max_workers
+from vivarium_cluster_tools.psimulate import COMMANDS, paths, results, runner
 from vivarium_cluster_tools.psimulate.worker.load_test_work_horse import (
     get_psimulate_test_dict,
 )

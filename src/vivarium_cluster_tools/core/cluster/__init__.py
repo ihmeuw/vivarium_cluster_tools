@@ -6,7 +6,7 @@ Cluster Interaction
 Tools for interacting with the IHME cluster.
 
 """
-from vivarium_cluster_tools.psimulate.cluster.cli_options import (
+from vivarium_cluster_tools.core.cluster.cli_options import (
     MAX_RUNTIME_DEFAULT,
     PEAK_MEMORY_DEFAULT,
     with_hardware,
@@ -14,11 +14,11 @@ from vivarium_cluster_tools.psimulate.cluster.cli_options import (
     with_project,
     with_queue_and_max_runtime,
 )
-from vivarium_cluster_tools.psimulate.cluster.interface import (
+from vivarium_cluster_tools.core.cluster.interface import (
     NativeSpecification,
     get_workflow_timeout_seconds,
 )
-from vivarium_cluster_tools.psimulate.cluster.validation import (
+from vivarium_cluster_tools.core.cluster.validation import (
     AVAILABLE_HARDWARE,
     QUEUE_MAX_RUNTIME_HOURS,
     VALID_PROJECTS,

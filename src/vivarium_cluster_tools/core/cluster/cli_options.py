@@ -11,8 +11,8 @@ from __future__ import annotations
 
 import click
 
-from vivarium_cluster_tools.cli_tools import CLIFunction
-from vivarium_cluster_tools.psimulate.cluster.validation import (
+from vivarium_cluster_tools.core.cli_tools import CLIFunction
+from vivarium_cluster_tools.core.cluster.validation import (
     AVAILABLE_HARDWARE,
     QUEUE_MAX_RUNTIME_HOURS,
     RUNTIME_FORMAT,

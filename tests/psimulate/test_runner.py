@@ -8,8 +8,8 @@ import yaml
 from click.testing import CliRunner
 from pandas.testing import assert_frame_equal
 
+from vivarium_cluster_tools.core.cluster.interface import NativeSpecification
 from vivarium_cluster_tools.psimulate.cli import psimulate
-from vivarium_cluster_tools.psimulate.cluster.interface import NativeSpecification
 from vivarium_cluster_tools.psimulate.jobs import (
     BackupConfiguration,
     JobParameters,

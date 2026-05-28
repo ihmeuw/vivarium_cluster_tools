@@ -17,7 +17,7 @@ import click
 from loguru import logger
 from vivarium.framework.utilities import handle_exceptions
 
-from vivarium_cluster_tools import cli_tools, logs
+from vivarium_cluster_tools.core import cli_tools, logs
 from vivarium_cluster_tools.dagger import runner
 from vivarium_cluster_tools.dagger.workflow_config.parsing import load_workflow_config
 

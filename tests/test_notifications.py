@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, call, patch
 
 import pytest
 
-from vivarium_cluster_tools.notifications import send_slack_notification
+from vivarium_cluster_tools.core.notifications import send_slack_notification
 
 BOT_TOKEN = "xoxb-test-token"
 MONITORING_URL = "https://jobmon.example.com/#/workflow/123"
@@ -43,7 +43,7 @@ def test_no_token_skips_notification(monkeypatch: pytest.MonkeyPatch) -> None:
     """When PSIMULATE_SLACK_BOT_TOKEN is unset, no Slack API calls are made."""
     monkeypatch.delenv("PSIMULATE_SLACK_BOT_TOKEN", raising=False)
     with patch(
-        "vivarium_cluster_tools.notifications.requests.post",
+        "vivarium_cluster_tools.core.notifications.requests.post",
     ) as mock_post:
         send_slack_notification(
             workflow_name=WORKFLOW_NAME, status="D", command_label=COMMAND_LABEL
@@ -58,7 +58,7 @@ def test_notification_on_workflow_success(monkeypatch: pytest.MonkeyPatch) -> No
 
     mock_post = _mock_slack_responses()
     with patch(
-        "vivarium_cluster_tools.notifications.requests.post",
+        "vivarium_cluster_tools.core.notifications.requests.post",
         mock_post,
     ):
         send_slack_notification(
@@ -104,7 +104,7 @@ def test_notification_on_workflow_failure(monkeypatch: pytest.MonkeyPatch) -> No
 
     mock_post = _mock_slack_responses()
     with patch(
-        "vivarium_cluster_tools.notifications.requests.post",
+        "vivarium_cluster_tools.core.notifications.requests.post",
         mock_post,
     ):
         send_slack_notification(

@@ -782,7 +782,7 @@ class TestSimulationStep:
         Jobmon TaskTemplates so their ``create_tasks`` calls don't collide."""
         _utilities = "vivarium_cluster_tools.dagger.workflow_config.utilities"
         _interface = "vivarium_cluster_tools.dagger.workflow_config.interface"
-        _wf = "vivarium_cluster_tools.psimulate.jobmon_config.workflow"
+        _wf = "vivarium_cluster_tools.psimulate.jobmon_workflow"
         with (
             patch(f"{_utilities}.resolve_env_prefix", return_value="/envs/test_env"),
             patch(f"{_interface}.get_or_create_build_timestamp", return_value="ts"),

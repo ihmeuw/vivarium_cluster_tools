@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Callable
 
+from vivarium_cluster_tools.core.jobmon import client
 from vivarium_cluster_tools.dagger.workflow_config.config import WorkflowConfig
 from vivarium_cluster_tools.dagger.workflow_config.interface import (
     get_bash_step_tasks,
@@ -20,7 +21,6 @@ from vivarium_cluster_tools.dagger.workflow_config.interface import (
     get_simulation_step_tasks,
 )
 from vivarium_cluster_tools.dagger.workflow_config.utilities import is_resume
-from vivarium_cluster_tools.psimulate.jobmon_config import client
 
 if TYPE_CHECKING:
     from jobmon.client.task import Task

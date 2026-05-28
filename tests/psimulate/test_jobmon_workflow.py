@@ -11,10 +11,7 @@ from pytest_mock import MockerFixture
 
 from tests.psimulate.conftest import make_job_parameters
 from vivarium_cluster_tools.psimulate import TASK_RUNNER_MODULE
-from vivarium_cluster_tools.psimulate.jobmon_config.workflow import (
-    build_workflow,
-    get_task_list,
-)
+from vivarium_cluster_tools.psimulate.jobmon_workflow import build_workflow, get_task_list
 from vivarium_cluster_tools.psimulate.jobs import BackupConfiguration, JobParameters
 from vivarium_cluster_tools.psimulate.paths import OutputPaths
 
@@ -24,15 +21,13 @@ FROZEN_TIME = datetime(2025, 1, 1)
 @pytest.fixture()
 def mock_tool_cls(mocker: MockerFixture) -> MagicMock:
     """Patch the Jobmon ``Tool`` class at the façade's import site."""
-    return mocker.patch("vivarium_cluster_tools.psimulate.jobmon_config.client.Tool")
+    return mocker.patch("vivarium_cluster_tools.core.jobmon.client.Tool")
 
 
 @pytest.fixture()
 def mock_write_metadata(mocker: MockerFixture) -> MagicMock:
     """Patch ``write_metadata`` at its import site."""
-    return mocker.patch(
-        "vivarium_cluster_tools.psimulate.jobmon_config.workflow.write_metadata"
-    )
+    return mocker.patch("vivarium_cluster_tools.psimulate.jobmon_workflow.write_metadata")
 
 
 @pytest.fixture()
