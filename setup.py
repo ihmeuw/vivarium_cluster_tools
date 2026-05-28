@@ -49,6 +49,7 @@ if __name__ == "__main__":
         "psutil",
         "layered_config_tree",
         "pytest-xdist",
+        "sphinx>=5.3,<9.0.0",
     ]
     # TODO: Move this to the install requires if we move VCT to stash.
     if not os.environ.get("READTHEDOCS"):
