@@ -11,7 +11,7 @@ fields, unsupported ``args`` keys, ``command``/``type`` conflicts) inline.
 Also exposes workflow-level entry points: :func:`parse_step_from_yaml`
 and :func:`load_workflow_config`. ParsedStep -> YAML dict serialization
 lives in
-:mod:`vivarium_cluster_tools.psimulate.workflow_config.serialization`.
+:mod:`vivarium_cluster_tools.dagger.workflow_config.serialization`.
 
 """
 
@@ -20,7 +20,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Callable, cast
 
-from vivarium_cluster_tools.psimulate.workflow_config.config import (
+from vivarium_cluster_tools.dagger.workflow_config.config import (
     DEFAULT_MAX_ATTEMPTS,
     ParsedStep,
     ResourceConfig,

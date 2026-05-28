@@ -26,7 +26,7 @@ def test_write_workflow_configuration_writes_round_trippable_yaml(tmp_path: Path
     output_dir = tmp_path / "workflow_output"
     output_dir.mkdir()
 
-    from vivarium_cluster_tools.psimulate.workflow_config.config import (
+    from vivarium_cluster_tools.dagger.workflow_config.config import (
         ParsedStep,
         ResourceConfig,
         WorkflowConfig,

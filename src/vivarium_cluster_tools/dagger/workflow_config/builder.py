@@ -11,16 +11,16 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Callable
 
-from vivarium_cluster_tools.psimulate.jobmon_config import client
-from vivarium_cluster_tools.psimulate.workflow_config.config import WorkflowConfig
-from vivarium_cluster_tools.psimulate.workflow_config.interface import (
+from vivarium_cluster_tools.dagger.workflow_config.config import WorkflowConfig
+from vivarium_cluster_tools.dagger.workflow_config.interface import (
     get_bash_step_tasks,
     get_notebook_step_tasks,
     get_pytest_step_tasks,
     get_python_step_tasks,
     get_simulation_step_tasks,
 )
-from vivarium_cluster_tools.psimulate.workflow_config.utilities import is_resume
+from vivarium_cluster_tools.dagger.workflow_config.utilities import is_resume
+from vivarium_cluster_tools.psimulate.jobmon_config import client
 
 if TYPE_CHECKING:
     from jobmon.client.task import Task
@@ -36,7 +36,7 @@ STEP_TYPE_API_FNS: dict[str, Callable[..., list["Task"]]] = {
 }
 """Maps each YAML ``step_type`` to the API function that builds its tasks.
 Paired with the dispatch tables in
-:mod:`vivarium_cluster_tools.psimulate.workflow_config.parsing`."""
+:mod:`vivarium_cluster_tools.dagger.workflow_config.parsing`."""
 
 
 def build_workflow_from_config(config: WorkflowConfig, workflow_args: str) -> Workflow:

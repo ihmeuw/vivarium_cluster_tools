@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from tests.psimulate.workflow_config.utilities import (
+from tests.dagger.workflow_config.utilities import (
     make_notebook_step_dict,
     make_pytest_step_dict,
     make_python_step_dict,
@@ -16,19 +16,19 @@ from tests.psimulate.workflow_config.utilities import (
     make_workflow_dict,
     write_workflow_yaml,
 )
-from vivarium_cluster_tools.psimulate.workflow_config.config import (
+from vivarium_cluster_tools.dagger.workflow_config.config import (
     ParsedStep,
     ResourceConfig,
     WorkflowConfig,
 )
-from vivarium_cluster_tools.psimulate.workflow_config.interface import (
+from vivarium_cluster_tools.dagger.workflow_config.interface import (
     get_bash_step_tasks,
     get_notebook_step_tasks,
     get_pytest_step_tasks,
     get_python_step_tasks,
     get_simulation_step_tasks,
 )
-from vivarium_cluster_tools.psimulate.workflow_config.parsing import (
+from vivarium_cluster_tools.dagger.workflow_config.parsing import (
     load_workflow_config,
     parse_bash_step_from_yaml,
     parse_notebook_step_from_yaml,
@@ -37,14 +37,14 @@ from vivarium_cluster_tools.psimulate.workflow_config.parsing import (
     parse_simulation_step_from_yaml,
     parse_step_from_yaml,
 )
-from vivarium_cluster_tools.psimulate.workflow_config.serialization import (
+from vivarium_cluster_tools.dagger.workflow_config.serialization import (
     serialize_bash_step_to_yaml,
     serialize_notebook_step_to_yaml,
     serialize_pytest_step_to_yaml,
     serialize_python_step_to_yaml,
     serialize_simulation_step_to_yaml,
 )
-from vivarium_cluster_tools.psimulate.workflow_config.validation import (
+from vivarium_cluster_tools.dagger.workflow_config.validation import (
     validate_notebook_step,
     validate_pytest_step,
     validate_python_step,
@@ -417,7 +417,7 @@ def _captured_command(api_fn: Any, /, **api_kwargs: Any) -> str:
     ``test_build_command_task_creates_single_task``) so callers can assert
     on the logical command.
     """
-    _utilities = "vivarium_cluster_tools.psimulate.workflow_config.utilities"
+    _utilities = "vivarium_cluster_tools.dagger.workflow_config.utilities"
     with patch(f"{_utilities}.resolve_env_prefix", return_value="/path/to/envs/my_env"):
         mock_tool = MagicMock()
         mock_template = MagicMock()
@@ -466,7 +466,7 @@ class TestBashStep:
 
     def test_build_command_task_creates_single_task(self) -> None:
         """get_bash_step_tasks wires the command into a single Jobmon task."""
-        _utilities = "vivarium_cluster_tools.psimulate.workflow_config.utilities"
+        _utilities = "vivarium_cluster_tools.dagger.workflow_config.utilities"
         mock_tool = MagicMock()
         mock_template = MagicMock()
         mock_task = MagicMock()
@@ -502,7 +502,7 @@ class TestBashStep:
     def test_build_command_task_includes_env_prefix_in_node_args(self) -> None:
         """env_prefix must be a node_arg so two steps with the same command
         but different envs produce distinct Jobmon task hashes."""
-        _utilities = "vivarium_cluster_tools.psimulate.workflow_config.utilities"
+        _utilities = "vivarium_cluster_tools.dagger.workflow_config.utilities"
         mock_tool = MagicMock()
         with patch(f"{_utilities}.resolve_env_prefix", return_value="/path/to/envs/my_env"):
             get_bash_step_tasks(
@@ -671,8 +671,8 @@ class TestSimulationStep:
         valid_artifact_file: Path,
     ) -> None:
         """Verify get_simulation_step_tasks passes the right arguments through the pipeline."""
-        _utilities = "vivarium_cluster_tools.psimulate.workflow_config.utilities"
-        _interface = "vivarium_cluster_tools.psimulate.workflow_config.interface"
+        _utilities = "vivarium_cluster_tools.dagger.workflow_config.utilities"
+        _interface = "vivarium_cluster_tools.dagger.workflow_config.interface"
         with (
             patch(f"{_utilities}.resolve_env_prefix", return_value="/envs/test_env"),
             patch(
@@ -780,8 +780,8 @@ class TestSimulationStep:
     ) -> None:
         """Two simulation steps in one workflow must register distinct
         Jobmon TaskTemplates so their ``create_tasks`` calls don't collide."""
-        _utilities = "vivarium_cluster_tools.psimulate.workflow_config.utilities"
-        _interface = "vivarium_cluster_tools.psimulate.workflow_config.interface"
+        _utilities = "vivarium_cluster_tools.dagger.workflow_config.utilities"
+        _interface = "vivarium_cluster_tools.dagger.workflow_config.interface"
         _wf = "vivarium_cluster_tools.psimulate.jobmon_config.workflow"
         with (
             patch(f"{_utilities}.resolve_env_prefix", return_value="/envs/test_env"),

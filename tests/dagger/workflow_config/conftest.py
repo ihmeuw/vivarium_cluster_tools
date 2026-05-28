@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 
-from tests.psimulate.workflow_config.utilities import (
+from tests.dagger.workflow_config.utilities import (
     make_simulation_step_dict,
     make_workflow_dict,
     write_workflow_yaml,
