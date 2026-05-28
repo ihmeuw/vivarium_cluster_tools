@@ -12,7 +12,6 @@ Command line interface for ``dagger``.
 """
 
 from pathlib import Path
-from typing import Any
 
 import click
 from loguru import logger
@@ -84,8 +83,15 @@ def dagger() -> None:
 @cli_tools.with_verbose_and_pdb
 def run(
     config_path: Path,
+    name: str | None,
+    project: str | None,
+    queue: str | None,
     output_directory: Path | None,
-    **options: Any,
+    default_environment: str | None,
+    max_attempts: int | None,
+    resume: bool,
+    verbose: int,
+    with_debugger: bool,
 ) -> None:
     """Run a multi-step Jobmon workflow.
 
@@ -96,22 +102,22 @@ def run(
     Every top-level configuration value other than ``steps`` can be
     overridden from the command line via the corresponding flag.
     """
-    logs.configure_main_process_logging_to_terminal(options["verbose"])
+    logs.configure_main_process_logging_to_terminal(verbose)
 
     workflow_config = load_workflow_config(
         config_path,
-        name=options.get("name"),
-        project=options.get("project"),
-        queue=options.get("queue"),
+        name=name,
+        project=project,
+        queue=queue,
         output_directory=output_directory,
-        default_environment=options.get("default_environment"),
-        max_attempts=options.get("max_attempts"),
+        default_environment=default_environment,
+        max_attempts=max_attempts,
     )
 
-    main = handle_exceptions(runner.workflow_main, logger, options["with_debugger"])
+    main = handle_exceptions(runner.workflow_main, logger, with_debugger)
 
     main(
         workflow_config=workflow_config,
-        verbose=options["verbose"],
-        resume=options["resume"],
+        verbose=verbose,
+        resume=resume,
     )

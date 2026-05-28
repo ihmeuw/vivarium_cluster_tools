@@ -2,14 +2,57 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
+import pytest
 import yaml
 from click.testing import CliRunner
 
-from vivarium_cluster_tools.dagger.runner import write_workflow_configuration
+from vivarium_cluster_tools.dagger.runner import workflow_main, write_workflow_configuration
+from vivarium_cluster_tools.dagger.workflow_config.config import (
+    ParsedStep,
+    ResourceConfig,
+    WorkflowConfig,
+)
+from vivarium_cluster_tools.dagger.workflow_config.utilities import WORKFLOW_ARGS_FILENAME
+
+_RUNNER = "vivarium_cluster_tools.dagger.runner"
+
+
+@pytest.fixture
+def workflow_config(tmp_path: Path) -> WorkflowConfig:
+    """Minimal valid WorkflowConfig for runner tests."""
+    output_dir = tmp_path / "workflow_output"
+    output_dir.mkdir()
+    step_kwargs: dict[str, Any] = {
+        "name": "test_step",
+        "command": "echo test",
+        "resources": ResourceConfig(
+            memory_gb=4,
+            runtime="01:00:00",
+            project="proj_simscience",
+            queue="all.q",
+        ),
+        "output_directory": output_dir,
+        "environment": None,
+    }
+    return WorkflowConfig(
+        name="test_workflow",
+        project="proj_simscience",
+        queue="all.q",
+        output_directory=output_dir,
+        default_environment=None,
+        steps=[
+            ParsedStep(
+                step_type="bash",
+                name="test_step",
+                api_kwargs=step_kwargs,
+            )
+        ],
+    )
 
 
 def _read_configuration_yaml(output_root: Path) -> dict[str, Any]:
@@ -126,3 +169,78 @@ def test_workflow_configuration_includes_cli_overrides(tmp_path: Path) -> None:
     config = _read_configuration_yaml(output_dir)
     assert config["workflow"]["project"] == "proj_simscience_prod"
     assert config["workflow"]["queue"] == "long.q"
+
+
+@patch(f"{_RUNNER}.get_workflow_timeout_seconds", return_value=3600)
+@patch(f"{_RUNNER}.send_slack_notification")
+@patch(f"{_RUNNER}.client.bind_and_run_workflow")
+@patch(f"{_RUNNER}.build_workflow_from_config")
+def test_workflow_main_fresh_run_generates_workflow_args(
+    mock_build: Any,
+    mock_bind_and_run: Any,
+    mock_slack: Any,
+    mock_timeout: Any,
+    workflow_config: WorkflowConfig,
+) -> None:
+    """A fresh run generates a timestamped workflow_args, persists it to disk,
+    forwards it to the builder, and tags the Slack notification as "dagger run"."""
+    mock_bind_and_run.return_value = ("D", "https://jobmon.example/wf/1")
+
+    workflow_main(workflow_config=workflow_config, resume=False)
+
+    workflow_args = mock_build.call_args.kwargs["workflow_args"]
+    pattern = rf"^workflow_{workflow_config.name}_[0-9a-f]{{8}}_\d{{8}}_\d{{6}}$"
+    assert re.match(pattern, workflow_args), workflow_args
+
+    args_file = workflow_config.output_directory / WORKFLOW_ARGS_FILENAME
+    assert args_file.read_text() == workflow_args
+
+    slack_kwargs = mock_slack.call_args.kwargs
+    assert slack_kwargs["command_label"] == "dagger run"
+    assert slack_kwargs["status"] == "D"
+
+
+@patch(f"{_RUNNER}.get_workflow_timeout_seconds", return_value=3600)
+@patch(f"{_RUNNER}.send_slack_notification")
+@patch(f"{_RUNNER}.client.bind_and_run_workflow")
+@patch(f"{_RUNNER}.build_workflow_from_config")
+def test_workflow_main_resume_reads_existing_workflow_args(
+    mock_build: Any,
+    mock_bind_and_run: Any,
+    mock_slack: Any,
+    mock_timeout: Any,
+    workflow_config: WorkflowConfig,
+) -> None:
+    """Resume reads the prior workflow_args from disk and forwards it to the
+    builder; bind_and_run_workflow is invoked with resume=True."""
+    prior_args = "workflow_test_workflow_abcd1234_20260101_120000"
+    (workflow_config.output_directory / WORKFLOW_ARGS_FILENAME).write_text(prior_args)
+    mock_bind_and_run.return_value = ("D", None)
+
+    workflow_main(workflow_config=workflow_config, resume=True)
+
+    assert mock_build.call_args.kwargs["workflow_args"] == prior_args
+    assert mock_bind_and_run.call_args.kwargs["resume"] is True
+
+
+@patch(f"{_RUNNER}.get_workflow_timeout_seconds", return_value=3600)
+@patch(f"{_RUNNER}.send_slack_notification")
+@patch(f"{_RUNNER}.client.bind_and_run_workflow")
+@patch(f"{_RUNNER}.build_workflow_from_config")
+def test_workflow_main_raises_when_status_not_done(
+    mock_build: Any,
+    mock_bind_and_run: Any,
+    mock_slack: Any,
+    mock_timeout: Any,
+    workflow_config: WorkflowConfig,
+) -> None:
+    """A non-DONE workflow status raises RuntimeError, and the Slack
+    notification still fires first with the failure status."""
+    mock_bind_and_run.return_value = ("F", "https://jobmon.example/wf/2")
+
+    with pytest.raises(RuntimeError, match="'F'"):
+        workflow_main(workflow_config=workflow_config, resume=False)
+
+    slack_kwargs = mock_slack.call_args.kwargs
+    assert slack_kwargs["status"] == "F"
+    assert slack_kwargs["command_label"] == "dagger run"

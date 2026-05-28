@@ -324,7 +324,10 @@ def main(
     )
 
     wf_status, monitoring_url = client.bind_and_run_workflow(
-        workflow, output_paths.root, resume=restart
+        workflow,
+        output_paths.root,
+        resume=restart,
+        seconds_until_timeout=cluster.get_workflow_timeout_seconds(),
     )
 
     send_slack_notification(

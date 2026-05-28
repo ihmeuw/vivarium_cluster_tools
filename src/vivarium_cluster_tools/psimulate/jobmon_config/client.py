@@ -27,8 +27,6 @@ from jobmon.client.workflow import Workflow
 from jobmon.core.configuration import JobmonConfig
 from loguru import logger
 
-from vivarium_cluster_tools.psimulate.cluster.interface import get_workflow_timeout_seconds
-
 __all__ = [
     "JOBMON_STATUS_DONE",
     "Task",
@@ -236,17 +234,13 @@ def bind_and_run_workflow(
     output_root: Path,
     *,
     resume: bool = False,
+    seconds_until_timeout: int | None = None,
 ) -> tuple[str, str | None]:
     """Bind a Jobmon workflow, log the monitoring URL, and run it.
 
     Combines :func:`bind_workflow`, :func:`get_monitoring_url`, and
     :func:`run_workflow` into the bind→log→run sequence both the
     simulation and standalone-workflow runners share.
-
-    The workflow timeout is matched to the remaining time on the SLURM
-    runner node (via
-    :func:`~vivarium_cluster_tools.psimulate.cluster.interface.get_workflow_timeout_seconds`)
-    so Jobmon doesn't outlive or underuse the allocation.
 
     Parameters
     ----------
@@ -256,6 +250,11 @@ def bind_and_run_workflow(
         Output directory to mention in log messages.
     resume
         Whether to resume a previously started workflow.
+    seconds_until_timeout
+        Optional cap on how long Jobmon should run the workflow before
+        timing out. Callers running under a SLURM allocation typically
+        pass the remaining wall-clock time so Jobmon doesn't outlive (or
+        underuse) the allocation.
 
     Returns
     -------
@@ -274,6 +273,6 @@ def bind_and_run_workflow(
     wf_status = run_workflow(
         workflow,
         resume=resume,
-        seconds_until_timeout=get_workflow_timeout_seconds(),
+        seconds_until_timeout=seconds_until_timeout,
     )
     return wf_status, monitoring_url

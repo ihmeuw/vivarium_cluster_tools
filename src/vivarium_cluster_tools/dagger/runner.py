@@ -25,6 +25,7 @@ from vivarium_cluster_tools.dagger.workflow_config.serialization import (
 )
 from vivarium_cluster_tools.dagger.workflow_config.utilities import WORKFLOW_ARGS_FILENAME
 from vivarium_cluster_tools.notifications import send_slack_notification
+from vivarium_cluster_tools.psimulate.cluster.interface import get_workflow_timeout_seconds
 from vivarium_cluster_tools.psimulate.jobmon_config import client
 
 
@@ -73,7 +74,10 @@ def workflow_main(
     workflow_args_path.write_text(workflow_args)
 
     wf_status, monitoring_url = client.bind_and_run_workflow(
-        workflow, output_root, resume=resume
+        workflow,
+        output_root,
+        resume=resume,
+        seconds_until_timeout=get_workflow_timeout_seconds(),
     )
 
     send_slack_notification(
