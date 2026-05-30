@@ -10,22 +10,22 @@ from unittest.mock import MagicMock
 import pytest
 from pytest_mock import MockerFixture
 
-from vivarium_cluster_tools.dagger.workflow_config.builder import STEP_TYPE_API_FNS
-from vivarium_cluster_tools.dagger.workflow_config.config import ResourceConfig
-from vivarium_cluster_tools.dagger.workflow_config.interface import (
+from vivarium_cluster_tools.dagger.config.builder import STEP_TYPE_API_FNS
+from vivarium_cluster_tools.dagger.config.config import ResourceConfig
+from vivarium_cluster_tools.dagger.config.interface import (
     get_bash_step_tasks,
     get_notebook_step_tasks,
     get_pytest_step_tasks,
     get_python_step_tasks,
     get_simulation_step_tasks,
 )
-from vivarium_cluster_tools.dagger.workflow_config.parsing import STEP_TYPE_YAML_PARSERS
-from vivarium_cluster_tools.dagger.workflow_config.utilities import (
+from vivarium_cluster_tools.dagger.config.parsing import STEP_TYPE_YAML_PARSERS
+from vivarium_cluster_tools.dagger.config.utilities import (
     BUILD_TIMESTAMP_FILENAME,
     get_or_create_build_timestamp,
     resolve_step_env_prefix,
 )
-from vivarium_cluster_tools.dagger.workflow_config.validation import (
+from vivarium_cluster_tools.dagger.config.validation import (
     validate_bash_step,
     validate_notebook_step,
     validate_pytest_step,
@@ -51,7 +51,7 @@ def patch_get_single_command_task(mocker: MockerFixture) -> MagicMock:
     command string and env_prefix without invoking Jobmon.
     """
     return mocker.patch(
-        "vivarium_cluster_tools.dagger.workflow_config.interface.get_single_command_task",
+        "vivarium_cluster_tools.dagger.config.interface.get_single_command_task",
         return_value=_TASKS,
     )
 
@@ -72,12 +72,12 @@ def patch_simulation_internals(mocker: MockerFixture) -> dict[str, MagicMock]:
     output_paths.metadata_dir = Path("/out/metadata")
     output_paths.results_dir = Path("/out/results")
     output_paths_cls = mocker.patch(
-        "vivarium_cluster_tools.dagger.workflow_config.interface.OutputPaths"
+        "vivarium_cluster_tools.dagger.config.interface.OutputPaths"
     )
     output_paths_cls.from_entry_point_args.return_value = output_paths
 
     keyspace_cls = mocker.patch(
-        "vivarium_cluster_tools.dagger.workflow_config.interface.branches.Keyspace"
+        "vivarium_cluster_tools.dagger.config.interface.branches.Keyspace"
     )
     keyspace_cls.from_branch_configuration.return_value = MagicMock()
 
@@ -86,12 +86,12 @@ def patch_simulation_internals(mocker: MockerFixture) -> dict[str, MagicMock]:
         "output_paths": output_paths,
         "Keyspace": keyspace_cls,
         "build_job_parameters_from_keyspace": mocker.patch(
-            "vivarium_cluster_tools.dagger.workflow_config.interface."
+            "vivarium_cluster_tools.dagger.config.interface."
             "build_job_parameters_from_keyspace",
             return_value=[MagicMock()],
         ),
         "get_task_list": mocker.patch(
-            "vivarium_cluster_tools.dagger.workflow_config.interface.get_task_list",
+            "vivarium_cluster_tools.dagger.config.interface.get_task_list",
             return_value=_TASKS,
         ),
     }
@@ -102,7 +102,7 @@ def patch_resolve_env_prefix(mocker: MockerFixture) -> MagicMock:
     """Stub the conda lookup so API tests can assert on the resolved prefix
     without invoking ``conda env list``."""
     return mocker.patch(
-        "vivarium_cluster_tools.dagger.workflow_config.utilities.resolve_env_prefix",
+        "vivarium_cluster_tools.dagger.config.utilities.resolve_env_prefix",
         side_effect=lambda env: f"/envs/{env}",
     )
 
@@ -112,7 +112,7 @@ def patch_build_timestamp(mocker: MockerFixture) -> MagicMock:
     """Stub the build-timestamp helper so API tests don't touch the
     filesystem and can assert on the timestamp used."""
     return mocker.patch(
-        "vivarium_cluster_tools.dagger.workflow_config.interface.get_or_create_build_timestamp",
+        "vivarium_cluster_tools.dagger.config.interface.get_or_create_build_timestamp",
         return_value=_BUILD_TIMESTAMP,
     )
 
@@ -337,7 +337,7 @@ class TestResolveStepEnvPrefix:
     def patch_resolve_env_prefix(self, mocker: MockerFixture) -> None:
         """Stub out the conda lookup so tests exercise only the fallback chain."""
         mocker.patch(
-            "vivarium_cluster_tools.dagger.workflow_config.utilities.resolve_env_prefix",
+            "vivarium_cluster_tools.dagger.config.utilities.resolve_env_prefix",
             side_effect=lambda env: f"/envs/{env}",
         )
 

@@ -8,8 +8,8 @@ from unittest.mock import MagicMock
 import pytest
 from pytest_mock import MockerFixture
 
-from vivarium_cluster_tools.dagger.workflow_config.builder import build_workflow_from_config
-from vivarium_cluster_tools.dagger.workflow_config.config import (
+from vivarium_cluster_tools.dagger.config.builder import build_workflow_from_config
+from vivarium_cluster_tools.dagger.config.config import (
     ParsedStep,
     ResourceConfig,
     WorkflowConfig,
@@ -76,7 +76,7 @@ def mock_resolve_env_prefix(mocker: MockerFixture) -> MagicMock:
     passed through, without invoking the real ``conda env list`` lookup.
     """
     return mocker.patch(
-        "vivarium_cluster_tools.dagger.workflow_config.utilities.resolve_env_prefix",
+        "vivarium_cluster_tools.dagger.config.utilities.resolve_env_prefix",
         side_effect=lambda env: env,
     )
 
@@ -90,11 +90,11 @@ def mock_build_timestamp(mocker: MockerFixture) -> str:
     """
     ts = "2026_04_24_10_00_00"
     mocker.patch(
-        "vivarium_cluster_tools.dagger.workflow_config.interface.get_or_create_build_timestamp",
+        "vivarium_cluster_tools.dagger.config.interface.get_or_create_build_timestamp",
         return_value=ts,
     )
     mocker.patch(
-        "vivarium_cluster_tools.dagger.workflow_config.builder.is_resume",
+        "vivarium_cluster_tools.dagger.config.builder.is_resume",
         return_value=False,
     )
     return ts

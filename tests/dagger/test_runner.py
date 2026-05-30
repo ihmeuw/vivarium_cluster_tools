@@ -12,12 +12,12 @@ import yaml
 from click.testing import CliRunner
 
 from vivarium_cluster_tools.dagger.runner import workflow_main, write_workflow_configuration
-from vivarium_cluster_tools.dagger.workflow_config.config import (
+from vivarium_cluster_tools.dagger.config.config import (
     ParsedStep,
     ResourceConfig,
     WorkflowConfig,
 )
-from vivarium_cluster_tools.dagger.workflow_config.utilities import WORKFLOW_ARGS_FILENAME
+from vivarium_cluster_tools.dagger.config.utilities import WORKFLOW_ARGS_FILENAME
 
 _RUNNER = "vivarium_cluster_tools.dagger.runner"
 
@@ -69,7 +69,7 @@ def test_write_workflow_configuration_writes_round_trippable_yaml(tmp_path: Path
     output_dir = tmp_path / "workflow_output"
     output_dir.mkdir()
 
-    from vivarium_cluster_tools.dagger.workflow_config.config import (
+    from vivarium_cluster_tools.dagger.config.config import (
         ParsedStep,
         ResourceConfig,
         WorkflowConfig,

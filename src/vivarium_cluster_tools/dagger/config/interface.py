@@ -15,17 +15,17 @@ import shlex
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from vivarium_cluster_tools.dagger.workflow_config.config import (
+from vivarium_cluster_tools.dagger.config.config import (
     DEFAULT_BACKUP_FREQ_SECONDS,
     ResourceConfig,
 )
-from vivarium_cluster_tools.dagger.workflow_config.utilities import (
+from vivarium_cluster_tools.dagger.config.utilities import (
     ensure_output_directory_exists,
     get_or_create_build_timestamp,
     get_single_command_task,
     resolve_step_env_prefix,
 )
-from vivarium_cluster_tools.dagger.workflow_config.validation import (
+from vivarium_cluster_tools.dagger.config.validation import (
     validate_bash_step,
     validate_notebook_step,
     validate_pytest_step,

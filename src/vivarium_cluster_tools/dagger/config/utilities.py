@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING
 
 from vivarium_cluster_tools.core.jobmon import client
 from vivarium_cluster_tools.core.jobmon.env import resolve_env_prefix
-from vivarium_cluster_tools.dagger.workflow_config.config import ResourceConfig
+from vivarium_cluster_tools.dagger.config.config import ResourceConfig
 
 if TYPE_CHECKING:
     from jobmon.client.api import Tool

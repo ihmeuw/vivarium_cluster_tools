@@ -95,7 +95,7 @@ def create_task(
 
     The ``env_prefix`` and ``command`` kwargs match the template's
     ``node_args``; see :func:`make_task_template` and the call site in
-    :func:`~vivarium_cluster_tools.dagger.workflow_config.utilities.get_single_command_task`.
+    :func:`~vivarium_cluster_tools.dagger.config.utilities.get_single_command_task`.
     """
     return template.create_task(
         name=name,

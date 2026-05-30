@@ -6,7 +6,7 @@ Workflow Configuration
 Workflow configuration dataclasses (``ResourceConfig``, ``ParsedStep``,
 ``WorkflowConfig``) and workflow-level YAML structural validation. All
 step-level YAML I/O lives in
-:mod:`vivarium_cluster_tools.dagger.workflow_config.parsing`.
+:mod:`vivarium_cluster_tools.dagger.config.parsing`.
 
 """
 
@@ -32,7 +32,7 @@ REQUIRED_WORKFLOW_FIELDS = {"steps"}
 ``name``, ``project``, ``queue``, and ``output_directory`` are each
 required overall but may be provided via either the YAML or a CLI
 override; their presence is validated by
-:func:`~vivarium_cluster_tools.dagger.workflow_config.parsing.load_workflow_config`
+:func:`~vivarium_cluster_tools.dagger.config.parsing.load_workflow_config`
 rather than by :meth:`WorkflowConfig.parse_yaml_file`."""
 
 DEFAULT_MAX_ATTEMPTS = 2
@@ -166,7 +166,7 @@ class ParsedStep:
     """A parsed workflow step ready to be passed to an interface API function.
 
     Produced by
-    :func:`~vivarium_cluster_tools.dagger.workflow_config.parsing.parse_step_from_yaml`.
+    :func:`~vivarium_cluster_tools.dagger.config.parsing.parse_step_from_yaml`.
     Holds the *inputs* to the matching ``get_*_step_tasks`` function (in
     ``api_kwargs``) plus the step type tag used to dispatch task building
     and YAML serialization.

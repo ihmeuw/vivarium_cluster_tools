@@ -16,11 +16,11 @@ import re
 from pathlib import Path
 from typing import Any
 
-from vivarium_cluster_tools.dagger.workflow_config.config import (
+from vivarium_cluster_tools.dagger.config.config import (
     DEFAULT_BACKUP_FREQ_SECONDS,
     ResourceConfig,
 )
-from vivarium_cluster_tools.dagger.workflow_config.utilities import (
+from vivarium_cluster_tools.dagger.config.utilities import (
     check_scalar,
     validate_scalar_dict,
 )
@@ -71,7 +71,7 @@ def validate_bash_step(
     command: str,
     environment: str | None = None,
 ) -> None:
-    """Validate kwargs for :func:`~vivarium_cluster_tools.dagger.workflow_config.interface.get_bash_step_tasks`."""
+    """Validate kwargs for :func:`~vivarium_cluster_tools.dagger.config.interface.get_bash_step_tasks`."""
     _validate_common(name, resources)
     if not command:
         raise ValueError(f"Step '{name}': 'command' is required.")
@@ -88,7 +88,7 @@ def validate_simulation_step(
     backup_freq: float | None = DEFAULT_BACKUP_FREQ_SECONDS,
     sim_verbosity: int = 0,
 ) -> None:
-    """Validate kwargs for :func:`~vivarium_cluster_tools.dagger.workflow_config.interface.get_simulation_step_tasks`."""
+    """Validate kwargs for :func:`~vivarium_cluster_tools.dagger.config.interface.get_simulation_step_tasks`."""
     _validate_common(name, resources)
     if not model_specification:
         raise ValueError(f"Step '{name}': simulation type requires 'model_specification'.")
@@ -109,7 +109,7 @@ def validate_pytest_step(
     k: str | None = None,
     runslow: bool = False,
 ) -> None:
-    """Validate kwargs for :func:`~vivarium_cluster_tools.dagger.workflow_config.interface.get_pytest_step_tasks`."""
+    """Validate kwargs for :func:`~vivarium_cluster_tools.dagger.config.interface.get_pytest_step_tasks`."""
     _validate_common(name, resources)
     if not path and not k:
         raise ValueError(
@@ -129,7 +129,7 @@ def validate_python_step(
     positional_args: list[Any] | None = None,
     keyword_args: dict[str, Any] | None = None,
 ) -> None:
-    """Validate kwargs for :func:`~vivarium_cluster_tools.dagger.workflow_config.interface.get_python_step_tasks`."""
+    """Validate kwargs for :func:`~vivarium_cluster_tools.dagger.config.interface.get_python_step_tasks`."""
     _validate_common(name, resources)
     if not path:
         raise ValueError(f"Step '{name}': python type requires 'path' in args.")
@@ -158,7 +158,7 @@ def validate_notebook_step(
     parameters: dict[str, Any] | None = None,
     cwd: Path | None = None,
 ) -> None:
-    """Validate kwargs for :func:`~vivarium_cluster_tools.dagger.workflow_config.interface.get_notebook_step_tasks`."""
+    """Validate kwargs for :func:`~vivarium_cluster_tools.dagger.config.interface.get_notebook_step_tasks`."""
     _validate_common(name, resources)
     if not str(path).endswith(".ipynb"):
         raise ValueError(f"Step '{name}': 'path' must end with .ipynb, got {path!r}.")

@@ -21,12 +21,12 @@ from loguru import logger
 from vivarium_cluster_tools.core.cluster.interface import get_workflow_timeout_seconds
 from vivarium_cluster_tools.core.jobmon import client
 from vivarium_cluster_tools.core.notifications import send_slack_notification
-from vivarium_cluster_tools.dagger.workflow_config.builder import build_workflow_from_config
-from vivarium_cluster_tools.dagger.workflow_config.config import WorkflowConfig
-from vivarium_cluster_tools.dagger.workflow_config.serialization import (
+from vivarium_cluster_tools.dagger.config.builder import build_workflow_from_config
+from vivarium_cluster_tools.dagger.config.config import WorkflowConfig
+from vivarium_cluster_tools.dagger.config.serialization import (
     workflow_config_to_dict,
 )
-from vivarium_cluster_tools.dagger.workflow_config.utilities import WORKFLOW_ARGS_FILENAME
+from vivarium_cluster_tools.dagger.config.utilities import WORKFLOW_ARGS_FILENAME
 
 
 def workflow_main(

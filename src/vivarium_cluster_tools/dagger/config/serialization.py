@@ -5,12 +5,12 @@ Workflow Step Serialization
 
 ParsedStep -> YAML dict translation for workflow steps. Each step type has
 a serializer that turns its ``api_kwargs`` (carried on a
-:class:`~vivarium_cluster_tools.dagger.workflow_config.config.ParsedStep`)
+:class:`~vivarium_cluster_tools.dagger.config.config.ParsedStep`)
 back into the dict shape expected in a workflow YAML file.
 
 Also exposes :func:`workflow_config_to_dict`, the workflow-level entry
 point that serializes a full
-:class:`~vivarium_cluster_tools.dagger.workflow_config.config.WorkflowConfig`.
+:class:`~vivarium_cluster_tools.dagger.config.config.WorkflowConfig`.
 
 """
 
@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
-from vivarium_cluster_tools.dagger.workflow_config.config import (
+from vivarium_cluster_tools.dagger.config.config import (
     DEFAULT_BACKUP_FREQ_SECONDS,
     ParsedStep,
     WorkflowConfig,
@@ -147,7 +147,7 @@ STEP_TYPE_YAML_SERIALIZERS: dict[str, Callable[[ParsedStep], dict[str, Any]]] = 
 
 
 def workflow_config_to_dict(config: WorkflowConfig) -> dict[str, Any]:
-    """Serialize a :class:`~vivarium_cluster_tools.dagger.workflow_config.config.WorkflowConfig` to a dict suitable for YAML output."""
+    """Serialize a :class:`~vivarium_cluster_tools.dagger.config.config.WorkflowConfig` to a dict suitable for YAML output."""
     result: dict[str, Any] = {
         "name": config.name,
         "project": config.project,
