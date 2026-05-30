@@ -1,6 +1,6 @@
 """Tests for the ``dagger`` CLI surface.
 
-Each test invokes the click group with a mocked ``workflow_main`` so the
+Each test invokes the click group with a mocked ``run_workflow`` so the
 suite exercises only the CLI-parsing and config-loading layer.
 """
 
@@ -16,7 +16,7 @@ from click.testing import CliRunner
 
 from vivarium_cluster_tools.dagger.cli import dagger
 
-_WORKFLOW_MAIN = "vivarium_cluster_tools.dagger.cli.runner.workflow_main"
+_WORKFLOW_MAIN = "vivarium_cluster_tools.dagger.cli.runner.run_workflow"
 
 
 def _write_yaml(tmp_path: Path, data: dict[str, Any], name: str = "pipeline.yaml") -> Path:
@@ -50,7 +50,7 @@ class TestDaggerRun:
 
     def test_run_with_config_file(self, tmp_path: Path) -> None:
         """``dagger run`` with only ``--config`` loads the YAML and dispatches
-        the parsed config to ``workflow_main``."""
+        the parsed config to ``run_workflow``."""
         workflow_yaml = _write_yaml(tmp_path, _make_workflow_dict(tmp_path))
 
         cli_runner = CliRunner()

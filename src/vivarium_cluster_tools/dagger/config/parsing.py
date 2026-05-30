@@ -444,8 +444,7 @@ def load_workflow_config(
     output_directory
         CLI override for the output directory.
     default_environment
-        CLI override for the default_environment field. ``None`` from the
-        CLI falls back to the YAML value (which itself may be absent).
+        CLI override for the default_environment field.
     max_attempts
         CLI override for the maximum number of Jobmon task attempts.
 

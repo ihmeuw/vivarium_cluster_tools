@@ -23,13 +23,11 @@ from vivarium_cluster_tools.core.jobmon import client
 from vivarium_cluster_tools.core.notifications import send_slack_notification
 from vivarium_cluster_tools.dagger.config.builder import build_workflow_from_config
 from vivarium_cluster_tools.dagger.config.config import WorkflowConfig
-from vivarium_cluster_tools.dagger.config.serialization import (
-    workflow_config_to_dict,
-)
+from vivarium_cluster_tools.dagger.config.serialization import workflow_config_to_dict
 from vivarium_cluster_tools.dagger.config.utilities import WORKFLOW_ARGS_FILENAME
 
 
-def workflow_main(
+def run_workflow(
     workflow_config: WorkflowConfig,
     verbose: int = 0,
     resume: bool = False,
@@ -64,7 +62,7 @@ def workflow_main(
         workflow_args = f"workflow_{workflow_config.name}_{output_hash}_{timestamp}"
 
     # Write the requested configuration to output directory
-    write_workflow_configuration(output_root, workflow_config)
+    _write_workflow_configuration(output_root, workflow_config)
 
     # Build the workflow
     logger.debug("Building workflow.")
@@ -96,7 +94,7 @@ def workflow_main(
     logger.info(f"Workflow completed successfully. Results in {output_root}")
 
 
-def write_workflow_configuration(output_root: Path, workflow_config: WorkflowConfig) -> None:
+def _write_workflow_configuration(output_root: Path, workflow_config: WorkflowConfig) -> None:
     """Write workflow configuration to a YAML file in the output directory.
 
     Creates a ``configuration.yaml`` that can be reused directly with

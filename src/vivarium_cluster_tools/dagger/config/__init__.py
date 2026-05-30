@@ -14,6 +14,4 @@ from vivarium_cluster_tools.dagger.config.config import (
     WorkflowConfig,
 )
 from vivarium_cluster_tools.dagger.config.parsing import load_workflow_config
-from vivarium_cluster_tools.dagger.config.serialization import (
-    workflow_config_to_dict,
-)
+from vivarium_cluster_tools.dagger.config.serialization import workflow_config_to_dict

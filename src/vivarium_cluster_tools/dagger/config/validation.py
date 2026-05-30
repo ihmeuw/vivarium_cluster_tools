@@ -20,10 +20,7 @@ from vivarium_cluster_tools.dagger.config.config import (
     DEFAULT_BACKUP_FREQ_SECONDS,
     ResourceConfig,
 )
-from vivarium_cluster_tools.dagger.config.utilities import (
-    check_scalar,
-    validate_scalar_dict,
-)
+from vivarium_cluster_tools.dagger.config.utilities import check_scalar, validate_scalar_dict
 
 _PYTHON_IDENTIFIER_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
 """Notebook parameter keys must be valid Python identifiers because papermill

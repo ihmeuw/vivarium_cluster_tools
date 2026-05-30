@@ -114,7 +114,7 @@ def run(
         max_attempts=max_attempts,
     )
 
-    main = handle_exceptions(runner.workflow_main, logger, with_debugger)
+    main = handle_exceptions(runner.run_workflow, logger, with_debugger)
 
     main(
         workflow_config=workflow_config,

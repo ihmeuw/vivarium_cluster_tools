@@ -11,13 +11,13 @@ import pytest
 import yaml
 from click.testing import CliRunner
 
-from vivarium_cluster_tools.dagger.runner import workflow_main, write_workflow_configuration
 from vivarium_cluster_tools.dagger.config.config import (
     ParsedStep,
     ResourceConfig,
     WorkflowConfig,
 )
 from vivarium_cluster_tools.dagger.config.utilities import WORKFLOW_ARGS_FILENAME
+from vivarium_cluster_tools.dagger.runner import _write_workflow_configuration, run_workflow
 
 _RUNNER = "vivarium_cluster_tools.dagger.runner"
 
@@ -56,7 +56,7 @@ def workflow_config(tmp_path: Path) -> WorkflowConfig:
 
 
 def _read_configuration_yaml(output_root: Path) -> dict[str, Any]:
-    """Read and parse the configuration.yaml written by ``write_workflow_configuration``."""
+    """Read and parse the configuration.yaml written by ``_write_workflow_configuration``."""
     config_file = output_root / "configuration.yaml"
     assert config_file.exists()
     result: dict[str, Any] = yaml.safe_load(config_file.read_text())
@@ -64,7 +64,7 @@ def _read_configuration_yaml(output_root: Path) -> dict[str, Any]:
 
 
 def test_write_workflow_configuration_writes_round_trippable_yaml(tmp_path: Path) -> None:
-    """``write_workflow_configuration`` writes a YAML that captures every
+    """``_write_workflow_configuration`` writes a YAML that captures every
     top-level workflow field plus the step list."""
     output_dir = tmp_path / "workflow_output"
     output_dir.mkdir()
@@ -102,7 +102,7 @@ def test_write_workflow_configuration_writes_round_trippable_yaml(tmp_path: Path
         ],
     )
 
-    write_workflow_configuration(output_dir, workflow_config)
+    _write_workflow_configuration(output_dir, workflow_config)
 
     config = _read_configuration_yaml(output_dir)
     assert config["workflow"]["name"] == "test_workflow"
@@ -144,12 +144,12 @@ def test_workflow_configuration_includes_cli_overrides(tmp_path: Path) -> None:
     )
 
     cli_runner = CliRunner()
-    with patch("vivarium_cluster_tools.dagger.runner.workflow_main") as mock_workflow_main:
+    with patch("vivarium_cluster_tools.dagger.runner.run_workflow") as mock_run_workflow:
 
         def mock_impl(**kwargs: Any) -> None:
-            write_workflow_configuration(output_dir, kwargs["workflow_config"])
+            _write_workflow_configuration(output_dir, kwargs["workflow_config"])
 
-        mock_workflow_main.side_effect = mock_impl
+        mock_run_workflow.side_effect = mock_impl
 
         result = cli_runner.invoke(
             dagger,
@@ -175,7 +175,7 @@ def test_workflow_configuration_includes_cli_overrides(tmp_path: Path) -> None:
 @patch(f"{_RUNNER}.send_slack_notification")
 @patch(f"{_RUNNER}.client.bind_and_run_workflow")
 @patch(f"{_RUNNER}.build_workflow_from_config")
-def test_workflow_main_fresh_run_generates_workflow_args(
+def test_run_workflow_fresh_run_generates_workflow_args(
     mock_build: Any,
     mock_bind_and_run: Any,
     mock_slack: Any,
@@ -186,7 +186,7 @@ def test_workflow_main_fresh_run_generates_workflow_args(
     forwards it to the builder, and tags the Slack notification as "dagger run"."""
     mock_bind_and_run.return_value = ("D", "https://jobmon.example/wf/1")
 
-    workflow_main(workflow_config=workflow_config, resume=False)
+    run_workflow(workflow_config=workflow_config, resume=False)
 
     workflow_args = mock_build.call_args.kwargs["workflow_args"]
     pattern = rf"^workflow_{workflow_config.name}_[0-9a-f]{{8}}_\d{{8}}_\d{{6}}$"
@@ -204,7 +204,7 @@ def test_workflow_main_fresh_run_generates_workflow_args(
 @patch(f"{_RUNNER}.send_slack_notification")
 @patch(f"{_RUNNER}.client.bind_and_run_workflow")
 @patch(f"{_RUNNER}.build_workflow_from_config")
-def test_workflow_main_resume_reads_existing_workflow_args(
+def test_run_workflow_resume_reads_existing_workflow_args(
     mock_build: Any,
     mock_bind_and_run: Any,
     mock_slack: Any,
@@ -217,7 +217,7 @@ def test_workflow_main_resume_reads_existing_workflow_args(
     (workflow_config.output_directory / WORKFLOW_ARGS_FILENAME).write_text(prior_args)
     mock_bind_and_run.return_value = ("D", None)
 
-    workflow_main(workflow_config=workflow_config, resume=True)
+    run_workflow(workflow_config=workflow_config, resume=True)
 
     assert mock_build.call_args.kwargs["workflow_args"] == prior_args
     assert mock_bind_and_run.call_args.kwargs["resume"] is True
@@ -227,7 +227,7 @@ def test_workflow_main_resume_reads_existing_workflow_args(
 @patch(f"{_RUNNER}.send_slack_notification")
 @patch(f"{_RUNNER}.client.bind_and_run_workflow")
 @patch(f"{_RUNNER}.build_workflow_from_config")
-def test_workflow_main_raises_when_status_not_done(
+def test_run_workflow_raises_when_status_not_done(
     mock_build: Any,
     mock_bind_and_run: Any,
     mock_slack: Any,
@@ -239,7 +239,7 @@ def test_workflow_main_raises_when_status_not_done(
     mock_bind_and_run.return_value = ("F", "https://jobmon.example/wf/2")
 
     with pytest.raises(RuntimeError, match="'F'"):
-        workflow_main(workflow_config=workflow_config, resume=False)
+        run_workflow(workflow_config=workflow_config, resume=False)
 
     slack_kwargs = mock_slack.call_args.kwargs
     assert slack_kwargs["status"] == "F"

@@ -3,11 +3,7 @@
 Workflow Configuration
 ======================
 
-Workflow configuration dataclasses (``ResourceConfig``, ``ParsedStep``,
-``WorkflowConfig``) and workflow-level YAML structural validation. All
-step-level YAML I/O lives in
-:mod:`vivarium_cluster_tools.dagger.config.parsing`.
-
+Top-level workflow fields that must appear in the YAML file rather than a CLI override.
 """
 
 from __future__ import annotations
