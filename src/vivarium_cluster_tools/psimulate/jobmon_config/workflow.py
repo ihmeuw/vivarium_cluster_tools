@@ -161,7 +161,7 @@ def _simulation_resource_scales(
 
     Jobmon's scale formula is ``ceil(orig * (1 + scale))``. Supplying any
     ``resource_scales`` dict suppresses Jobmon's full default, so memory
-    is restated at ``0.5`` to preserve its default +50% retry growth;
+    is defined at ``0.5`` to preserve its default value +50% retry growth;
     runtime is set to ``-0.5`` to shrink the retry's request to half
     because the worker resumes from backup.
     """
