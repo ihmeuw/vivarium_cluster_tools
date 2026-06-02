@@ -1,5 +1,36 @@
+======================
 Vivarium Cluster Tools
-=======================
+======================
+
+**NOTE: This repository has been archived.**
+
+The ``vivarium_cluster_tools`` package has been renamed and migrated into the
+`vivarium-suite monorepo <https://github.com/ihmeuw/vivarium-suite>`_.
+
+What changed
+------------
+
+- **Import path:** ``vivarium_cluster_tools`` -> ``vivarium.cluster_tools``
+- **Source:** ``ihmeuw/vivarium_cluster_tools`` (archived) ->
+  ``ihmeuw/vivarium-suite`` (under ``libs/cluster-tools/``)
+
+To migrate fully to the new package
+-----------------------------------
+
+**Install:**
+
+.. code-block:: bash
+
+    pip install vivarium-cluster-tools  # no change here
+
+**Import:**
+
+.. code-block:: python
+
+    import vivarium.cluster_tools  # was: import vivarium_cluster_tools
+
+Original package overview
+=========================
 
 .. image:: https://badge.fury.io/py/vivarium-cluster-tools.svg
     :target: https://badge.fury.io/py/vivarium-cluster-tools

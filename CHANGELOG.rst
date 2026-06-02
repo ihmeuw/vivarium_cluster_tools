@@ -1,3 +1,8 @@
+**3.1.6 - 06/02/26**
+
+- Add notes about this repository being archived to the README. A proper shim
+  release will likely be added in the future.
+
 **3.1.5 - 05/20/26**
 
 - Add tests covering the ``backup_freq=None`` (no-backup) code path
