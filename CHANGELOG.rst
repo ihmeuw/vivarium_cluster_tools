@@ -1,7 +1,7 @@
 **3.1.6 - 06/02/26**
 
-- Add notes about this repository being archived to the README. A proper shim
-  release will likely be added in the future.
+- Adds an archive banner to the README pointing at the ``vivarium-suite``
+  monorepo (``libs/cluster-tools/``, published as ``vivarium-cluster-tools``).
 
 **3.1.5 - 05/20/26**
 
